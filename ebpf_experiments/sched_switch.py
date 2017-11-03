@@ -19,15 +19,15 @@ TRACEPOINT_PROBE(sched, sched_switch) {{
     */
 
     if (args->next_pid == {}) {{
-        bpf_trace_printk("Switching... next PID: %d, CPU cycles: %d\\n",
-            args->next_pid, cpu_cycles.perf_read(0));
+        u64 cpu_cycles_count = cpu_cycles.perf_read(CUR_CPU_IDENTIFIER);
+        bpf_trace_printk("Switching... next PID: %d, CPU cycles: %llu\\n",
+            args->next_pid, cpu_cycles_count);
     }}
     return 0;
 }};
 """.format(pid)
 
 b = BPF(text=text, cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count()])
-# b["cpu_cycles"].open_perf_event(b["cpu_cycles"].HW_CPU_CYCLES)
 b["cpu_cycles"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CPU_CYCLES)
 
 # header
