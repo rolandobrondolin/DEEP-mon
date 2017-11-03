@@ -3,7 +3,10 @@
 #include <linux/tracepoint.h>
 #include <linux/kernel.h>
 
-#define SEC(NAME) __attribute__((section(NAME), used))
+//#define SEC(NAME) __attribute__((section(NAME), used))
+
+BPF_PERF_OUTPUT(events);
+BPF_PERF_ARRAY(cpu_cycles, NUM_CPUS);
 
 // define output data structure in C
 struct data_t {
@@ -13,8 +16,8 @@ struct data_t {
     u64 processor_id;
     char old_comm[16];
     char new_comm[16];
+    u64 cycles;
 };
-BPF_PERF_OUTPUT(events);
 
 struct sched_switch_args {
 	__u64 pad; // regs after 4.x?
@@ -27,32 +30,23 @@ struct sched_switch_args {
 	int next_prio;
 };
 
-// SEC("/sys/kernel/debug/tracing/events/sched/sched_switch/format")
-// int kprobe_function(struct pt_regs *ctx) {
-// 	struct data_t data = {};
-
-// 	data.pid = bpf_get_current_pid_tgid();
-// 	data.ts = bpf_ktime_get_ns();
-// 	data.tid = 0;
-// 	data.processor_id = bpf_get_smp_processor_id();
-// 	bpf_get_current_comm(&data.comm, sizeof(data.comm));
-
-// 	events.perf_submit(ctx, &data, sizeof(data));
-
-// 	return 0;
-// }
-
-//SEC("tracepoint/sched/sched_switch")
 //SEC("tracepoint/sched/sched_switch")
 int trace_function(struct sched_switch_args *ctx) {
-	struct data_t data = {};
-	data.ts = bpf_ktime_get_ns();
-	data.old_pid = ctx->prev_pid;
-	data.new_pid = ctx->next_pid;
-	data.processor_id = bpf_get_smp_processor_id();
-	bpf_probe_read(&(data.old_comm), sizeof(data.old_comm), ctx->prev_comm);
-	bpf_probe_read(&(data.new_comm), sizeof(data.new_comm), ctx->next_comm);
-	events.perf_submit(ctx, &data, sizeof(data));
+
+	if(ctx->prev_pid != FILTER_PID && ctx->next_pid != FILTER_PID) {
+		struct data_t data = {};
+		data.ts = bpf_ktime_get_ns();
+		data.old_pid = ctx->prev_pid;
+		data.new_pid = ctx->next_pid;
+		data.processor_id = bpf_get_smp_processor_id();
+		bpf_probe_read(&(data.old_comm), sizeof(data.old_comm), ctx->prev_comm);
+		bpf_probe_read(&(data.new_comm), sizeof(data.new_comm), ctx->next_comm);
+
+		data.cycles = cpu_cycles.perf_read(data.processor_id);
+		events.perf_submit(ctx, &data, sizeof(data));
+	}
+	
+	return 0;
 }
 
 
