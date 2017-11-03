@@ -33,7 +33,7 @@ struct sched_switch_args {
 //SEC("tracepoint/sched/sched_switch")
 int trace_function(struct sched_switch_args *ctx) {
 
-	if(ctx->prev_pid != FILTER_PID && ctx->next_pid != FILTER_PID) {
+	//if(ctx->prev_pid != FILTER_PID && ctx->next_pid != FILTER_PID) {
 		struct data_t data = {};
 		data.ts = bpf_ktime_get_ns();
 		data.old_pid = ctx->prev_pid;
@@ -44,7 +44,7 @@ int trace_function(struct sched_switch_args *ctx) {
 
 		data.cycles = cpu_cycles.perf_read(data.processor_id);
 		events.perf_submit(ctx, &data, sizeof(data));
-	}
+	//}
 	
 	return 0;
 }

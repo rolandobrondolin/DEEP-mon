@@ -43,10 +43,11 @@ def print_event(cpu, data, size):
     print str(time_s) + " " + event.old_comm + " " + str(event.old_pid) + " " + event.new_comm + " " + str(event.new_pid) + " " + str(event.processor_id) + " " + str(event.cycles)
 
 # loop with callback to print_event
-bpf_tracer["events"].open_perf_buffer(print_event)
+bpf_tracer["events"].open_perf_buffer(print_event, page_cnt=256)
 
 try:
-    while 1:
+    while True:
         bpf_tracer.kprobe_poll()
-except:
+        time.sleep(0.1)
+except(KeyboardInterrupt):
     print(str(count) + " " + str(start) + " " + str(end) + " " + str(elapsed))
