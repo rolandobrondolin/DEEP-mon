@@ -4,3 +4,4 @@ BPF(text='''
 		bpf_trace_printk("%llu\\n", bpf_get_smp_processor_id()); 
 		return 0; 
 	}''').trace_print()
+

@@ -19,12 +19,14 @@ int hello(struct pt_regs *ctx) {
     data.pid = bpf_get_current_pid_tgid();
     data.ts = bpf_ktime_get_ns();
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
-    
+
     events.perf_submit(ctx, &data, sizeof(data));
 
     return 0;
 }
 """
+
+print prog;
 
 # load BPF program
 b = BPF(text=prog)
