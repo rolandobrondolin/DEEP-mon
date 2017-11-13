@@ -175,7 +175,7 @@ entering_pid: old_pid = 0;
         //If no status for PID, then create one, otherwise update selector
         if(status_new.pid == new_pid && new_pid != 0) {
                 // here just update the selector and reset counter if needed
-                if(status_new.bpf_selector != bpf_selector || status_new.ts > ts + STEP) {
+                if(status_new.bpf_selector != bpf_selector || status_new.ts + STEP < ts) {
                         status_new.bpf_selector = bpf_selector;
                         if(bpf_selector) {
                                 status_new.weighted_cycles[1] = 0;

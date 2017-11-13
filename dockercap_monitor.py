@@ -81,7 +81,7 @@ bpf_program.attach_tracepoint(tp="sched:sched_switch", fn_name="trace_function")
 
 # sleep and retrieve data
 while True:
-    time.sleep(2)
+    time.sleep(1)
     # print debug stuff
     #bpf_program.kprobe_poll()
 
