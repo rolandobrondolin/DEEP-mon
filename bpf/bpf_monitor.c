@@ -53,6 +53,8 @@ BPF_HASH(pids, int, struct pid_status);
 BPF_HASH(conf, int, unsigned int);
 
 #define STEP 2000000000
+#define HAPPY_FACTOR 10
+#define STD_FACTOR 1
 
 int trace_function(struct sched_switch_args *ctx) {
         int conf_key = 0;
@@ -89,7 +91,7 @@ int trace_function(struct sched_switch_args *ctx) {
                 }
                 u64 old_cycles = (sibling_info->ts > topology_info.ts) ? sibling_info->cycles : topology_info.cycles;
 
-                u64 weight_factor = 1;
+                u64 weight_factor = STD_FACTOR;
                 //find the sibling pid status
                 if(sibling_info->running_pid != 0) {
                         int sibling_pid = 0;
@@ -97,7 +99,7 @@ int trace_function(struct sched_switch_args *ctx) {
                         struct pid_status sibling_process;// = pids.lookup(&(sibling_pid));
                         bpf_probe_read(&sibling_process, sizeof(sibling_process), pids.lookup(&(sibling_pid)));
                         if(sibling_process.pid == sibling_pid && sibling_process.pid != 0) {
-                                weight_factor = 10;
+                                weight_factor = HAPPY_FACTOR;
                                 if(sibling_process.bpf_selector == 0) {
                                   sibling_process.weighted_cycles[0] += (cycles - old_cycles) + (cycles - old_cycles)/weight_factor;
                                   sibling_process.ts = ts;

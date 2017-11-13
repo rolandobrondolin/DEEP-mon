@@ -31,7 +31,7 @@ processors = bpf_program.get_table("processors")
 pids = bpf_program.get_table("pids")
 conf = bpf_program.get_table("conf")
 # set default bpf_selector
-conf[ct.c_int(0)] = ct.c_uint(0)
+conf[ct.c_int(0)] = ct.c_uint(1)
 
 # parse /proc/cpuinfo to obtain processor topology
 ht_id = 0
@@ -72,8 +72,19 @@ bpf_program.attach_tracepoint(tp="sched:sched_switch", fn_name="trace_function")
 # sleep and retrieve data
 while True:
     time.sleep(2)
-    if conf[ct.c_int(0)] == 0:
-        conf[ct.c_int(0)] = ct.c_int(1)
+    print conf[ct.c_int(0)].value
+    if conf[ct.c_int(0)].value == 0:
+        conf[ct.c_int(0)] = ct.c_uint(1)
+
+        for key, data in pids.items():
+            #data = ct.cast(data, ct.POINTER(PidStatus)).contents
+            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
+        print "\n"
 
     else:
-        conf[ct.c_int(0)] = ct.c_int(1)
+        conf[ct.c_int(0)] = ct.c_uint(0)
+
+        for key, data in pids.items():
+            #data = ct.cast(data, ct.POINTER(PidStatus)).contents
+            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
+        print "\n"
