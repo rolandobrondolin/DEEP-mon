@@ -22,6 +22,9 @@ class PidStatus(ct.Structure):
                 ("bpf_selector", ct.c_int),
                 ("ts", ct.c_ulonglong)]
 
+class ErrorCode(ct.Structure):
+    _fields_ = [("err", ct.c_int)]
+
 #Load BPF program
 bpf_program = BPF(src_file="bpf/bpf_monitor.c", cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count()])
 # Open cycles PMC
@@ -67,24 +70,30 @@ for key, value in coresDict.iteritems():
         ct.c_ulonglong(0), ct.c_int(0))
     processors[ct.c_ulonglong(key)] = core
 
+def print_event(cpu, data, size):
+    event = ct.cast(data, ct.POINTER(ErrorCode)).contents
+    print str(cpu) + " " + str(event.err)
+
 # attach TRACEPOINT
 bpf_program.attach_tracepoint(tp="sched:sched_switch", fn_name="trace_function")
+# attach error buffer
+#bpf_program["err"].open_perf_buffer(print_event, page_cnt=256)
+
 # sleep and retrieve data
 while True:
     time.sleep(2)
+    # print debug stuff
+    #bpf_program.kprobe_poll()
+
     print conf[ct.c_int(0)].value
     if conf[ct.c_int(0)].value == 0:
         conf[ct.c_int(0)] = ct.c_uint(1)
-
         for key, data in pids.items():
-            #data = ct.cast(data, ct.POINTER(PidStatus)).contents
             print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
         print "\n"
 
     else:
         conf[ct.c_int(0)] = ct.c_uint(0)
-
         for key, data in pids.items():
-            #data = ct.cast(data, ct.POINTER(PidStatus)).contents
             print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
         print "\n"
