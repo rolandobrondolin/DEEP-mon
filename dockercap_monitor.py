@@ -19,6 +19,7 @@ class PidStatus(ct.Structure):
     _fields_ = [("pid", ct.c_int),
                 ("comm", ct.c_char * TASK_COMM_LEN),
                 ("weighted_cycles", ct.c_ulonglong * 2),
+                ("time_ns", ct.c_ulonglong * 2),
                 ("bpf_selector", ct.c_int),
                 ("ts", ct.c_ulonglong)]
 
@@ -91,13 +92,13 @@ while True:
         conf[ct.c_int(0)] = ct.c_uint(1)
         for key, data in pids.items():
             i = i+1
-            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.bpf_selector)
+            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
         print "\n"
 
     else:
         conf[ct.c_int(0)] = ct.c_uint(0)
         for key, data in pids.items():
             i = i+1
-            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
+            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
         print "\n"
     print "thread num: " + str(i)

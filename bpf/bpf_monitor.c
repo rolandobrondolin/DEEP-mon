@@ -2,6 +2,7 @@ struct pid_status {
         int pid;
         char comm[16];
         u64 weighted_cycles[2];
+        u64 time_ns[2];
         // set which item of weighted_cycles should be used in bpf
         // in user space, the weighted_cycles is read and initialized
         unsigned int bpf_selector;
@@ -116,6 +117,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                         return 0;
                 }
                 u64 old_cycles = (sibling_info->ts > topology_info.ts) ? sibling_info->cycles : topology_info.cycles;
+                u64 old_time = (sibling_info->ts > topology_info.ts) ? sibling_info->ts : topology_info.ts;
 
                 //discard sample if cycles counter did overflow
                 if (cycles < old_cycles) {
@@ -134,10 +136,12 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 weight_factor = HAPPY_FACTOR;
                                 if(sibling_process.bpf_selector == 0) {
                                         sibling_process.weighted_cycles[0] += (cycles - old_cycles) + (cycles - old_cycles)/weight_factor;
+                                        sibling_process.time_ns[0] += ts - old_time;
                                         sibling_process.ts = ts;
                                         pids.update(&(sibling_pid), &sibling_process);
                                 } else if (sibling_process.bpf_selector == 1) {
                                         sibling_process.weighted_cycles[1] += (cycles - old_cycles) + (cycles - old_cycles)/weight_factor;
+                                        sibling_process.time_ns[1] += ts - old_time;
                                         sibling_process.ts = ts;
                                         pids.update(&(sibling_pid), &sibling_process);
                                 } else {
@@ -155,10 +159,12 @@ int trace_switch(struct sched_switch_args *ctx) {
                 //increment counters on our pid
                 if(status_old.bpf_selector == 0) {
                         status_old.weighted_cycles[0] += (cycles - old_cycles) + (cycles - old_cycles)/weight_factor;
+                        status_old.time_ns[0] += ts - old_time;
                         status_old.ts = ts;
                         pids.update(&old_pid, &status_old);
                 } else if (status_old.bpf_selector == 1) {
                         status_old.weighted_cycles[1] += (cycles - old_cycles) + (cycles - old_cycles)/weight_factor;
+                        status_old.time_ns[1] += ts - old_time;
                         status_old.ts = ts;
                         pids.update(&old_pid, &status_old);
                 } else {
@@ -183,8 +189,10 @@ entering_pid: old_pid = 0;
                         status_new.bpf_selector = bpf_selector;
                         if(bpf_selector) {
                                 status_new.weighted_cycles[1] = 0;
+                                status_new.time_ns[1] = 0;
                         } else if (!bpf_selector) {
                                 status_new.weighted_cycles[0] = 0;
+                                status_new.time_ns[0] = 0;
                         } else {
                                 // selector corrupted, do nothing
                                 return 0;
@@ -197,6 +205,8 @@ entering_pid: old_pid = 0;
                 status_new.ts = ts;
                 status_new.weighted_cycles[0] = 0;
                 status_new.weighted_cycles[1] = 0;
+                status_new.time_ns[0] = 0;
+                status_new.time_ns[1] = 0;
                 status_new.bpf_selector = bpf_selector;
                 pids.insert(&new_pid, &status_new);
         }
@@ -220,7 +230,7 @@ int trace_exit(struct sched_process_exit_args *ctx) {
         u64 ts = bpf_ktime_get_ns();
         u64 processor_id = bpf_get_smp_processor_id();
 
-        //remove the pid from the table
+        //remove the pid from the table if there
         pids.delete(&pid);
 
         struct proc_topology topology_info;
