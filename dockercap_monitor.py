@@ -75,7 +75,8 @@ def print_event(cpu, data, size):
     print str(cpu) + " " + str(event.err)
 
 # attach TRACEPOINT
-bpf_program.attach_tracepoint(tp="sched:sched_switch", fn_name="trace_function")
+bpf_program.attach_tracepoint(tp="sched:sched_switch", fn_name="trace_switch")
+bpf_program.attach_tracepoint(tp="sched:sched_process_exit", fn_name="trace_exit")
 # attach error buffer
 #bpf_program["err"].open_perf_buffer(print_event, page_cnt=256)
 
@@ -84,16 +85,19 @@ while True:
     time.sleep(1)
     # print debug stuff
     #bpf_program.kprobe_poll()
-
+    i = 0
     print conf[ct.c_int(0)].value
     if conf[ct.c_int(0)].value == 0:
         conf[ct.c_int(0)] = ct.c_uint(1)
         for key, data in pids.items():
+            i = i+1
             print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
         print "\n"
 
     else:
         conf[ct.c_int(0)] = ct.c_uint(0)
         for key, data in pids.items():
+            i = i+1
             print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
         print "\n"
+    print "thread num: " + str(i)

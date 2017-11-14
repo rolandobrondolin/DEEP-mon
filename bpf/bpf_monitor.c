@@ -62,7 +62,7 @@ BPF_HASH(pids, int, struct pid_status);
 BPF_HASH(conf, int, unsigned int);
 
 #define STEP 2000000000
-#define HAPPY_FACTOR 10
+#define HAPPY_FACTOR 5
 #define STD_FACTOR 1
 
 
@@ -74,26 +74,30 @@ static void send_error(struct sched_switch_args *ctx, int err_code) {
 #endif
 }
 
-int trace_function(struct sched_switch_args *ctx) {
+int trace_switch(struct sched_switch_args *ctx) {
         int conf_key = 0;
-        unsigned int bpf_selector = 0;// = conf.lookup(&conf_key);
+        unsigned int bpf_selector = 0;
         bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&conf_key));
-
+        // if selector is not in place correctly, signal debug error and stop
+        // tracing routine
         if (bpf_selector > 1) {
                 send_error(ctx, 0);
                 return 0;
         }
 
+        // get data about processor and performance counters
+        // lookup also the pid of the exiting process
         u64 processor_id = bpf_get_smp_processor_id();
         u64 cycles = cpu_cycles.perf_read(processor_id);
         u64 ts = bpf_ktime_get_ns();
         int old_pid = ctx->prev_pid;
 
-
-        struct pid_status status_old;// = pids.lookup(&(old_pid));
+        // fetch the status of the exiting pid
+        struct pid_status status_old;
         bpf_probe_read(&status_old, sizeof(status_old), pids.lookup(&(old_pid)));
 
-        struct proc_topology topology_info;// = processors.lookup(&processor_id);
+        // fetch data about processor executing the thing
+        struct proc_topology topology_info;
         bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
 
         if(topology_info.ht_id > NUM_CPUS) {
@@ -209,5 +213,24 @@ handle_entering_pid: send_error(ctx, 6);
 }
 
 int trace_exit(struct sched_process_exit_args *ctx) {
-  return 0;
+
+        char comm[16];
+        bpf_probe_read(&(comm), sizeof(comm), ctx->comm);
+        int pid = ctx->pid;
+        u64 ts = bpf_ktime_get_ns();
+        u64 processor_id = bpf_get_smp_processor_id();
+
+        //remove the pid from the table
+        pids.delete(&pid);
+
+        struct proc_topology topology_info;
+        bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
+
+        topology_info.running_pid = 0;
+        topology_info.cycles = 0;
+        topology_info.ts = ts;
+
+        processors.update(&processor_id, &topology_info);
+
+        return 0;
 }
