@@ -58,10 +58,10 @@ with open('/proc/cpuinfo') as f:
                 if value[2] == core_id:
                     found = True
                     value[1] = ht_id
-                    coresDict[ht_id] = [ht_id, value[0], core_id, processor_id]
+                    coresDict[ht_id] = [ht_id, value[0], core_id, processor_id, 0, 0, -1]
                     break
             if not found:
-                coresDict[ht_id] = [ht_id, -1, core_id, processor_id]
+                coresDict[ht_id] = [ht_id, -1, core_id, processor_id, 0, 0, -1]
 
 # populate processors hash with proc topology
 for key, value in coresDict.iteritems():
@@ -91,13 +91,13 @@ while True:
         conf[ct.c_int(0)] = ct.c_uint(1)
         for key, data in pids.items():
             i = i+1
-            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
+            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.bpf_selector)
         print "\n"
 
     else:
         conf[ct.c_int(0)] = ct.c_uint(0)
         for key, data in pids.items():
             i = i+1
-            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
+            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(data.bpf_selector)
         print "\n"
     print "thread num: " + str(i)

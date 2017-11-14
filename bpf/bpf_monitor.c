@@ -105,7 +105,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                 return 0;
         }
 
-        if(status_old.pid != 0 && status_old.pid == old_pid) {
+        if(status_old.pid == old_pid) {
                 //find the entry related to processor_id and its sibling
                 u64 sibling_id = 0;
                 bpf_probe_read(&sibling_id, sizeof(sibling_id), &topology_info.sibling_id);
@@ -125,12 +125,12 @@ int trace_switch(struct sched_switch_args *ctx) {
 
                 u64 weight_factor = STD_FACTOR;
                 //find the sibling pid status
-                if(sibling_info->running_pid != 0) {
+                if(sibling_info->running_pid > 0) {
                         int sibling_pid = 0;
                         bpf_probe_read(&sibling_pid, sizeof(sibling_pid), &sibling_info->running_pid);
                         struct pid_status sibling_process;// = pids.lookup(&(sibling_pid));
                         bpf_probe_read(&sibling_process, sizeof(sibling_process), pids.lookup(&(sibling_pid)));
-                        if(sibling_process.pid == sibling_pid && sibling_process.pid != 0) {
+                        if(sibling_process.pid == sibling_pid && sibling_process.pid > 0) {
                                 weight_factor = HAPPY_FACTOR;
                                 if(sibling_process.bpf_selector == 0) {
                                         sibling_process.weighted_cycles[0] += (cycles - old_cycles) + (cycles - old_cycles)/weight_factor;
@@ -177,7 +177,7 @@ entering_pid: old_pid = 0;
         bpf_probe_read(&status_new, sizeof(status_new), pids.lookup(&(new_pid)));
 
         //If no status for PID, then create one, otherwise update selector
-        if(status_new.pid == new_pid && new_pid != 0) {
+        if(status_new.pid == new_pid) {
                 // here just update the selector and reset counter if needed
                 if(status_new.bpf_selector != bpf_selector || status_new.ts + STEP < ts) {
                         status_new.bpf_selector = bpf_selector;
@@ -191,7 +191,7 @@ entering_pid: old_pid = 0;
                         }
                         pids.update(&new_pid, &status_new);
                 }
-        } else if(new_pid != 0) {
+        } else {
                 bpf_probe_read(&(status_new.comm), sizeof(status_new.comm), ctx->next_comm);
                 status_new.pid = new_pid;
                 status_new.ts = ts;
@@ -227,7 +227,7 @@ int trace_exit(struct sched_process_exit_args *ctx) {
         bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
 
         topology_info.running_pid = 0;
-        topology_info.cycles = 0;
+        topology_info.cycles = cpu_cycles.perf_read(processor_id);
         topology_info.ts = ts;
 
         processors.update(&processor_id, &topology_info);
