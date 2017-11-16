@@ -21,7 +21,7 @@ class PidStatus(ct.Structure):
                 ("weighted_cycles", ct.c_ulonglong * 2),
                 ("time_ns", ct.c_ulonglong * 2),
                 ("bpf_selector", ct.c_int),
-                ("ts", ct.c_ulonglong)]
+                ("ts", ct.c_ulonglong * 2)]
 
 class ErrorCode(ct.Structure):
     _fields_ = [("err", ct.c_int)]
@@ -33,6 +33,7 @@ bpf_program["cpu_cycles"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CPU_CY
 # get tables
 processors = bpf_program.get_table("processors")
 pids = bpf_program.get_table("pids")
+idles = bpf_program.get_table("idles")
 conf = bpf_program.get_table("conf")
 # set default bpf_selector
 conf[ct.c_int(0)] = ct.c_uint(1)
@@ -86,19 +87,48 @@ while True:
     time.sleep(1)
     # print debug stuff
     #bpf_program.kprobe_poll()
-    i = 0
+    i = 0.0
     print conf[ct.c_int(0)].value
     if conf[ct.c_int(0)].value == 0:
         conf[ct.c_int(0)] = ct.c_uint(1)
+
+        tsmax = 0
         for key, data in pids.items():
-            i = i+1
-            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
+            if data.ts[0] > tsmax:
+                tsmax = data.ts[0]
+        for key, data in idles.items():
+            if data.ts[0] > tsmax:
+                tsmax = data.ts[0]
+
+        for key, data in pids.items():
+            if data.ts[0] + 2000000000 > tsmax:
+                i = i + float(data.time_ns[0])/1000000
+                print str(data.pid) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000)
+        print ""
+        for key, data in idles.items():
+            if data.ts[0] + 2000000000 > tsmax:
+                i = i + float(data.time_ns[0])/1000000
+                print str(data.pid) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000)
         print "\n"
 
     else:
         conf[ct.c_int(0)] = ct.c_uint(0)
+        tsmax = 0
         for key, data in pids.items():
-            i = i+1
-            print str(data.pid) + " " + str(data.ts) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
+            if data.ts[1] > tsmax:
+                tsmax = data.ts[1]
+        for key, data in idles.items():
+            if data.ts[1] > tsmax:
+                tsmax = data.ts[1]
+
+        for key, data in pids.items():
+            if data.ts[1] + 2000000000 > tsmax:
+                i = i + float(data.time_ns[1])/1000000
+                print str(data.pid) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000)
+        print ""
+        for key, data in idles.items():
+            if data.ts[1] + 2000000000 > tsmax:
+                i = i + float(data.time_ns[1])/1000000
+                print str(data.pid) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000)
         print "\n"
     print "thread num: " + str(i)
