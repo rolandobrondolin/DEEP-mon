@@ -4,6 +4,7 @@ import ctypes as ct
 import os
 import time
 
+debug = False
 TASK_COMM_LEN = 16
 
 class ProcTopology(ct.Structure):
@@ -80,13 +81,16 @@ def print_event(cpu, data, size):
 bpf_program.attach_tracepoint(tp="sched:sched_switch", fn_name="trace_switch")
 bpf_program.attach_tracepoint(tp="sched:sched_process_exit", fn_name="trace_exit")
 # attach error buffer
-#bpf_program["err"].open_perf_buffer(print_event, page_cnt=256)
-
+if debug == True:
+    bpf_program["err"].open_perf_buffer(print_event, page_cnt=256)
+time_to_sleep = 1
 # sleep and retrieve data
 while True:
-    time.sleep(1)
+    time.sleep(time_to_sleep)
+    start_time = time.time()
     # print debug stuff
-    #bpf_program.kprobe_poll()
+    if debug == True:
+        bpf_program.kprobe_poll()
     i = 0.0
     print conf[ct.c_int(0)].value
     if conf[ct.c_int(0)].value == 0:
@@ -108,7 +112,7 @@ while True:
         for key, data in idles.items():
             if data.ts[0] + 2000000000 > tsmax:
                 i = i + float(data.time_ns[0])/1000000
-                print str(data.pid) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000)
+                print str(key.value) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000)
         print "\n"
 
     else:
@@ -129,6 +133,7 @@ while True:
         for key, data in idles.items():
             if data.ts[1] + 2000000000 > tsmax:
                 i = i + float(data.time_ns[1])/1000000
-                print str(data.pid) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000)
+                print str(key.value) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000)
         print "\n"
-    print "thread num: " + str(i)
+    print "millis run: " + str(i) + " time slept last time in millis: " + str(time_to_sleep*1000)
+    time_to_sleep = 1 - (time.time() - start_time)

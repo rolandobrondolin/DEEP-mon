@@ -63,7 +63,7 @@ BPF_HASH(pids, int, struct pid_status);
 BPF_HASH(idles, u64, struct pid_status);
 BPF_HASH(conf, int, unsigned int);
 
-#define STEP 2000000000
+#define STEP 2000000000 //2000000000
 #define HAPPY_FACTOR 5
 #define STD_FACTOR 1
 
@@ -113,6 +113,9 @@ int trace_switch(struct sched_switch_args *ctx) {
                 return 0;
         }
 
+        //
+        // Do things with the process exiting from execution
+        //
         if(status_old.pid == old_pid) {
                 //find the entry related to processor_id and its sibling
                 u64 sibling_id = 0;
@@ -126,11 +129,6 @@ int trace_switch(struct sched_switch_args *ctx) {
                 u64 old_cycles = (sibling_info->ts > topology_info.ts) ? sibling_info->cycles : topology_info.cycles;
                 u64 old_time = (sibling_info->ts > topology_info.ts) ? sibling_info->ts : topology_info.ts;
 
-                //discard sample if cycles counter did overflow
-                if (cycles < old_cycles) {
-                        // go to entering process
-                        goto handle_entering_pid;
-                }
 
                 u64 weight_factor = STD_FACTOR;
                 u64 weight_enabler = 0;
@@ -152,7 +150,12 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 weight_enabler = 1;
                         }
                         if(sibling_process.bpf_selector == 0) {
-                                sibling_process.weighted_cycles[0] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                                //discard sample if cycles counter did overflow
+                                if (cycles > old_cycles) {
+                                        sibling_process.weighted_cycles[0] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                                } else {
+                                        send_error(ctx, old_pid);
+                                }
                                 sibling_process.time_ns[0] += ts - old_time;
                                 sibling_process.ts[0] = ts;
                                 if(sibling_pid == 0) {
@@ -161,7 +164,12 @@ int trace_switch(struct sched_switch_args *ctx) {
                                         pids.update(&(sibling_pid), &sibling_process);
                                 }
                         } else if (sibling_process.bpf_selector == 1) {
-                                sibling_process.weighted_cycles[1] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                                //discard sample if cycles counter did overflow
+                                if (cycles > old_cycles) {
+                                        sibling_process.weighted_cycles[1] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                                } else {
+                                        send_error(ctx, old_pid);
+                                }
                                 sibling_process.time_ns[1] += ts - old_time;
                                 sibling_process.ts[1] = ts;
                                 if(sibling_pid == 0) {
@@ -182,7 +190,12 @@ int trace_switch(struct sched_switch_args *ctx) {
 
                 //increment counters on our pid
                 if(status_old.bpf_selector == 0) {
-                        status_old.weighted_cycles[0] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                        //discard sample if cycles counter did overflow
+                        if (cycles > old_cycles) {
+                                status_old.weighted_cycles[0] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                        } else {
+                                send_error(ctx, old_pid);
+                        }
                         status_old.time_ns[0] += ts - old_time;
                         status_old.ts[0] = ts;
                         if(old_pid == 0) {
@@ -191,7 +204,12 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 pids.update(&old_pid, &status_old);
                         }
                 } else if (status_old.bpf_selector == 1) {
-                        status_old.weighted_cycles[1] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                        //discard sample if cycles counter did overflow
+                        if (cycles > old_cycles) {
+                                status_old.weighted_cycles[1] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                        } else {
+                                send_error(ctx, old_pid);
+                        }
                         status_old.time_ns[1] += ts - old_time;
                         status_old.ts[1] = ts;
                         if(old_pid == 0) {
@@ -208,10 +226,12 @@ int trace_switch(struct sched_switch_args *ctx) {
         }
         //no info on old status, let another enter sched build it
 
+        //
         // handle new scheduled process
-entering_pid: old_pid = 0;
+        //
+
         int new_pid = ctx->next_pid;
-        struct pid_status status_new;// = pids.lookup(&(new_pid));
+        struct pid_status status_new;
         if(new_pid == 0) {
                 bpf_probe_read(&status_new, sizeof(status_new), idles.lookup(&(processor_id)));
         } else {
@@ -274,9 +294,6 @@ entering_pid: old_pid = 0;
         topology_info.ts = ts;
         processors.update(&processor_id, &topology_info);
         return 0;
-
-handle_entering_pid: send_error(ctx, 8);
-        goto entering_pid;
 }
 
 int trace_exit(struct sched_process_exit_args *ctx) {
