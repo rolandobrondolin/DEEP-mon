@@ -94,6 +94,15 @@ int trace_switch(struct sched_switch_args *ctx) {
         u64 ts = bpf_ktime_get_ns();
         int old_pid = ctx->prev_pid;
 
+        // fetch data about processor executing the thing
+        struct proc_topology topology_info;
+        bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
+
+        if(topology_info.ht_id > NUM_CPUS) {
+                send_error(ctx, 1);
+                return 0;
+        }
+
         // fetch the status of the exiting pid
         struct pid_status status_old;
         status_old.pid = -1;
@@ -102,15 +111,6 @@ int trace_switch(struct sched_switch_args *ctx) {
                 bpf_probe_read(&status_old, sizeof(status_old), idles.lookup(&(processor_id)));
         } else {
                 bpf_probe_read(&status_old, sizeof(status_old), pids.lookup(&(old_pid)));
-        }
-
-        // fetch data about processor executing the thing
-        struct proc_topology topology_info;
-        bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
-
-        if(topology_info.ht_id > NUM_CPUS) {
-                send_error(ctx, 1);
-                return 0;
         }
 
         //
