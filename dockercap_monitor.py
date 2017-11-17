@@ -56,15 +56,20 @@ with open('/proc/cpuinfo') as f:
             processor_id = int(sp[2])
         if "core" in sp[0] and "id\t\t" in sp[1]:
             core_id = int(sp[2])
+            print str(ht_id) + " " + str(core_id) + " " + str(processor_id)
             found = False
             for key, value in coresDict.iteritems():
-                if value[2] == core_id:
+                if value[2] == core_id and value[3] == processor_id:
                     found = True
                     value[1] = ht_id
                     coresDict[ht_id] = [ht_id, value[0], core_id, processor_id, 0, 0, -1]
                     break
             if not found:
                 coresDict[ht_id] = [ht_id, -1, core_id, processor_id, 0, 0, -1]
+
+if debug:
+    for key, value in coresDict.items():
+        print value
 
 # populate processors hash with proc topology
 for key, value in coresDict.iteritems():
