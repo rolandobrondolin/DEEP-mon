@@ -83,7 +83,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         // if selector is not in place correctly, signal debug error and stop
         // tracing routine
         if (bpf_selector > 1) {
-                send_error(ctx, 0);
+                send_error(ctx, 1);
                 return 0;
         }
 
@@ -99,7 +99,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
 
         if(topology_info.ht_id > NUM_CPUS) {
-                send_error(ctx, 1);
+                send_error(ctx, 2);
                 return 0;
         }
 
@@ -123,12 +123,18 @@ int trace_switch(struct sched_switch_args *ctx) {
                 struct proc_topology *sibling_info = processors.lookup(&(sibling_id));
                 if(!sibling_info) {
                         // wrong info on topology, do nothing
-                        send_error(ctx, 2);
+                        send_error(ctx, 3);
                         return 0;
                 }
-                u64 old_cycles = (sibling_info->ts > topology_info.ts) ? sibling_info->cycles : topology_info.cycles;
-                u64 old_time = (sibling_info->ts > topology_info.ts) ? sibling_info->ts : topology_info.ts;
-
+                u64 old_cycles = cycles;
+                u64 old_time = ts;
+                if(sibling_info->ts > topology_info.ts) {
+                  old_time = sibling_info->ts;
+                  old_cycles = sibling_info->cycles;
+                } else if (topology_info.ts > 0) {
+                  old_time = topology_info.ts;
+                  old_cycles = topology_info.cycles;
+                }
 
                 u64 weight_factor = STD_FACTOR;
                 u64 weight_enabler = 0;
@@ -179,12 +185,12 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 }
                         } else {
                                 //selector corrupted, do nothing
-                                send_error(ctx, 3);
+                                send_error(ctx, 4);
                                 return 0;
                         }
                 } else {
                         // outdated info on pid table, do nothing
-                        send_error(ctx, 4);
+                        send_error(ctx, 5);
                         return 0;
                 }
 
@@ -219,7 +225,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                         }
                 } else {
                         // selector corrupted, do nothing
-                        send_error(ctx, 5);
+                        send_error(ctx, 6);
                         return 0;
                 }
 
@@ -229,7 +235,6 @@ int trace_switch(struct sched_switch_args *ctx) {
         //
         // handle new scheduled process
         //
-
         int new_pid = ctx->next_pid;
         struct pid_status status_new;
         if(new_pid == 0) {
@@ -246,7 +251,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                 } else if(!status_new.bpf_selector) {
                         last_ts_pid_in = status_new.ts[0];
                 } else {
-                        send_error(ctx, 6);
+                        send_error(ctx, 7);
                         return 0;
                 }
 
@@ -262,7 +267,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 // ts of pid is updated on exit only
                         } else {
                                 // selector corrupted, do nothing
-                                send_error(ctx, 7);
+                                send_error(ctx, 8);
                                 return 0;
                         }
                         if(new_pid == 0) {
@@ -272,6 +277,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                         }
                 }
         } else {
+                send_error(ctx, -1 * new_pid);
                 bpf_probe_read(&(status_new.comm), sizeof(status_new.comm), ctx->next_comm);
                 status_new.pid = new_pid;
                 status_new.ts[0] = ts;
