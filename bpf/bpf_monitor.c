@@ -129,11 +129,11 @@ int trace_switch(struct sched_switch_args *ctx) {
                 u64 old_cycles = cycles;
                 u64 old_time = ts;
                 if(sibling_info->ts > topology_info.ts) {
-                  old_time = sibling_info->ts;
-                  old_cycles = sibling_info->cycles;
+                        old_time = sibling_info->ts;
+                        old_cycles = sibling_info->cycles;
                 } else if (topology_info.ts > 0) {
-                  old_time = topology_info.ts;
-                  old_cycles = topology_info.cycles;
+                        old_time = topology_info.ts;
+                        old_cycles = topology_info.cycles;
                 }
 
                 u64 weight_factor = STD_FACTOR;
@@ -151,6 +151,36 @@ int trace_switch(struct sched_switch_args *ctx) {
                 }
 
                 if(sibling_process.pid == sibling_pid) {
+
+                        // here just update the selector and reset counter if needed
+                        u64 last_ts_pid_in = 0;
+                        if(sibling_process.bpf_selector) {
+                                last_ts_pid_in = sibling_process.ts[1];
+                        } else if(!sibling_process.bpf_selector) {
+                                last_ts_pid_in = sibling_process.ts[0];
+                        } else {
+                                send_error(ctx, 7);
+                                return 0;
+                        }
+
+                        if(sibling_process.bpf_selector != bpf_selector || last_ts_pid_in + STEP < ts) {
+                                sibling_process.bpf_selector = bpf_selector;
+                                if(bpf_selector) {
+                                        sibling_process.weighted_cycles[1] = 0;
+                                        sibling_process.time_ns[1] = 0;
+                                        // ts of pid is updated on exit only
+                                } else if (!bpf_selector) {
+                                        sibling_process.weighted_cycles[0] = 0;
+                                        sibling_process.time_ns[0] = 0;
+                                        // ts of pid is updated on exit only
+                                } else {
+                                        // selector corrupted, do nothing
+                                        send_error(ctx, 8);
+                                        return 0;
+                                }
+                        }
+
+
                         if(sibling_pid > 0) {
                                 weight_factor = HAPPY_FACTOR;
                                 weight_enabler = 1;
@@ -192,6 +222,34 @@ int trace_switch(struct sched_switch_args *ctx) {
                         // outdated info on pid table, do nothing
                         send_error(ctx, 5);
                         return 0;
+                }
+
+                // here just update the selector and reset counter if needed
+                u64 last_ts_pid_in = 0;
+                if(status_old.bpf_selector) {
+                        last_ts_pid_in = status_old.ts[1];
+                } else if(!status_old.bpf_selector) {
+                        last_ts_pid_in = status_old.ts[0];
+                } else {
+                        send_error(ctx, 7);
+                        return 0;
+                }
+
+                if(status_old.bpf_selector != bpf_selector || last_ts_pid_in + STEP < ts) {
+                        status_old.bpf_selector = bpf_selector;
+                        if(bpf_selector) {
+                                status_old.weighted_cycles[1] = 0;
+                                status_old.time_ns[1] = 0;
+                                // ts of pid is updated on exit only
+                        } else if (!bpf_selector) {
+                                status_old.weighted_cycles[0] = 0;
+                                status_old.time_ns[0] = 0;
+                                // ts of pid is updated on exit only
+                        } else {
+                                // selector corrupted, do nothing
+                                send_error(ctx, 8);
+                                return 0;
+                        }
                 }
 
                 //increment counters on our pid
@@ -243,40 +301,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                 bpf_probe_read(&status_new, sizeof(status_new), pids.lookup(&(new_pid)));
         }
         //If no status for PID, then create one, otherwise update selector
-        if(status_new.pid == new_pid) {
-                // here just update the selector and reset counter if needed
-                u64 last_ts_pid_in = 0;
-                if(status_new.bpf_selector) {
-                        last_ts_pid_in = status_new.ts[1];
-                } else if(!status_new.bpf_selector) {
-                        last_ts_pid_in = status_new.ts[0];
-                } else {
-                        send_error(ctx, 7);
-                        return 0;
-                }
-
-                if(status_new.bpf_selector != bpf_selector || last_ts_pid_in + STEP < ts) {
-                        status_new.bpf_selector = bpf_selector;
-                        if(bpf_selector) {
-                                status_new.weighted_cycles[1] = 0;
-                                status_new.time_ns[1] = 0;
-                                // ts of pid is updated on exit only
-                        } else if (!bpf_selector) {
-                                status_new.weighted_cycles[0] = 0;
-                                status_new.time_ns[0] = 0;
-                                // ts of pid is updated on exit only
-                        } else {
-                                // selector corrupted, do nothing
-                                send_error(ctx, 8);
-                                return 0;
-                        }
-                        if(new_pid == 0) {
-                                idles.update(&processor_id, &status_new);
-                        } else {
-                                pids.update(&new_pid, &status_new);
-                        }
-                }
-        } else {
+        if(status_new.pid != new_pid) {
                 send_error(ctx, -1 * new_pid);
                 bpf_probe_read(&(status_new.comm), sizeof(status_new.comm), ctx->next_comm);
                 status_new.pid = new_pid;
@@ -293,7 +318,6 @@ int trace_switch(struct sched_switch_args *ctx) {
                         pids.insert(&new_pid, &status_new);
                 }
         }
-
         //add info on new running pid into processors table
         topology_info.running_pid = new_pid;
         topology_info.cycles = cycles;
