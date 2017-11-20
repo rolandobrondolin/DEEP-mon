@@ -109,14 +109,14 @@ while True:
                 tsmax = data.ts[0]
 
         for key, data in pids.items():
-            if data.ts[0] + 2000000000 > tsmax:
+            if data.ts[0] + 1000000000 > tsmax:
                 i = i + float(data.time_ns[0])/1000000
                 print str(data.pid) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
         print ""
         for key, data in idles.items():
-            if data.ts[0] + 2000000000 > tsmax:
+            if data.ts[0] + 1000000000 > tsmax:
                 i = i + float(data.time_ns[0])/1000000
-                print str(key.value) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
+            print str(key.value) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
         print "\n"
 
     else:
@@ -130,14 +130,14 @@ while True:
                 tsmax = data.ts[1]
 
         for key, data in pids.items():
-            if data.ts[1] + 2000000000 > tsmax:
+            if data.ts[1] + 1000000000 > tsmax:
                 i = i + float(data.time_ns[1])/1000000
                 print str(data.pid) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
         print ""
         for key, data in idles.items():
-            if data.ts[1] + 2000000000 > tsmax:
+            if data.ts[1] + 1000000000 > tsmax:
                 i = i + float(data.time_ns[1])/1000000
-                print str(key.value) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
+            print str(key.value) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
         print "\n"
     print "millis run: " + str(i) + " time slept last time in millis: " + str(time_to_sleep*1000)
     time_to_sleep = 1 - (time.time() - start_time)

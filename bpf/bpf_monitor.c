@@ -63,7 +63,7 @@ BPF_HASH(pids, int, struct pid_status);
 BPF_HASH(idles, u64, struct pid_status);
 BPF_HASH(conf, int, unsigned int);
 
-#define STEP 2000000000 //2000000000
+#define STEP 1000000000 //2000000000
 #define HAPPY_FACTOR 5
 #define STD_FACTOR 1
 
