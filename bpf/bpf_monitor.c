@@ -77,12 +77,14 @@ static void send_error(struct sched_switch_args *ctx, int err_code) {
 }
 
 int trace_switch(struct sched_switch_args *ctx) {
+
         int conf_key = 0;
         unsigned int bpf_selector = 0;
-        bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&conf_key));
-        // if selector is not in place correctly, signal debug error and stop
-        // tracing routine
-        if (bpf_selector > 1) {
+        int ret = 0;
+        ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&conf_key));
+
+        // if selector is not in place correctly, signal debug error and stop tracing routine
+        if (ret!= 0 || bpf_selector > 1) {
                 send_error(ctx, 1);
                 return 0;
         }
@@ -96,9 +98,8 @@ int trace_switch(struct sched_switch_args *ctx) {
 
         // fetch data about processor executing the thing
         struct proc_topology topology_info;
-        bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
-
-        if(topology_info.ht_id > NUM_CPUS) {
+        ret = bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
+        if(ret!= 0 || topology_info.ht_id > NUM_CPUS) {
                 send_error(ctx, 2);
                 return 0;
         }
@@ -106,32 +107,27 @@ int trace_switch(struct sched_switch_args *ctx) {
         // fetch the status of the exiting pid
         struct pid_status status_old;
         status_old.pid = -1;
+
         // if the pid is 0, then use the idles perf_hash
         if(old_pid == 0) {
-                bpf_probe_read(&status_old, sizeof(status_old), idles.lookup(&(processor_id)));
+                ret = bpf_probe_read(&status_old, sizeof(status_old), idles.lookup(&(processor_id)));
         } else {
-                bpf_probe_read(&status_old, sizeof(status_old), pids.lookup(&(old_pid)));
+                ret = bpf_probe_read(&status_old, sizeof(status_old), pids.lookup(&(old_pid)));
         }
 
-        //
-        // Do things with the process exiting from execution
-        //
-        if(status_old.pid == old_pid) {
-                //find the entry related to processor_id and its sibling
-                u64 sibling_id = 0;
-                bpf_probe_read(&sibling_id, sizeof(sibling_id), &topology_info.sibling_id);
-                struct proc_topology *sibling_info = processors.lookup(&(sibling_id));
-                if(!sibling_info) {
+        if(ret == 0) {
+                u64 sibling_id = topology_info.sibling_id;
+                struct proc_topology sibling_info;
+                ret = bpf_probe_read(&sibling_info, sizeof(sibling_info), processors.lookup(&(sibling_id)));
+
+                if(ret != 0) {
                         // wrong info on topology, do nothing
                         send_error(ctx, 3);
                         return 0;
                 }
                 u64 old_cycles = cycles;
                 u64 old_time = ts;
-                if(sibling_info->ts > topology_info.ts) {
-                        old_time = sibling_info->ts;
-                        old_cycles = sibling_info->cycles;
-                } else if (topology_info.ts > 0) {
+                if (topology_info.ts > 0) {
                         old_time = topology_info.ts;
                         old_cycles = topology_info.cycles;
                 }
@@ -139,19 +135,17 @@ int trace_switch(struct sched_switch_args *ctx) {
                 u64 weight_factor = STD_FACTOR;
                 u64 weight_enabler = 0;
                 //find the sibling pid status
-                int sibling_pid = 0;
-                bpf_probe_read(&sibling_pid, sizeof(sibling_pid), &sibling_info->running_pid);
+                int sibling_pid = sibling_info.running_pid;
                 struct pid_status sibling_process;
                 if(sibling_pid == 0) {
                         //read from idles table
-                        bpf_probe_read(&sibling_process, sizeof(sibling_process), idles.lookup(&(sibling_id)));
+                        ret = bpf_probe_read(&sibling_process, sizeof(sibling_process), idles.lookup(&(sibling_id)));
                 } else {
                         //read from pids table
-                        bpf_probe_read(&sibling_process, sizeof(sibling_process), pids.lookup(&(sibling_pid)));
+                        ret = bpf_probe_read(&sibling_process, sizeof(sibling_process), pids.lookup(&(sibling_pid)));
                 }
 
-                if(sibling_process.pid == sibling_pid) {
-
+                if(ret == 0) {
                         // here just update the selector and reset counter if needed
                         u64 last_ts_pid_in = 0;
                         if(sibling_process.bpf_selector) {
@@ -168,18 +162,15 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 if(bpf_selector) {
                                         sibling_process.weighted_cycles[1] = 0;
                                         sibling_process.time_ns[1] = 0;
-                                        // ts of pid is updated on exit only
                                 } else if (!bpf_selector) {
                                         sibling_process.weighted_cycles[0] = 0;
                                         sibling_process.time_ns[0] = 0;
-                                        // ts of pid is updated on exit only
                                 } else {
                                         // selector corrupted, do nothing
                                         send_error(ctx, 8);
                                         return 0;
                                 }
                         }
-
 
                         if(sibling_pid > 0) {
                                 weight_factor = HAPPY_FACTOR;
@@ -218,10 +209,11 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 send_error(ctx, 4);
                                 return 0;
                         }
-                } else {
-                        // outdated info on pid table, do nothing
-                        send_error(ctx, 5);
-                        return 0;
+
+                        //update sibling process info
+                        sibling_info.cycles = cycles;
+                        sibling_info.ts = ts;
+                        processors.update(&sibling_id, &sibling_info);
                 }
 
                 // here just update the selector and reset counter if needed
@@ -240,11 +232,9 @@ int trace_switch(struct sched_switch_args *ctx) {
                         if(bpf_selector) {
                                 status_old.weighted_cycles[1] = 0;
                                 status_old.time_ns[1] = 0;
-                                // ts of pid is updated on exit only
                         } else if (!bpf_selector) {
                                 status_old.weighted_cycles[0] = 0;
                                 status_old.time_ns[0] = 0;
-                                // ts of pid is updated on exit only
                         } else {
                                 // selector corrupted, do nothing
                                 send_error(ctx, 8);
@@ -286,9 +276,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                         send_error(ctx, 6);
                         return 0;
                 }
-
         }
-        //no info on old status, let another enter sched build it
 
         //
         // handle new scheduled process
@@ -296,12 +284,12 @@ int trace_switch(struct sched_switch_args *ctx) {
         int new_pid = ctx->next_pid;
         struct pid_status status_new;
         if(new_pid == 0) {
-                bpf_probe_read(&status_new, sizeof(status_new), idles.lookup(&(processor_id)));
+                ret = bpf_probe_read(&status_new, sizeof(status_new), idles.lookup(&(processor_id)));
         } else {
-                bpf_probe_read(&status_new, sizeof(status_new), pids.lookup(&(new_pid)));
+                ret = bpf_probe_read(&status_new, sizeof(status_new), pids.lookup(&(new_pid)));
         }
         //If no status for PID, then create one, otherwise update selector
-        if(status_new.pid != new_pid) {
+        if(ret) {
                 send_error(ctx, -1 * new_pid);
                 bpf_probe_read(&(status_new.comm), sizeof(status_new.comm), ctx->next_comm);
                 status_new.pid = new_pid;
@@ -324,6 +312,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         topology_info.ts = ts;
         processors.update(&processor_id, &topology_info);
         return 0;
+
 }
 
 int trace_exit(struct sched_process_exit_args *ctx) {
