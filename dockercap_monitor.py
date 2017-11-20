@@ -100,6 +100,9 @@ while True:
     if debug == True:
         bpf_program.kprobe_poll()
     i = 0.0
+
+    sched_switch_count = conf[ct.c_int(3)].value
+
     print conf[ct.c_int(0)].value
     if conf[ct.c_int(0)].value == 0:
         conf[ct.c_int(0)] = ct.c_uint(1)
@@ -143,8 +146,24 @@ while True:
                 i = i + float(data.time_ns[1])/1000000
                 print str(key.value) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
         print "\n"
-    print "millis run: " + str(i) + " time slept last time in millis: " + str(time_to_sleep*1000)
-    time_to_sleep = timeslice/1000000000 - (time.time() - start_time)
+    print "millis run: " + str(i/(timeslice/1000000000)) + " time slept last time in millis: " + str(time_to_sleep*1000)
 
     for key, data in conf.items():
         print str(key.value) + " " + str(data.value)
+    print str(sched_switch_count) + " " + str(sched_switch_count/(multiprocessing.cpu_count()*(timeslice/1000000000)))
+
+
+    if sched_switch_count/(multiprocessing.cpu_count()*(timeslice/1000000000))< 100:
+        conf[ct.c_int(2)] = ct.c_uint(4000000000)
+        timeslice = 4000000000
+    elif sched_switch_count/(multiprocessing.cpu_count()*(timeslice/1000000000))< 200:
+        conf[ct.c_int(2)] = ct.c_uint(3000000000)
+        timeslice = 3000000000
+    elif sched_switch_count/(multiprocessing.cpu_count()*(timeslice/1000000000))< 300:
+        conf[ct.c_int(2)] = ct.c_uint(2000000000)
+        timeslice = 2000000000
+    else:
+        conf[ct.c_int(2)] = ct.c_uint(1000000000)
+        timeslice = 1000000000
+
+    time_to_sleep = timeslice/1000000000 - (time.time() - start_time)
