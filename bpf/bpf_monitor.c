@@ -63,7 +63,10 @@ BPF_HASH(pids, int, struct pid_status);
 BPF_HASH(idles, u64, struct pid_status);
 BPF_HASH(conf, int, unsigned int);
 
-#define STEP 1000000000 //2000000000
+// Beware: Changing the step in userspace means invalidate the last sample
+#define STEP_MIN 1000000000 //2000000000
+#define STEP_MAX 4000000000 //2000000000
+
 #define HAPPY_FACTOR 5
 #define STD_FACTOR 1
 
@@ -78,16 +81,51 @@ static void send_error(struct sched_switch_args *ctx, int err_code) {
 
 int trace_switch(struct sched_switch_args *ctx) {
 
-        int conf_key = 0;
+        int selector_key = 0;
+        int old_selector_key = 1;
+        int step_key = 2;
+        int switch_count_key = 3;
+
         unsigned int bpf_selector = 0;
         int ret = 0;
-        ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&conf_key));
-
+        ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&selector_key));
         // if selector is not in place correctly, signal debug error and stop tracing routine
         if (ret!= 0 || bpf_selector > 1) {
                 send_error(ctx, 1);
                 return 0;
         }
+
+        // retrieve general switch count
+        unsigned int switch_count = 0;
+        ret = 0;
+        ret = bpf_probe_read(&switch_count, sizeof(switch_count), conf.lookup(&switch_count_key));
+
+        //retrieve old selector to update switch count correctly
+        unsigned int old_bpf_selector = 0;
+        ret = 0;
+        ret = bpf_probe_read(&old_bpf_selector, sizeof(old_bpf_selector), conf.lookup(&old_selector_key));
+        if (ret!= 0 || old_bpf_selector > 1) {
+                send_error(ctx, 1);
+                return 0;
+        } else if(old_bpf_selector != bpf_selector) {
+          switch_count = 1;
+          conf.update(&old_selector_key, &bpf_selector);
+        } else {
+          switch_count++;
+        }
+        conf.update(&switch_count_key, &switch_count);
+
+        // retrieve sampling step
+        // Beware: Increasing the step in userspace means that the next sample is invalid
+        // Reducing the step in userspace is not an issue, give that it excludes data
+        // that is inside an can be discarded
+        unsigned int step = 1000000000;
+        ret = bpf_probe_read(&step, sizeof(step), conf.lookup(&step_key));
+        if (ret!= 0 || step < STEP_MIN || step > STEP_MAX) {
+                send_error(ctx, 1);
+                return 0;
+        }
+
 
         // get data about processor and performance counters
         // lookup also the pid of the exiting process
@@ -157,7 +195,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 return 0;
                         }
 
-                        if(sibling_process.bpf_selector != bpf_selector || last_ts_pid_in + STEP < ts) {
+                        if(sibling_process.bpf_selector != bpf_selector || last_ts_pid_in + step < ts) {
                                 sibling_process.bpf_selector = bpf_selector;
                                 if(bpf_selector) {
                                         sibling_process.weighted_cycles[1] = 0;
@@ -227,7 +265,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                         return 0;
                 }
 
-                if(status_old.bpf_selector != bpf_selector || last_ts_pid_in + STEP < ts) {
+                if(status_old.bpf_selector != bpf_selector || last_ts_pid_in + step < ts) {
                         status_old.bpf_selector = bpf_selector;
                         if(bpf_selector) {
                                 status_old.weighted_cycles[1] = 0;

@@ -37,7 +37,11 @@ pids = bpf_program.get_table("pids")
 idles = bpf_program.get_table("idles")
 conf = bpf_program.get_table("conf")
 # set default bpf_selector
+timeslice = 1000000000
 conf[ct.c_int(0)] = ct.c_uint(1)
+conf[ct.c_int(1)] = ct.c_uint(1)
+conf[ct.c_int(2)] = ct.c_uint(timeslice)
+conf[ct.c_int(3)] = ct.c_uint(0)
 
 # parse /proc/cpuinfo to obtain processor topology
 ht_id = 0
@@ -87,7 +91,7 @@ bpf_program.attach_tracepoint(tp="sched:sched_process_exit", fn_name="trace_exit
 # attach error buffer
 if debug == True:
     bpf_program["err"].open_perf_buffer(print_event, page_cnt=256)
-time_to_sleep = 1
+time_to_sleep = timeslice / 1000000000
 # sleep and retrieve data
 while True:
     time.sleep(time_to_sleep)
@@ -109,14 +113,14 @@ while True:
                 tsmax = data.ts[0]
 
         for key, data in pids.items():
-            if data.ts[0] + 1000000000 > tsmax:
+            if data.ts[0] + timeslice > tsmax:
                 i = i + float(data.time_ns[0])/1000000
                 print str(data.pid) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
         print ""
         for key, data in idles.items():
-            if data.ts[0] + 1000000000 > tsmax:
+            if data.ts[0] + timeslice > tsmax:
                 i = i + float(data.time_ns[0])/1000000
-            print str(key.value) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
+                print str(key.value) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
         print "\n"
 
     else:
@@ -130,14 +134,17 @@ while True:
                 tsmax = data.ts[1]
 
         for key, data in pids.items():
-            if data.ts[1] + 1000000000 > tsmax:
+            if data.ts[1] + timeslice > tsmax:
                 i = i + float(data.time_ns[1])/1000000
                 print str(data.pid) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
         print ""
         for key, data in idles.items():
-            if data.ts[1] + 1000000000 > tsmax:
+            if data.ts[1] + timeslice > tsmax:
                 i = i + float(data.time_ns[1])/1000000
-            print str(key.value) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
+                print str(key.value) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
         print "\n"
     print "millis run: " + str(i) + " time slept last time in millis: " + str(time_to_sleep*1000)
-    time_to_sleep = 1 - (time.time() - start_time)
+    time_to_sleep = timeslice/1000000000 - (time.time() - start_time)
+
+    for key, data in conf.items():
+        print str(key.value) + " " + str(data.value)
