@@ -114,11 +114,11 @@ while True:
         for key, data in pids.items():
             for socket_ts in data.ts:
                 if socket_ts > tsmax:
-                    tsmax = data.ts[0]
+                    tsmax = socket_ts
         for key, data in idles.items():
             for socket_ts in data.ts:
                 if socket_ts > tsmax:
-                    tsmax = data.ts[0]
+                    tsmax = socket_ts
 
         for key, data in pids.items():
             printed_str = str(data.pid) + " " + str(data.comm) + " " + str(data.bpf_selector) + " "
@@ -143,11 +143,11 @@ while True:
         for key, data in pids.items():
             for socket_ts in data.ts:
                 if socket_ts > tsmax:
-                    tsmax = data.ts[0]
+                    tsmax = socket_ts
         for key, data in idles.items():
             for socket_ts in data.ts:
                 if socket_ts > tsmax:
-                    tsmax = data.ts[0]
+                    tsmax = socket_ts
 
         for key, data in pids.items():
             printed_str = str(data.pid) + " " + str(data.comm) + " " + str(data.bpf_selector) + " "
