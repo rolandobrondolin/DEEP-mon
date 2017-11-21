@@ -7,42 +7,6 @@ import time
 debug = False
 TASK_COMM_LEN = 16
 
-class ProcTopology(ct.Structure):
-    _fields_ = [("ht_id", ct.c_ulonglong),
-                ("sibling_id", ct.c_ulonglong),
-                ("core_id", ct.c_ulonglong),
-                ("processor_id", ct.c_ulonglong),
-                ("cycles", ct.c_ulonglong),
-                ("ts", ct.c_ulonglong),
-                ("running_pid", ct.c_int)]
-
-class PidStatus(ct.Structure):
-    _fields_ = [("pid", ct.c_int),
-                ("comm", ct.c_char * TASK_COMM_LEN),
-                ("weighted_cycles", ct.c_ulonglong * 2),
-                ("time_ns", ct.c_ulonglong * 2),
-                ("bpf_selector", ct.c_int),
-                ("ts", ct.c_ulonglong * 2)]
-
-class ErrorCode(ct.Structure):
-    _fields_ = [("err", ct.c_int)]
-
-#Load BPF program
-bpf_program = BPF(src_file="bpf/bpf_monitor.c", cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count()])
-# Open cycles PMC
-bpf_program["cpu_cycles"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CPU_CYCLES)
-# get tables
-processors = bpf_program.get_table("processors")
-pids = bpf_program.get_table("pids")
-idles = bpf_program.get_table("idles")
-conf = bpf_program.get_table("conf")
-# set default bpf_selector
-timeslice = 1000000000
-conf[ct.c_int(0)] = ct.c_uint(1)
-conf[ct.c_int(1)] = ct.c_uint(1)
-conf[ct.c_int(2)] = ct.c_uint(timeslice)
-conf[ct.c_int(3)] = ct.c_uint(0)
-
 # parse /proc/cpuinfo to obtain processor topology
 ht_id = 0
 sibling_id = 0
@@ -50,6 +14,7 @@ core_id = 0
 processor_id = 0
 
 coresDict = {} #core elem is organized as ht_id, sibling_id, core_id, processor_id
+socket_set = set()
 
 with open('/proc/cpuinfo') as f:
     for line in f:
@@ -58,6 +23,7 @@ with open('/proc/cpuinfo') as f:
             ht_id = int(sp[1])
         if "physical" in sp[0] and "id\t" in sp[1]:
             processor_id = int(sp[2])
+            socket_set.add(processor_id)
         if "core" in sp[0] and "id\t\t" in sp[1]:
             core_id = int(sp[2])
             found = False
@@ -73,6 +39,43 @@ with open('/proc/cpuinfo') as f:
 if debug:
     for key, value in coresDict.items():
         print value
+
+
+class ProcTopology(ct.Structure):
+    _fields_ = [("ht_id", ct.c_ulonglong),
+                ("sibling_id", ct.c_ulonglong),
+                ("core_id", ct.c_ulonglong),
+                ("processor_id", ct.c_ulonglong),
+                ("cycles", ct.c_ulonglong),
+                ("ts", ct.c_ulonglong),
+                ("running_pid", ct.c_int)]
+
+class PidStatus(ct.Structure):
+    _fields_ = [("pid", ct.c_int),
+                ("comm", ct.c_char * TASK_COMM_LEN),
+                ("weighted_cycles", ct.c_ulonglong * 2 * len(socket_set)),
+                ("time_ns", ct.c_ulonglong * 2 * len(socket_set)),
+                ("bpf_selector", ct.c_int),
+                ("ts", ct.c_ulonglong * 2 * len(socket_set))]
+
+class ErrorCode(ct.Structure):
+    _fields_ = [("err", ct.c_int)]
+
+#Load BPF program
+bpf_program = BPF(src_file="bpf/bpf_monitor.c", cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), "-DNUM_SOCKETS=%d" % len(socket_set)])
+# Open cycles PMC
+bpf_program["cpu_cycles"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CPU_CYCLES)
+# get tables
+processors = bpf_program.get_table("processors")
+pids = bpf_program.get_table("pids")
+idles = bpf_program.get_table("idles")
+conf = bpf_program.get_table("conf")
+# set default bpf_selector
+timeslice = 1000000000
+conf[ct.c_int(0)] = ct.c_uint(1)
+conf[ct.c_int(1)] = ct.c_uint(1)
+conf[ct.c_int(2)] = ct.c_uint(timeslice)
+conf[ct.c_int(3)] = ct.c_uint(0)
 
 # populate processors hash with proc topology
 for key, value in coresDict.iteritems():
@@ -109,42 +112,58 @@ while True:
 
         tsmax = 0
         for key, data in pids.items():
-            if data.ts[0] > tsmax:
-                tsmax = data.ts[0]
+            for socket_ts in data.ts:
+                if socket_ts > tsmax:
+                    tsmax = data.ts[0]
         for key, data in idles.items():
-            if data.ts[0] > tsmax:
-                tsmax = data.ts[0]
+            for socket_ts in data.ts:
+                if socket_ts > tsmax:
+                    tsmax = data.ts[0]
 
         for key, data in pids.items():
-            if data.ts[0] + timeslice > tsmax:
-                i = i + float(data.time_ns[0])/1000000
-                print str(data.pid) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
+            printed_str = str(data.pid) + " " + str(data.comm) + " " + str(data.bpf_selector) + " "
+            for multisocket_selector in range(0, len(socket_set)*2, 2):
+                if data.ts[multisocket_selector] + timeslice > tsmax:
+                    i = i + float(data.time_ns[multisocket_selector])/1000000
+                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+            print printed_str
         print ""
         for key, data in idles.items():
-            if data.ts[0] + timeslice > tsmax:
-                i = i + float(data.time_ns[0])/1000000
-                print str(key.value) + " " + str(data.ts[0]) + " " + str(data.comm) + " " + str(data.weighted_cycles[0]) + " " + str(float(data.time_ns[0])/1000000) + " " + str(data.bpf_selector)
+            printed_str = str(data.pid) + " " + str(data.comm) + " " + str(data.bpf_selector) + " "
+            for multisocket_selector in range(0, len(socket_set)*2, 2):
+                if data.ts[multisocket_selector] + timeslice > tsmax:
+                    i = i + float(data.time_ns[multisocket_selector])/1000000
+                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+            print printed_str
         print "\n"
 
     else:
         conf[ct.c_int(0)] = ct.c_uint(0)
         tsmax = 0
         for key, data in pids.items():
-            if data.ts[1] > tsmax:
-                tsmax = data.ts[1]
+            for socket_ts in data.ts:
+                if socket_ts > tsmax:
+                    tsmax = data.ts[0]
         for key, data in idles.items():
-            if data.ts[1] > tsmax:
-                tsmax = data.ts[1]
+            for socket_ts in data.ts:
+                if socket_ts > tsmax:
+                    tsmax = data.ts[0]
 
         for key, data in pids.items():
-            if data.ts[1] + timeslice > tsmax:
-                i = i + float(data.time_ns[1])/1000000
-                print str(data.pid) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
+            printed_str = str(data.pid) + " " + str(data.comm) + " " + str(data.bpf_selector) + " "
+            for multisocket_selector in range(1, len(socket_set)*2, 2):
+                if data.ts[multisocket_selector] + timeslice > tsmax:
+                    i = i + float(data.time_ns[multisocket_selector])/1000000
+                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+            print printed_str
         print ""
         for key, data in idles.items():
-            if data.ts[1] + timeslice > tsmax:
-                i = i + float(data.time_ns[1])/1000000
-                print str(key.value) + " " + str(data.ts[1]) + " " + str(data.comm) + " " + str(data.weighted_cycles[1]) + " " + str(float(data.time_ns[1])/1000000) + " " + str(data.bpf_selector)
+            printed_str = str(data.pid) + " " + str(data.comm) + " " + str(data.bpf_selector) + " "
+            for multisocket_selector in range(1, len(socket_set)*2, 2):
+                if data.ts[multisocket_selector] + timeslice > tsmax:
+                    i = i + float(data.time_ns[multisocket_selector])/1000000
+                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+            print printed_str
         print "\n"
     print "millis run: " + str(i/(timeslice/1000000000)) + " time slept last time in millis: " + str(time_to_sleep*1000)
 

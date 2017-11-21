@@ -1,12 +1,15 @@
+#define SELECTOR_DIM 2
+#define NUM_SLOTS NUM_SOCKETS * SELECTOR_DIM
+
 struct pid_status {
         int pid;
         char comm[16];
-        u64 weighted_cycles[2];
-        u64 time_ns[2];
+        u64 weighted_cycles[NUM_SLOTS];
+        u64 time_ns[NUM_SLOTS];
         // set which item of weighted_cycles should be used in bpf
         // in user space, the weighted_cycles is read and initialized
         unsigned int bpf_selector;
-        u64 ts[2];
+        u64 ts[NUM_SLOTS];
 };
 struct proc_topology {
         u64 ht_id;
@@ -86,6 +89,8 @@ int trace_switch(struct sched_switch_args *ctx) {
         int step_key = 2;
         int switch_count_key = 3;
 
+        int array_index = 0;
+
         unsigned int bpf_selector = 0;
         int ret = 0;
         ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&selector_key));
@@ -108,10 +113,10 @@ int trace_switch(struct sched_switch_args *ctx) {
                 send_error(ctx, 1);
                 return 0;
         } else if(old_bpf_selector != bpf_selector) {
-          switch_count = 1;
-          conf.update(&old_selector_key, &bpf_selector);
+                switch_count = 1;
+                conf.update(&old_selector_key, &bpf_selector);
         } else {
-          switch_count++;
+                switch_count++;
         }
         conf.update(&switch_count_key, &switch_count);
 
@@ -184,29 +189,25 @@ int trace_switch(struct sched_switch_args *ctx) {
                 }
 
                 if(ret == 0) {
-                        // here just update the selector and reset counter if needed
                         u64 last_ts_pid_in = 0;
-                        if(sibling_process.bpf_selector) {
-                                last_ts_pid_in = sibling_process.ts[1];
-                        } else if(!sibling_process.bpf_selector) {
-                                last_ts_pid_in = sibling_process.ts[0];
-                        } else {
-                                send_error(ctx, 7);
-                                return 0;
+                        //trick the compiler with loop unrolling
+                        #pragma clang loop unroll(full)
+                        for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                                if(array_index == sibling_process.bpf_selector + SELECTOR_DIM * sibling_info.processor_id) {
+                                        last_ts_pid_in = sibling_process.ts[array_index];
+                                }
                         }
 
+                        // here just update the selector and reset counter if needed
                         if(sibling_process.bpf_selector != bpf_selector || last_ts_pid_in + step < ts) {
                                 sibling_process.bpf_selector = bpf_selector;
-                                if(bpf_selector) {
-                                        sibling_process.weighted_cycles[1] = 0;
-                                        sibling_process.time_ns[1] = 0;
-                                } else if (!bpf_selector) {
-                                        sibling_process.weighted_cycles[0] = 0;
-                                        sibling_process.time_ns[0] = 0;
-                                } else {
-                                        // selector corrupted, do nothing
-                                        send_error(ctx, 8);
-                                        return 0;
+                                //trick the compiler with loop unrolling
+                                #pragma clang loop unroll(full)
+                                for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                                        if(array_index % SELECTOR_DIM == bpf_selector) {
+                                                sibling_process.weighted_cycles[array_index] = 0;
+                                                sibling_process.time_ns[array_index] = 0;
+                                        }
                                 }
                         }
 
@@ -214,38 +215,26 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 weight_factor = HAPPY_FACTOR;
                                 weight_enabler = 1;
                         }
-                        if(sibling_process.bpf_selector == 0) {
-                                //discard sample if cycles counter did overflow
-                                if (cycles > old_cycles) {
-                                        sibling_process.weighted_cycles[0] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
-                                } else {
-                                        send_error(ctx, old_pid);
+
+                        //trick the compiler with loop unrolling
+                        // update measurements for sibling pid
+                        #pragma clang loop unroll(full)
+                        for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                                if(array_index == sibling_process.bpf_selector + SELECTOR_DIM * sibling_info.processor_id) {
+                                        //discard sample if cycles counter did overflow
+                                        if (cycles > old_cycles) {
+                                                sibling_process.weighted_cycles[array_index] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                                        } else {
+                                                send_error(ctx, old_pid);
+                                        }
+                                        sibling_process.time_ns[array_index] += ts - old_time;
+                                        sibling_process.ts[array_index] = ts;
+                                        if(sibling_pid == 0) {
+                                                idles.update(&(sibling_id), &sibling_process);
+                                        } else {
+                                                pids.update(&(sibling_pid), &sibling_process);
+                                        }
                                 }
-                                sibling_process.time_ns[0] += ts - old_time;
-                                sibling_process.ts[0] = ts;
-                                if(sibling_pid == 0) {
-                                        idles.update(&(sibling_id), &sibling_process);
-                                } else {
-                                        pids.update(&(sibling_pid), &sibling_process);
-                                }
-                        } else if (sibling_process.bpf_selector == 1) {
-                                //discard sample if cycles counter did overflow
-                                if (cycles > old_cycles) {
-                                        sibling_process.weighted_cycles[1] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
-                                } else {
-                                        send_error(ctx, old_pid);
-                                }
-                                sibling_process.time_ns[1] += ts - old_time;
-                                sibling_process.ts[1] = ts;
-                                if(sibling_pid == 0) {
-                                        idles.update(&(sibling_id), &sibling_process);
-                                } else {
-                                        pids.update(&(sibling_pid), &sibling_process);
-                                }
-                        } else {
-                                //selector corrupted, do nothing
-                                send_error(ctx, 4);
-                                return 0;
                         }
 
                         //update sibling process info
@@ -254,65 +243,47 @@ int trace_switch(struct sched_switch_args *ctx) {
                         processors.update(&sibling_id, &sibling_info);
                 }
 
-                // here just update the selector and reset counter if needed
                 u64 last_ts_pid_in = 0;
-                if(status_old.bpf_selector) {
-                        last_ts_pid_in = status_old.ts[1];
-                } else if(!status_old.bpf_selector) {
-                        last_ts_pid_in = status_old.ts[0];
-                } else {
-                        send_error(ctx, 7);
-                        return 0;
+                //trick the compiler with loop unrolling
+                #pragma clang loop unroll(full)
+                for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                        if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
+                                last_ts_pid_in = status_old.ts[array_index];
+                        }
                 }
 
+                // here just update the selector and reset counter if needed
                 if(status_old.bpf_selector != bpf_selector || last_ts_pid_in + step < ts) {
                         status_old.bpf_selector = bpf_selector;
-                        if(bpf_selector) {
-                                status_old.weighted_cycles[1] = 0;
-                                status_old.time_ns[1] = 0;
-                        } else if (!bpf_selector) {
-                                status_old.weighted_cycles[0] = 0;
-                                status_old.time_ns[0] = 0;
-                        } else {
-                                // selector corrupted, do nothing
-                                send_error(ctx, 8);
-                                return 0;
+                        //trick the compiler with loop unrolling
+                        #pragma clang loop unroll(full)
+                        for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                                if(array_index % SELECTOR_DIM == bpf_selector) {
+                                        status_old.weighted_cycles[array_index] = 0;
+                                        status_old.time_ns[array_index] = 0;
+                                }
                         }
                 }
 
-                //increment counters on our pid
-                if(status_old.bpf_selector == 0) {
-                        //discard sample if cycles counter did overflow
-                        if (cycles > old_cycles) {
-                                status_old.weighted_cycles[0] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
-                        } else {
-                                send_error(ctx, old_pid);
+                //trick the compiler with loop unrolling
+                // update measurements for our pid
+                #pragma clang loop unroll(full)
+                for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                        if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
+                                //discard sample if cycles counter did overflow
+                                if (cycles > old_cycles) {
+                                        status_old.weighted_cycles[array_index] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                                } else {
+                                        send_error(ctx, old_pid);
+                                }
+                                status_old.time_ns[array_index] += ts - old_time;
+                                status_old.ts[array_index] = ts;
+                                if(old_pid == 0) {
+                                        idles.update(&processor_id, &status_old);
+                                } else {
+                                        pids.update(&old_pid, &status_old);
+                                }
                         }
-                        status_old.time_ns[0] += ts - old_time;
-                        status_old.ts[0] = ts;
-                        if(old_pid == 0) {
-                                idles.update(&processor_id, &status_old);
-                        } else {
-                                pids.update(&old_pid, &status_old);
-                        }
-                } else if (status_old.bpf_selector == 1) {
-                        //discard sample if cycles counter did overflow
-                        if (cycles > old_cycles) {
-                                status_old.weighted_cycles[1] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
-                        } else {
-                                send_error(ctx, old_pid);
-                        }
-                        status_old.time_ns[1] += ts - old_time;
-                        status_old.ts[1] = ts;
-                        if(old_pid == 0) {
-                                idles.update(&processor_id, &status_old);
-                        } else {
-                                pids.update(&old_pid, &status_old);
-                        }
-                } else {
-                        // selector corrupted, do nothing
-                        send_error(ctx, 6);
-                        return 0;
                 }
         }
 
@@ -330,13 +301,13 @@ int trace_switch(struct sched_switch_args *ctx) {
         if(ret) {
                 send_error(ctx, -1 * new_pid);
                 bpf_probe_read(&(status_new.comm), sizeof(status_new.comm), ctx->next_comm);
+                #pragma clang loop unroll(full)
+                for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                        status_new.ts[array_index] = ts;
+                        status_new.weighted_cycles[array_index] = 0;
+                        status_new.time_ns[array_index] = 0;
+                }
                 status_new.pid = new_pid;
-                status_new.ts[0] = ts;
-                status_new.ts[1] = ts;
-                status_new.weighted_cycles[0] = 0;
-                status_new.weighted_cycles[1] = 0;
-                status_new.time_ns[0] = 0;
-                status_new.time_ns[1] = 0;
                 status_new.bpf_selector = bpf_selector;
                 if(new_pid == 0) {
                         idles.insert(&processor_id, &status_new);
