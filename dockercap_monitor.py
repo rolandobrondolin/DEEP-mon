@@ -125,7 +125,7 @@ while True:
             for multisocket_selector in range(0, len(socket_set)*2, 2):
                 if data.ts[multisocket_selector] + timeslice > tsmax:
                     i = i + float(data.time_ns[multisocket_selector])/1000000
-                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000) + " "
             print printed_str
         print ""
         for key, data in idles.items():
@@ -133,7 +133,7 @@ while True:
             for multisocket_selector in range(0, len(socket_set)*2, 2):
                 if data.ts[multisocket_selector] + timeslice > tsmax:
                     i = i + float(data.time_ns[multisocket_selector])/1000000
-                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000) + " "
             print printed_str
         print "\n"
 
@@ -154,7 +154,7 @@ while True:
             for multisocket_selector in range(1, len(socket_set)*2, 2):
                 if data.ts[multisocket_selector] + timeslice > tsmax:
                     i = i + float(data.time_ns[multisocket_selector])/1000000
-                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000) + " "
             print printed_str
         print ""
         for key, data in idles.items():
@@ -162,7 +162,7 @@ while True:
             for multisocket_selector in range(1, len(socket_set)*2, 2):
                 if data.ts[multisocket_selector] + timeslice > tsmax:
                     i = i + float(data.time_ns[multisocket_selector])/1000000
-                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000) + " "
             print printed_str
         print "\n"
     print "millis run: " + str(i/(timeslice/1000000000)) + " time slept last time in millis: " + str(time_to_sleep*1000)
