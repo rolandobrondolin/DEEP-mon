@@ -1,8 +1,11 @@
+# -*- coding: utf-8 -*-
+
 from bcc import BPF, PerfType, PerfHWConfig
 import multiprocessing
 import ctypes as ct
 import os
 import time
+from rapl import rapl
 
 debug = False
 TASK_COMM_LEN = 16
@@ -97,7 +100,25 @@ if debug == True:
 time_to_sleep = timeslice / 1000000000
 # sleep and retrieve data
 while True:
+    # Sample initial energy consumption from RAPL
+    rapl_sample_start = rapl.RAPLMonitor.sample()
+
     time.sleep(time_to_sleep)
+
+    # Sample final energy consumption from RAPL
+    rapl_sample_end = rapl.RAPLMonitor.sample()
+
+    rapl_diff = rapl_sample_end - rapl_sample_start
+
+    s1e = rapl_sample_start.energy("package-0", "core")
+    s2e = rapl_sample_end.energy("package-0", "core")
+    diffe = rapl_diff.energy("package-0", "core")
+
+    power_micro = rapl_diff.average_power("package-0", "core")*1000000
+    # Use a reduce to sum all the weighted cycles for each pid
+    # in order to find the total number of weighted cycles for the socket
+    weighted_socket_cycles = reduce(lambda x, y: x+1+y, [pid.weighted_cycles[0] for key, pid in pids.items()])
+
     start_time = time.time()
     # print debug stuff
     if debug == True:
@@ -125,7 +146,11 @@ while True:
             for multisocket_selector in range(0, len(socket_set)*2, 2):
                 if data.ts[multisocket_selector] + timeslice > tsmax:
                     i = i + float(data.time_ns[multisocket_selector])/1000000
-                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000) + " "
+                printed_str = (printed_str + str(data.ts[multisocket_selector])
+                    + " " + str(data.weighted_cycles[multisocket_selector])
+                    + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+                    + "  {:.9f}".format((float(data.weighted_cycles[multisocket_selector])
+                        / float(weighted_socket_cycles) * power_micro)) + "µW" + " ")
             print printed_str
         print ""
         for key, data in idles.items():
@@ -133,9 +158,13 @@ while True:
             for multisocket_selector in range(0, len(socket_set)*2, 2):
                 if data.ts[multisocket_selector] + timeslice > tsmax:
                     i = i + float(data.time_ns[multisocket_selector])/1000000
-                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000) + " "
-            print printed_str
-        print "\n"
+                printed_str = ( printed_str + str(data.ts[multisocket_selector])
+                    + " " + str(data.weighted_cycles[multisocket_selector])
+                    + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+                    + "  {:.9f}".format((float(data.weighted_cycles[multisocket_selector])
+                        / float(weighted_socket_cycles) * power_micro)) + "µW" + " ")
+                print printed_str
+        print ""
 
     else:
         conf[ct.c_int(0)] = ct.c_uint(0)
@@ -154,7 +183,11 @@ while True:
             for multisocket_selector in range(1, len(socket_set)*2, 2):
                 if data.ts[multisocket_selector] + timeslice > tsmax:
                     i = i + float(data.time_ns[multisocket_selector])/1000000
-                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000) + " "
+                printed_str = ( printed_str + str(data.ts[multisocket_selector])
+                    + " " + str(data.weighted_cycles[multisocket_selector])
+                    + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+                    + "  {:.9f}".format((float(data.weighted_cycles[multisocket_selector])
+                        / float(weighted_socket_cycles) * power_micro)) + "µW" + " ")
             print printed_str
         print ""
         for key, data in idles.items():
@@ -162,9 +195,13 @@ while True:
             for multisocket_selector in range(1, len(socket_set)*2, 2):
                 if data.ts[multisocket_selector] + timeslice > tsmax:
                     i = i + float(data.time_ns[multisocket_selector])/1000000
-                printed_str = printed_str + str(data.ts[multisocket_selector]) + " " + str(data.weighted_cycles[multisocket_selector]) + " " + str(float(data.time_ns[multisocket_selector])/1000000) + " "
+                printed_str = ( printed_str + str(data.ts[multisocket_selector])
+                    + " " + str(data.weighted_cycles[multisocket_selector])
+                    + " " + str(float(data.time_ns[multisocket_selector])/1000000)
+                    + "  {:.9f}".format((float(data.weighted_cycles[multisocket_selector])
+                        / float(weighted_socket_cycles) * power_micro)) + "µW" + " ")
             print printed_str
-        print "\n"
+        print ""
     print "millis run: " + str(i/(timeslice/1000000000)) + " time slept last time in millis: " + str(time_to_sleep*1000)
 
     for key, data in conf.items():
@@ -186,3 +223,9 @@ while True:
         timeslice = 1000000000
 
     time_to_sleep = timeslice/1000000000 - (time.time() - start_time)
+
+    print("")
+    print("RAPL energy and power information")
+    print("%d J - %d J = %d J ----- (power=%0.2fmW)" % (s2e, s1e, diffe, power_micro))
+    print("")
+    print("Total weighted cycles = ", weighted_socket_cycles)
