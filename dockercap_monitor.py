@@ -5,7 +5,8 @@ import multiprocessing
 import ctypes as ct
 import os
 import time
-from rapl import rapl
+# from rapl import rapl
+from rapl import raplhardcoded
 
 debug = False
 TASK_COMM_LEN = 16
@@ -99,25 +100,49 @@ if debug == True:
     bpf_program["err"].open_perf_buffer(print_event, page_cnt=256)
 time_to_sleep = timeslice / 1000000000
 # sleep and retrieve data
+
+rapl_reader = raplhardcoded.RaplReader()
+
 while True:
     # Sample initial energy consumption from RAPL
-    rapl_sample_start = rapl.RAPLMonitor.sample()
+    # rapl_sample_start = rapl_reader.read_energy_core_sample("0")
+    # d = {key: "{}".format(key) for key in range(1,4)}
+    rapl_sample_start = {key: rapl_reader.read_energy_core_sample(str(key)) for key in range(0, len(socket_set))}
+    # rapl_sample_start = { 
+         # 0: rapl_reader.read_energy_core_sample("0"),
+         # 1: rapl_reader.read_energy_core_sample("1") }
 
     time.sleep(time_to_sleep)
 
     # Sample final energy consumption from RAPL
-    rapl_sample_end = rapl.RAPLMonitor.sample()
+    rapl_sample_end = {key: rapl_reader.read_energy_core_sample(str(key)) for key in range(0, len(socket_set))}
+    # rapl_sample_end = {
+         # 0: rapl_reader.read_energy_core_sample("0"),
+         # 1: rapl_reader.read_energy_core_sample("1") }
 
-    rapl_diff = rapl_sample_end - rapl_sample_start
+    # Find the difference between the two samples to compute power
+    rapl_diff = {key: rapl_sample_end[key] - rapl_sample_start[key] for key in range(0, len(socket_set))}
+    # rapl_diff = {
+        # 0: rapl_sample_end[0] - rapl_sample_start[0],
+        # 1: rapl_sample_end[1] - rapl_sample_start[1] }
+    
 
-    s1e = rapl_sample_start.energy("package-0", "core")
-    s2e = rapl_sample_end.energy("package-0", "core")
-    diffe = rapl_diff.energy("package-0", "core")
+    power_millis = {key: rapl_diff[key].power()*1000 for key in range(0, len(socket_set))}
+    # power_millis = {
+        # 0: rapl_diff[0].power()*1000,
+        # 1: rapl_diff[1].power()*1000 }
+    
+    power_micro = {key: rapl_diff[key].power()*1000000 for key in range(0, len(socket_set))}
+    # power_micro = {
+        # 0: rapl_diff[0].power()*1000000,
+        # 1: rapl_diff[1].power()*1000000 }
 
-    power_micro = rapl_diff.average_power("package-0", "core")*1000000
     # Use a reduce to sum all the weighted cycles for each pid
     # in order to find the total number of weighted cycles for the socket
-    weighted_socket_cycles = reduce(lambda x, y: x+1+y, [pid.weighted_cycles[0] for key, pid in pids.items()])
+    weighted_socket_cycles = {ext_key: reduce(lambda x, y: x+1+y, [pid.weighted_cycles[ext_key] for key, pid in pids.items()])  for ext_key in range(0, len(socket_set))}
+    # weighted_socket_cycles = {
+        # 0: reduce(lambda x, y: x+1+y, [pid.weighted_cycles[0] for key, pid in pids.items()]),
+        # 1: reduce(lambda x, y: x+1+y, [pid.weighted_cycles[1] for key, pid in pids.items()]) }
 
     start_time = time.time()
     # print debug stuff
@@ -149,8 +174,8 @@ while True:
                 printed_str = (printed_str + str(data.ts[multisocket_selector])
                     + " " + str(data.weighted_cycles[multisocket_selector])
                     + " " + str(float(data.time_ns[multisocket_selector])/1000000)
-                    + "  {:.9f}".format((float(data.weighted_cycles[multisocket_selector])
-                        / float(weighted_socket_cycles) * power_micro)) + "µW" + " ")
+                    + "  {:.3f}".format((float(data.weighted_cycles[multisocket_selector])
+                        / float(weighted_socket_cycles[multisocket_selector/2]) * power_millis[multisocket_selector/2])) + "mW" + " ")
             print printed_str
         print ""
         for key, data in idles.items():
@@ -161,8 +186,8 @@ while True:
                 printed_str = ( printed_str + str(data.ts[multisocket_selector])
                     + " " + str(data.weighted_cycles[multisocket_selector])
                     + " " + str(float(data.time_ns[multisocket_selector])/1000000)
-                    + "  {:.9f}".format((float(data.weighted_cycles[multisocket_selector])
-                        / float(weighted_socket_cycles) * power_micro)) + "µW" + " ")
+                    + "  {:.3f}".format((float(data.weighted_cycles[multisocket_selector])
+                        / float(weighted_socket_cycles[multisocket_selector/2]) * power_millis[multisocket_selector/2])) + "mW" + " ")
                 print printed_str
         print ""
 
@@ -186,8 +211,8 @@ while True:
                 printed_str = ( printed_str + str(data.ts[multisocket_selector])
                     + " " + str(data.weighted_cycles[multisocket_selector])
                     + " " + str(float(data.time_ns[multisocket_selector])/1000000)
-                    + "  {:.9f}".format((float(data.weighted_cycles[multisocket_selector])
-                        / float(weighted_socket_cycles) * power_micro)) + "µW" + " ")
+                    + "  {:.3f}".format((float(data.weighted_cycles[multisocket_selector])
+                        / float(weighted_socket_cycles[multisocket_selector/2]) * power_millis[multisocket_selector/2])) + "mW" + " ")
             print printed_str
         print ""
         for key, data in idles.items():
@@ -198,8 +223,8 @@ while True:
                 printed_str = ( printed_str + str(data.ts[multisocket_selector])
                     + " " + str(data.weighted_cycles[multisocket_selector])
                     + " " + str(float(data.time_ns[multisocket_selector])/1000000)
-                    + "  {:.9f}".format((float(data.weighted_cycles[multisocket_selector])
-                        / float(weighted_socket_cycles) * power_micro)) + "µW" + " ")
+                    + "  {:.3f}".format((float(data.weighted_cycles[multisocket_selector])
+                        / float(weighted_socket_cycles[multisocket_selector/2]) * power_millis[multisocket_selector/2])) + "mW" + " ")
             print printed_str
         print ""
     print "millis run: " + str(i/(timeslice/1000000000)) + " time slept last time in millis: " + str(time_to_sleep*1000)
@@ -224,8 +249,14 @@ while True:
 
     time_to_sleep = timeslice/1000000000 - (time.time() - start_time)
 
+
+    s1e = rapl_sample_start[0].energy()
+    s2e = rapl_sample_end[0].energy()
+    diffe = rapl_diff[0].energy()
     print("")
     print("RAPL energy and power information")
-    print("%d J - %d J = %d J ----- (power=%0.2fmW)" % (s2e, s1e, diffe, power_micro))
+    print("Socket 0: %d J - %d J = %d J ----- (power=%0.2fmW)" % (s2e, s1e, diffe, power_millis[0]))
+    # print("Socket 1: %d J - %d J = %d J ----- (power=%0.2fmW)" % (s2e, s1e, diffe, power_millis[1]))
     print("")
-    print("Total weighted cycles = ", weighted_socket_cycles)
+    print("Total weighted cycles socket 0 = ", weighted_socket_cycles[0])
+    # print("Total weighted cycles socket 1 = ", weighted_socket_cycles[1])

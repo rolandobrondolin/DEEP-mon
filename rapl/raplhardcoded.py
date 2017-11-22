@@ -9,9 +9,12 @@ import pprint
 class RaplReader():
 
     def _read_sysfs_file(self, path):
-	with open(path, "r") as f:
-            contents = f.read().strip()
-            return contents
+        try:
+            with open(path, "r") as f:
+                contents = f.read().strip()
+                return contents
+        except EnvironmentError:
+            return "0"
 
     def read_energy_core_sample(self, package="0"):
         energy = int(self._read_sysfs_file("/sys/class/powercap/intel-rapl/" +
