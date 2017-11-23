@@ -56,6 +56,9 @@ class ProcTopology:
     def get_sockets(self):
         return self.socket_set
 
+    def get_hyperthread_count(self):
+        return len(self.coresDict)
+
     def get_new_bpf_topology(self):
         bpf_dict = {}
         for key,value in self.coresDict.iteritems():

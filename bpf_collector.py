@@ -9,6 +9,7 @@ from proc_topology import ProcTopology
 from process_info import BpfPidStatus
 from process_info import SocketProcessItem
 from process_info import ProcessInfo
+from sample_controller import SampleController
 
 class BpfSample:
 
@@ -63,11 +64,11 @@ class BpfCollector:
         self.bpf_program["cpu_cycles"].open_perf_event(PerfType.HARDWARE, \
             PerfHWConfig.CPU_CYCLES)
 
-    def start_capture(self):
+    def start_capture(self, timeslice):
         for key, value in self.topology.get_new_bpf_topology().iteritems():
             self.processors[ct.c_ulonglong(key)] = value
 
-        self.timeslice = 1000000000
+        self.timeslice = timeslice
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)     # current selector
         self.bpf_config[ct.c_int(1)] = ct.c_uint(self.selector)     # old selector
         self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
@@ -82,14 +83,15 @@ class BpfCollector:
         self.bpf_program.detach_tracepoint(tp="sched:sched_switch")
         self.bpf_program.detach_tracepoint(tp="sched:sched_process_exit")
 
-    def get_new_sample(self, new_timeslice):
-        sample = self.get_new_sample()
-        self.timeslice = new_timeslice
+    def get_new_sample(self, sample_controller):
+        sample = self._get_new_sample()
+        sample_controller.compute_sleep_time(sample.get_sched_switch_count())
+        self.timeslice = sample_controller.get_timeslice()
         self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
 
         return sample
 
-    def get_new_sample(self):
+    def _get_new_sample(self):
 
         total_execution_time = 0.0
         sched_switch_count = self.bpf_config[ct.c_int(3)].value
