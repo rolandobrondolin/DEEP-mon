@@ -49,6 +49,8 @@ class ProcessInfo:
         self.comm = ""
         self.power = 0
         self.socket_data = []
+        self.cgroup_id = ""
+        self.container_id = ""
 
         for i in range(0, num_sockets):
             self.socket_data.append(SocketProcessItem())
@@ -62,12 +64,21 @@ class ProcessInfo:
     def set_power(self, power):
         self.power = power
 
+    def set_socket_data_array(self, socket_data_array):
+        self.socket_data = socket_data_array
+
     def set_socket_data(self, socket_index, socket_data):
         self.socket_data[socket_index] = socket_data
 
     def set_raw_socket_data(self, socket_index, weighted_cycles, time_ns, ts):
         self.socket_data[socket_index] = \
             SocketProcessItem(weighted_cycles, time_ns, ts)
+
+    def set_cgroup_id(self, cgroup_id):
+        self.cgroup_id = cgroup_id
+
+    def set_container_id(self, container_id):
+        self.container_id = container_id
 
     def get_pid(self):
         return self.pid
@@ -78,15 +89,32 @@ class ProcessInfo:
     def get_power(self):
         return self.power
 
-    def get_socket_data(self):
-        return self.socket_data
-
-    def get_socket_data(self, socket_index):
+    def get_socket_data(self, socket_index = -1):
+        if socket_index < 0:
+            return self.socket_data
         return self.socket_data[socket_index]
+
+    def get_cgroup_id(self):
+        return self.cgroup_id
+
+    def get_container_id(self):
+        return self.container_id
+
+    def get_aggregated_weighted_cycles(self):
+        aggregated = 0
+        for item in self.socket_data:
+            aggregated = aggregated + item.get_weighted_cycles()
+        return aggregated
+
+    def get_aggregated_time_ns(self):
+        aggregated = 0
+        for item in self.socket_data:
+            aggregated = aggregated + item.get_time_ns()
+        return aggregated
 
     def __str__(self):
         str_rep = str(self.pid) + " comm: " + str(self.comm) \
-            + " p: " + str(self.power)
+            + " c_id: " + self.container_id + " p: " + str(self.power)
 
         for socket_item in self.socket_data:
             str_rep = str_rep + " " + str(socket_item)
