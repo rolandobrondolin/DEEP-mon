@@ -31,12 +31,15 @@ class BpfSample:
         return self.pid_dict
 
     def __str__(self):
-        str_representation = "proc time: " + str(self.total_execution_time) \
-            + " sched switch count " + str(self.sched_switch_count) \
-            + " timeslice " + str(self.timeslice) + "\n"
+        str_representation = ""
 
-        for key, value in self.pid_dict.iteritems():
+        for key, value in sorted(self.pid_dict.iteritems()):
             str_representation = str_representation + str(value) + "\n"
+
+        str_representation = str_representation + "proc time: " \
+            + str(self.total_execution_time) + " sched switch count " \
+            + str(self.sched_switch_count) + " timeslice " \
+            + str(self.timeslice) + "\n"
 
         return str_representation
 
@@ -121,6 +124,7 @@ class BpfCollector:
             proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
             proc_info.set_comm(data.comm)
+            add_proc = False
 
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -137,13 +141,16 @@ class BpfCollector:
                     proc_info.set_socket_data(\
                         multisocket_selector/self.SELECTOR_DIM, socket_info)
 
-            pid_dict[data.pid] = proc_info
+                    add_proc = True
+            if add_proc:
+                pid_dict[data.pid] = proc_info
 
         for key, data in self.idles.items():
 
             proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
             proc_info.set_comm(data.comm)
+            add_proc = False
 
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -160,7 +167,9 @@ class BpfCollector:
                     proc_info.set_socket_data(\
                         multisocket_selector/self.SELECTOR_DIM, socket_info)
 
-            pid_dict[-1 * (1 + int(key.value))] = proc_info
+                    add_proc = True
+            if add_proc:
+                pid_dict[-1 * (1 + int(key.value))] = proc_info
 
         return BpfSample(total_execution_time, sched_switch_count, \
             self.timeslice, pid_dict)
