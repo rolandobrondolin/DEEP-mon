@@ -38,6 +38,11 @@ class SocketProcessItem:
     def get_ts(self):
         return ts
 
+    def reset(self):
+        self.weighted_cycles = 0
+        self.time_ns = 0
+        self.ts = 0
+
     def __str__(self):
         return "ts: " + str(self.ts) + " w:" + str(self.weighted_cycles) \
             + " t:" + str(self.time_ns)
@@ -80,6 +85,10 @@ class ProcessInfo:
     def set_container_id(self, container_id):
         self.container_id = container_id
 
+    def reset_socket_data(self):
+        for item in self.socket_data:
+            item.reset()
+
     def get_pid(self):
         return self.pid
 
@@ -111,6 +120,13 @@ class ProcessInfo:
         for item in self.socket_data:
             aggregated = aggregated + item.get_time_ns()
         return aggregated
+
+    def get_last_ts(self):
+        max_ts = 0
+        for item in self.socket_data:
+            if max_ts < item.get_ts():
+                max_ts = item.get_ts()
+        return max_ts
 
     def __str__(self):
         str_rep = str(self.pid) + " comm: " + str(self.comm) \

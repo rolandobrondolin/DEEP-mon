@@ -13,6 +13,12 @@ class ProcTable:
         self.proc_table[proc_info.get_pid()] = proc_info
 
     def add_process_from_sample(self, sample):
+        # reset counters for each entries
+        # we are still not evicting the entries
+        for proc_table_key, proc_table_value in self.proc_table.iteritems():
+            proc_table_value.set_power(0)
+            proc_table_value.reset_socket_data()
+
         for key, value in sample.get_pid_dict().iteritems():
             if key in self.proc_table:
                 # process already there, check if comm is the same
