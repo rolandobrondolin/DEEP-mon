@@ -50,8 +50,10 @@ class ProcTable:
 
     def get_container_dictionary(self):
         container_dict = {}
-        not_a_container = ContainerInfo("notcontainer")
-        container_dict["notcontainer"] = not_a_container
+        not_a_container = ContainerInfo("---others---")
+        idle = ContainerInfo("----idle----")
+        container_dict["---others---"] = not_a_container
+        container_dict["----idle----"] = idle
 
         for key, value in self.proc_table.iteritems():
             if value.container_id != "":
@@ -65,12 +67,18 @@ class ProcTable:
                 container_dict[value.container_id].add_power(\
                     value.get_power())
                 container_dict[value.container_id].add_pid(value.get_pid())
-            else:
+            elif key > 0:
                 not_a_container.add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
                 not_a_container.add_time_ns(value.get_aggregated_time_ns())
                 not_a_container.add_power(value.get_power())
                 not_a_container.add_pid(value.get_pid())
+            else:
+                idle.add_weighted_cycles(\
+                    value.get_aggregated_weighted_cycles())
+                idle.add_time_ns(value.get_aggregated_time_ns())
+                idle.add_power(value.get_power())
+                idle.add_pid(value.get_pid())
 
 
         return container_dict
