@@ -22,10 +22,21 @@ while True:
     sample = collector.get_new_sample(sample_controller)
     #print sample
 
+    # add stuff to cumulative process table
     process_table.add_process_from_sample(sample)
-    for key, value in process_table.proc_table.iteritems():
+
+    # for key, value in process_table.proc_table.iteritems():
+    #     print value
+    # print
+
+    #now, extract containers!
+    container_list = process_table.get_container_dictionary()
+
+    for key, value in container_list.iteritems():
         print value
     print
+
+    print sample.get_log_line()
 
     time_to_sleep = sample_controller.get_sleep_time() \
         - (time.time() - start_time)

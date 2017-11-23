@@ -37,7 +37,12 @@ class BpfSample:
         for key, value in sorted(self.pid_dict.iteritems()):
             str_representation = str_representation + str(value) + "\n"
 
-        str_representation = str_representation + "proc time: " \
+        str_representation = str_representation + self.get_log_line()
+
+        return str_representation
+
+    def get_log_line(self):
+        str_representation = "proc time: " \
             + str(self.total_execution_time) + " sched switch count " \
             + str(self.sched_switch_count) + " timeslice " \
             + str(self.timeslice) + "\n"

@@ -1,5 +1,6 @@
 from process_info import ProcessInfo
 from bpf_collector import BpfSample
+from container_info import ContainerInfo
 import os
 
 class ProcTable:
@@ -40,8 +41,36 @@ class ProcTable:
             with open(os.path.join('/proc', str(pid), 'cgroup'), 'rb') as f:
                 for line in f:
                     line_array = line.split("/")
-                    if len(line_array) > 1 and len(line_array[len(line_array) -1]) == 65:
+                    if len(line_array) > 1 and \
+                        len(line_array[len(line_array) -1]) == 65:
                         return line_array[len(line_array) -1]
         except IOError: # proc has already terminated
             return ""
         return ""
+
+    def get_container_dictionary(self):
+        container_dict = {}
+        not_a_container = ContainerInfo("notcontainer")
+        container_dict["notcontainer"] = not_a_container
+
+        for key, value in self.proc_table.iteritems():
+            if value.container_id != "":
+                if value.container_id not in container_dict:
+                    container_dict[value.container_id] = ContainerInfo(\
+                        value.container_id)
+                container_dict[value.container_id].add_weighted_cycles(\
+                    value.get_aggregated_weighted_cycles())
+                container_dict[value.container_id].add_time_ns(\
+                    value.get_aggregated_time_ns())
+                container_dict[value.container_id].add_power(\
+                    value.get_power())
+                container_dict[value.container_id].add_pid(value.get_pid())
+            else:
+                not_a_container.add_weighted_cycles(\
+                    value.get_aggregated_weighted_cycles())
+                not_a_container.add_time_ns(value.get_aggregated_time_ns())
+                not_a_container.add_power(value.get_power())
+                not_a_container.add_pid(value.get_pid())
+
+
+        return container_dict
