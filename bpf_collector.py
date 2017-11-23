@@ -83,15 +83,15 @@ class BpfCollector:
         self.bpf_program.detach_tracepoint(tp="sched:sched_switch")
         self.bpf_program.detach_tracepoint(tp="sched:sched_process_exit")
 
-    def get_new_sample(self, sample_controller):
-        sample = self._get_new_sample()
+    def get_new_sample(self, sample_controller, rapl_sample_start, rapl_reader):
+        sample = self._get_new_sample(rapl_sample_start, rapl_reader)
         sample_controller.compute_sleep_time(sample.get_sched_switch_count())
         self.timeslice = sample_controller.get_timeslice()
         self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
 
         return sample
 
-    def _get_new_sample(self):
+    def _get_new_sample(self, rapl_sample_start, rapl_reader):
 
         total_execution_time = 0.0
         sched_switch_count = self.bpf_config[ct.c_int(3)].value
@@ -121,12 +121,25 @@ class BpfCollector:
                 if data.ts[multisocket_selector] > tsmax:
                     tsmax = data.ts[multisocket_selector]
 
+        # Compute the number of total weighted cycles
+        total_weighted_cycles = self._get_total_weighted_cycles(self.pids, self.idles)
+        rapl_sample_end = [ rapl_reader.read_energy_core_sample(str(skt))
+                for skt in self.topology.get_sockets() ]
+        rapl_diff = [ rapl_sample_end[skt] - rapl_sample_start[skt]
+                for skt in self.topology.get_sockets() ]
+
+        active_power= [rapl_diff[skt].power()*1000
+                for skt in self.topology.get_sockets()]
+        total_active_power = sum(active_power)
+        print(total_active_power)
+
         for key, data in self.pids.items():
 
             proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
             proc_info.set_comm(data.comm)
             add_proc = False
+            proc_info.set_power(self._get_pid_power(data, total_weighted_cycles, total_active_power))
 
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -153,6 +166,7 @@ class BpfCollector:
             proc_info.set_pid(data.pid)
             proc_info.set_comm(data.comm)
             add_proc = False
+            proc_info.set_power(self._get_idle_power(data, total_weighted_cycles, total_active_power))
 
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -175,3 +189,28 @@ class BpfCollector:
 
         return BpfSample(total_execution_time, sched_switch_count, \
             self.timeslice, pid_dict)
+
+
+    def _get_total_weighted_cycles(self, pids, idles):
+        weighted_socket_cycles_pids = sum([sum(pid.weighted_cycles)
+            for key, pid in pids.items()])
+        weighted_socket_cycles_idles = sum([sum(idle.weighted_cycles)
+            for key, idle in idles.items()])
+        weighted_socket_cycles = weighted_socket_cycles_idles + weighted_socket_cycles_pids
+        return weighted_socket_cycles
+
+    def _get_pid_power(self, pid, total_cycles, active_power):
+        pid_power = (active_power *
+            (float(sum(pid.weighted_cycles)) / float(total_cycles)))
+        cyc = sum(pid.weighted_cycles)
+        print("Pid power: ", pid_power, "Pid cycles:", cyc)
+        
+        return pid_power
+
+    def _get_idle_power(self, pid, total_cycles, active_power):
+        idle_power = (active_power *
+            (float(sum(pid.weighted_cycles)) / float(total_cycles)))
+        cyc = sum(pid.weighted_cycles)
+        print("Idle power: ", idle_power, "Pid cycles:", cyc)
+        
+        return idle_power
