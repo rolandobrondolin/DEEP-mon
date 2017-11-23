@@ -8,6 +8,7 @@ from proc_topology import BpfProcTopology
 from proc_topology import ProcTopology
 from process_info import BpfPidStatus
 from process_info import SocketProcessItem
+from process_info import ProcessInfo
 
 class BpfSample:
 
@@ -29,6 +30,17 @@ class BpfSample:
     def get_pid_dict(self):
         return self.pid_dict
 
+    def __str__(self):
+        str_representation = "proc time: " + str(self.total_execution_time) \
+            + " sched switch count " + str(self.sched_switch_count) \
+            + " timeslice " + str(self.timeslice) + "\n"
+
+        for key, value in self.pid_dict.iteritems():
+            str_representation = str_representation + str(value) + "\n"
+
+        return str_representation
+
+
 class BpfCollector:
 
     def __init__(self, topology):
@@ -37,10 +49,10 @@ class BpfCollector:
             cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
             "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets())])
 
-        self.processors = bpf_program.get_table("processors")
-        self.pids = bpf_program.get_table("pids")
-        self.idles = bpf_program.get_table("idles")
-        self.bpf_config = bpf_program.get_table("conf")
+        self.processors = self.bpf_program.get_table("processors")
+        self.pids = self.bpf_program.get_table("pids")
+        self.idles = self.bpf_program.get_table("idles")
+        self.bpf_config = self.bpf_program.get_table("conf")
         self.selector = 0
         self.SELECTOR_DIM = 2
         self.timeslice = 1000000000
@@ -49,9 +61,8 @@ class BpfCollector:
             PerfHWConfig.CPU_CYCLES)
 
     def start_capture(self):
-        for key, value in self.topology.get_new_bpf_topology():
-            self.processors[ct.c_ulonglong(key)] = BpfProcTopology(value[0], \
-                value[1],value[2], value[3], value[4], value[5], value[6])
+        for key, value in self.topology.get_new_bpf_topology().iteritems():
+            self.processors[ct.c_ulonglong(key)] = value
 
         self.timeslice = 1000000000
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)     # current selector
@@ -78,7 +89,7 @@ class BpfCollector:
     def get_new_sample(self):
 
         total_execution_time = 0.0
-        sched_switch_count = conf[ct.c_int(3)].value
+        sched_switch_count = self.bpf_config[ct.c_int(3)].value
         tsmax = 0
         read_selector = 0
         total_slots_length = len(self.topology.get_sockets())*self.SELECTOR_DIM
@@ -90,31 +101,31 @@ class BpfCollector:
             self.selector = 0
             read_selector = 1
 
-        conf[ct.c_int(0)] = ct.c_uint(self.selector)
+        self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)
 
         pid_dict = {}
 
-        for key, data in pids.items():
-            for multisocket_selector in
+        for key, data in self.pids.items():
+            for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
                 if data.ts[multisocket_selector] > tsmax:
-                    tsmax = socket_ts
-        for key, data in idles.items():
-            for multisocket_selector in
+                    tsmax = data.ts[multisocket_selector]
+        for key, data in self.idles.items():
+            for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
                 if data.ts[multisocket_selector] > tsmax:
-                    tsmax = socket_ts
+                    tsmax = data.ts[multisocket_selector]
 
         for key, data in self.pids.items():
 
-            proc_info = ProcessInfo()
+            proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
             proc_info.set_comm(data.comm)
 
-            for multisocket_selector in
+            for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
 
-                if data.ts[multisocket_selector] + timeslice > tsmax:
+                if data.ts[multisocket_selector] + self.timeslice > tsmax:
                     total_execution_time = total_execution_time \
                         + float(data.time_ns[multisocket_selector])/1000000
 
@@ -130,14 +141,14 @@ class BpfCollector:
 
         for key, data in self.idles.items():
 
-            proc_info = ProcessInfo()
+            proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
             proc_info.set_comm(data.comm)
 
-            for multisocket_selector in
+            for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
 
-                if data.ts[multisocket_selector] + timeslice > tsmax:
+                if data.ts[multisocket_selector] + self.timeslice > tsmax:
                     total_execution_time = total_execution_time \
                         + float(data.time_ns[multisocket_selector])/1000000
 
@@ -149,7 +160,7 @@ class BpfCollector:
                     proc_info.set_socket_data(\
                         multisocket_selector/self.SELECTOR_DIM, socket_info)
 
-            pid_dict[-1 * (1 + key)] = proc_info
+            pid_dict[-1 * (1 + int(key.value))] = proc_info
 
         return BpfSample(total_execution_time, sched_switch_count, \
             self.timeslice, pid_dict)

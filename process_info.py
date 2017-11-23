@@ -1,21 +1,21 @@
 import ctypes as ct
 
 class BpfPidStatus(ct.Structure):
+    TASK_COMM_LEN = 16
+    socket_size = 0
     _fields_ = [("pid", ct.c_int),
                 ("comm", ct.c_char * TASK_COMM_LEN),
-                ("weighted_cycles", ct.c_ulonglong * 2 * len(socket_set)),
-                ("time_ns", ct.c_ulonglong * 2 * len(socket_set)),
+                ("weighted_cycles", ct.c_ulonglong * 2 * socket_size),
+                ("time_ns", ct.c_ulonglong * 2 * socket_size),
                 ("bpf_selector", ct.c_int),
-                ("ts", ct.c_ulonglong * 2 * len(socket_set))]
+                ("ts", ct.c_ulonglong * 2 * socket_size)]
+
+    def __init__(self, socket_size):
+        self.socket_size = socket_size
 
 class SocketProcessItem:
 
-    def __init__(self):
-        self.weighted_cycles = 0
-        self.time_ns = 0
-        self.ts = 0
-
-    def __init__(self, weighted_cycles, time_ns, ts):
+    def __init__(self, weighted_cycles = 0, time_ns = 0, ts = 0):
         self.weighted_cycles = weighted_cycles
         self.time_ns = time_ns
         self.ts = ts
@@ -38,6 +38,10 @@ class SocketProcessItem:
     def get_ts(self):
         return ts
 
+    def __str__(self):
+        return "ts: " + str(self.ts) + " w:" + str(self.weighted_cycles) \
+            + " t:" + str(self.time_ns)
+
 class ProcessInfo:
 
     def __init__(self, num_sockets):
@@ -47,7 +51,7 @@ class ProcessInfo:
         self.socket_data = []
 
         for i in range(0, num_sockets):
-            self.socket_data[i] = SocketProcessItem()
+            self.socket_data.append(SocketProcessItem())
 
     def set_pid(self, pid):
         self.pid = pid
@@ -61,7 +65,7 @@ class ProcessInfo:
     def set_socket_data(self, socket_index, socket_data):
         self.socket_data[socket_index] = socket_data
 
-    def set_socket_data(self, socket_index, weighted_cycles, time_ns, ts):
+    def set_raw_socket_data(self, socket_index, weighted_cycles, time_ns, ts):
         self.socket_data[socket_index] = \
             SocketProcessItem(weighted_cycles, time_ns, ts)
 
@@ -79,3 +83,12 @@ class ProcessInfo:
 
     def get_socket_data(self, socket_index):
         return self.socket_data[socket_index]
+
+    def __str__(self):
+        str_rep = str(self.pid) + " comm: " + str(self.comm) \
+            + " p: " + str(self.power)
+
+        for socket_item in self.socket_data:
+            str_rep = str_rep + " " + str(socket_item)
+
+        return str_rep
