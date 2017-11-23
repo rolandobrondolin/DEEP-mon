@@ -1,175 +1,67 @@
 import os
 import os.path
-import re
+import time
 from datetime import datetime
 
-UJOULES = 1
-JOULES = 2
-WATT_HOURS = 3
+# Debug
+import pprint
 
-def _read_sysfs_file(path):
-	with open(path, "r") as f:
-		contents = f.read().strip()
-		return contents
+class RaplReader():
 
-def _get_domain_info(path):
-	name = _read_sysfs_file("%s/name" % path)
-	energy_uj = int(_read_sysfs_file("%s/energy_uj" % path))
-	max_energy_range_uj = int(_read_sysfs_file("%s/max_energy_range_uj" % path))
+    def _read_sysfs_file(self, path):
+        try:
+            with open(path, "r") as f:
+                contents = f.read().strip()
+                return contents
+        except EnvironmentError:
+            return "0"
 
-	return name, energy_uj, max_energy_range_uj
+    def read_energy_core_sample(self, package="0"):
+        energy = int(self._read_sysfs_file("/sys/class/powercap/intel-rapl/" +
+            "intel-rapl:{}/intel-rapl:{}:0/energy_uj".format(package, package)))
+        return RaplSample(energy, datetime.now())
 
-def _walk_rapl_dir(path):
-	regex = re.compile("intel-rapl")
 
-	for dirpath, dirnames, filenames in os.walk(path, topdown=True):		
-		for d in dirnames:
-			#print d, regex.search(d)
-			if not regex.search(d):
-				dirnames.remove(d)
-		yield dirpath, dirnames, filenames
+class RaplSample():
+    def __init__(self, energy, timestamp):
+        self.energy_uj = energy
+        self.sample_time = timestamp
 
-class RAPLDomain(object):
+    def __sub__(self, other):
+        energy_diff = self.energy_uj - other.energy_uj
+        delta_time = (self.sample_time - other.sample_time).total_seconds()
+        return RaplDiff(energy_diff, delta_time)
 
-	@classmethod
-	def construct(cls, id, path):
-		name, energy_uj, max_energy_range_uj = _get_domain_info(path)
+    def energy(self):
+        return self.energy_uj
 
-		domain = RAPLDomain()
-		domain.name = name
-		domain.id = id
-		domain.values = {}
-		domain.values["energy_uj"] = energy_uj
-		domain.max_values = {}
-		domain.max_values["energy_uj"] = max_energy_range_uj
-		domain.subdomains = {}
-		domain.parent = None
+    def time(self):
+        return self.sample_time
 
-		return domain
+class RaplDiff():
+    def __init__(self, energy, time):
+        self.energy_uj = energy
+        self.delta_time = time
 
-	def is_subdomain(self):
-		splits = self.id.split(":")
-		return len(splits) > 2
+    def energy(self):
+        return self.energy_uj
 
-	def parent_id(self):
-		splits = self.id.split(":")
-		return ":".join(splits[0:2])
-
-	def print_tree(self):
-		print self
-		for s in self.subdomains:
-			self.subdomains[s].print_tree()
-
-	# take the difference of two domain samples
-	def __sub__(self, other):
-		assert self.name == other.name and self.id == other.id
-
-		domain = RAPLDomain()
-		domain.name = self.name
-		domain.id = self.id
-		domain.values = {}
-		for v in self.values:
-			diff = self.values[v] - other.values[v]
-			# if there was a rollover
-			if diff < 0:
-				print "rollover detected..."
-				diff = domain.max_values[v] + diff
-			domain.values[v] = diff
-
-		domain.subdomains = {}
-		domain.parent = None
-
-		return domain
-
-	def __str__(self):
-		values = ""
-		for v in self.values:
-			values += " %s=%s" % (v, self.values[v])
-
-		values = values.strip()
-
-		return "%s: %s" % (self.name, values)
-
-	def __repr__(self):
-		return self.__str__()
-
-class RAPLSample(object):
-	
-	@classmethod
-	def take_sample(cls):
-		sample = RAPLSample()
-		sample.domains = {}
-		sample.domains_by_id = {}
-		sample.timestamp = datetime.now()
-
-		for dirpath, dirnames, filenames in _walk_rapl_dir("/sys/class/powercap/intel-rapl"):
-			current = dirpath.split("/")[-1]
-			splits = current.split(":")
-
-			# base of RAPL tree
-			if len(splits) == 1:
-				continue
-
-			# package
-			elif len(splits) >= 2:
-				domain = RAPLDomain.construct(current, dirpath)
-				# catalog all domains here
-				sample.domains_by_id[domain.id] = domain
-				sample._link_tree(domain)
-
-		return sample
-
-	def _link_tree(self, domain):
-		if domain.is_subdomain():
-			parent = self.domains_by_id[domain.parent_id()]
-			parent.subdomains[domain.name] = domain
-		else:
-			self.domains[domain.name] = domain
-
-	def __sub__(self, other):
-		diff = RAPLDifference()
-		diff.domains = {}
-		diff.domains_by_id = {}
-		diff.duration = (self.timestamp - other.timestamp).total_seconds()
-
-		for id in self.domains_by_id:
-			assert id in other.domains_by_id
-
-		for id in self.domains_by_id:
-			selfDomain = self.domains_by_id[id]
-			otherDomain = other.domains_by_id[id]
-			diffDomain = selfDomain - otherDomain
-
-			diff.domains_by_id[id] = diffDomain
-			diff._link_tree(diffDomain)
-
-		return diff
-
-	def dump(self):
-		for domain in self.domains:
-			self.domains[domain].print_tree()
-
-	def energy(self, package, domain=None, unit=UJOULES):
-		if not domain:
-			e = self.domains[package].values["energy_uj"]
-		else:
-			e = self.domains[package].subdomains[domain].values["energy_uj"]
-
-		if unit == UJOULES:
-			return e
-		elif unit == JOULES:
-			return e / 1000000
-		elif unit == WATT_HOURS:
-			return e / (1000000*3600)
-
-class RAPLDifference(RAPLSample):
-	def average_power(self, package, domain=None):
-		return self.energy(package, domain, unit=JOULES) / self.duration
-
-class RAPLMonitor(object):
-	@classmethod
-	def sample(cls):
-		return RAPLSample.take_sample()
+    def power(self):
+        """Convert from microJ to J and return power consumption in delta time"""
+        return (self.energy_uj / 1000000) / self.delta_time
 
 
 
+# rr = RaplReader()
+# s1e = rr.read_energy_core_sample("0")
+# print s1e.energy()
+# print s1e.time()
+# time.sleep(5)
+# s2e = rr.read_energy_core_sample("0")
+# print s1e.energy()
+# print s1e.time()
+
+# diff = s2e - s1e
+
+# print "Energy in Joule: ", diff.energy()
+# print "Power in Watt: ", diff.power()
