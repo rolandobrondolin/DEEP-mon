@@ -47,10 +47,25 @@ class RaplDiff():
         return self.energy_uj
 
     def power(self):
-        """Convert from microJ to J and return power consumption in delta time"""
+        # Convert from microJ to J and return power consumption in delta time
         return (self.energy_uj / 1000000) / self.delta_time
 
+class RaplMonitor():
 
+    def __init__(self, topology):
+        self.rapl_reader = RaplReader()
+        self.topology = topology
+        self.rapl_sample = [self.rapl_reader.read_energy_core_sample(str(skt))
+            for skt in self.topology.get_sockets()]
+
+    def get_sample(self):
+        new_rapl_sample = [self.rapl_reader.read_energy_core_sample(str(skt))
+            for skt in self.topology.get_sockets()]
+        rapl_diff = [new_rapl_sample[skt] - self.rapl_sample[skt]
+            for skt in self.topology.get_sockets()]
+        self.rapl_sample = new_rapl_sample
+
+        return rapl_diff
 
 # rr = RaplReader()
 # s1e = rr.read_energy_core_sample("0")

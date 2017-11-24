@@ -16,16 +16,13 @@ process_table = ProcTable()
 
 collector.start_capture(sample_controller.get_timeslice())
 time_to_sleep = sample_controller.get_sleep_time()
+rapl_monitor = rapl.RaplMonitor(topology)
 while True:
-
-    rapl_reader = rapl.RaplReader()
-    rapl_sample_start = [ rapl_reader.read_energy_core_sample(str(skt))
-            for skt in topology.get_sockets() ]
 
     time.sleep(time_to_sleep)
     start_time = time.time()
 
-    sample = collector.get_new_sample(sample_controller, rapl_sample_start, rapl_reader)
+    sample = collector.get_new_sample(sample_controller, rapl_monitor)
     #print sample
 
     # add stuff to cumulative process table
