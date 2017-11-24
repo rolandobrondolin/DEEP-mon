@@ -14,11 +14,12 @@ from sample_controller import SampleController
 class BpfSample:
 
     def __init__(self, max_ts, total_time, sched_switch_count, timeslice, \
-        pid_dict):
+        total_active_power, pid_dict):
         self.max_ts = max_ts
         self.total_execution_time = total_time
         self.sched_switch_count = sched_switch_count
         self.timeslice = timeslice
+        self.total_active_power = total_active_power
         self.pid_dict = pid_dict
 
     def get_total_execution_time(self):
@@ -29,6 +30,9 @@ class BpfSample:
 
     def get_timeslice(self):
         return self.timeslice
+
+    def get_total_active_power(self):
+        return self.total_active_power
 
     def get_pid_dict(self):
         return self.pid_dict
@@ -47,7 +51,8 @@ class BpfSample:
         str_representation = "proc time: " \
             + str(self.total_execution_time) + " sched switch count " \
             + str(self.sched_switch_count) + " timeslice " \
-            + str(self.timeslice) + "\n"
+            + str(self.timeslice) + " total active power: " \
+            + str(self.total_active_power) + "\n"
 
         return str_representation
 
@@ -199,7 +204,7 @@ class BpfCollector:
                 pid_dict[-1 * (1 + int(key.value))] = proc_info
 
         return BpfSample(tsmax, total_execution_time, sched_switch_count, \
-            self.timeslice, pid_dict)
+            self.timeslice, total_active_power, pid_dict)
 
 
     def _get_total_weighted_cycles(self, pids, idles):
