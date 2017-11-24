@@ -13,7 +13,9 @@ from sample_controller import SampleController
 
 class BpfSample:
 
-    def __init__(self, total_time, sched_switch_count, timeslice, pid_dict):
+    def __init__(self, max_ts, total_time, sched_switch_count, timeslice, \
+        pid_dict):
+        self.max_ts = max_ts
         self.total_execution_time = total_time
         self.sched_switch_count = sched_switch_count
         self.timeslice = timeslice
@@ -37,7 +39,12 @@ class BpfSample:
         for key, value in sorted(self.pid_dict.iteritems()):
             str_representation = str_representation + str(value) + "\n"
 
-        str_representation = str_representation + "proc time: " \
+        str_representation = str_representation + self.get_log_line()
+
+        return str_representation
+
+    def get_log_line(self):
+        str_representation = "proc time: " \
             + str(self.total_execution_time) + " sched switch count " \
             + str(self.sched_switch_count) + " timeslice " \
             + str(self.timeslice) + "\n"
@@ -187,7 +194,7 @@ class BpfCollector:
             if add_proc:
                 pid_dict[-1 * (1 + int(key.value))] = proc_info
 
-        return BpfSample(total_execution_time, sched_switch_count, \
+        return BpfSample(tsmax, total_execution_time, sched_switch_count, \
             self.timeslice, pid_dict)
 
 
