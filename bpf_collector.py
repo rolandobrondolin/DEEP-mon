@@ -147,7 +147,6 @@ class BpfCollector:
         active_power= [rapl_diff[skt].power()*1000
             for skt in self.topology.get_sockets()]
         total_active_power = sum(active_power)
-        print(total_active_power)
 
         for key, data in self.pids.items():
 
@@ -155,7 +154,8 @@ class BpfCollector:
             proc_info.set_pid(data.pid)
             proc_info.set_comm(data.comm)
             add_proc = False
-            proc_info.set_power(self._get_pid_power(data, total_weighted_cycles, total_active_power))
+            proc_info.set_power(self._get_pid_power(data, \
+                total_weighted_cycles, total_active_power))
 
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -182,7 +182,8 @@ class BpfCollector:
             proc_info.set_pid(data.pid)
             proc_info.set_comm(data.comm)
             add_proc = False
-            proc_info.set_power(self._get_idle_power(data, total_weighted_cycles, total_active_power))
+            proc_info.set_power(self._get_idle_power(data, \
+                total_weighted_cycles, total_active_power))
 
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -206,20 +207,11 @@ class BpfCollector:
         return BpfSample(tsmax, total_execution_time, sched_switch_count, \
             self.timeslice, total_active_power, pid_dict)
 
-
-    def _get_total_weighted_cycles(self, pids, idles):
-        weighted_socket_cycles_pids = sum([sum(pid.weighted_cycles)
-            for key, pid in pids.items()])
-        weighted_socket_cycles_idles = sum([sum(idle.weighted_cycles)
-            for key, idle in idles.items()])
-        weighted_socket_cycles = weighted_socket_cycles_idles + weighted_socket_cycles_pids
-        return weighted_socket_cycles
-
     def _get_pid_power(self, pid, total_cycles, active_power):
         pid_power = (active_power *
             (float(sum(pid.weighted_cycles)) / float(total_cycles)))
         cyc = sum(pid.weighted_cycles)
-        print("Pid power: ", pid_power, "Pid cycles:", cyc)
+        #print("Pid power: ", pid_power, "Pid cycles:", cyc)
 
         return pid_power
 
@@ -227,6 +219,6 @@ class BpfCollector:
         idle_power = (active_power *
             (float(sum(pid.weighted_cycles)) / float(total_cycles)))
         cyc = sum(pid.weighted_cycles)
-        print("Idle power: ", idle_power, "Pid cycles:", cyc)
+        #print("Idle power: ", idle_power, "Pid cycles:", cyc)
 
         return idle_power

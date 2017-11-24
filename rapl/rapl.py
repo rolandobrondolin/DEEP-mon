@@ -24,6 +24,9 @@ class RaplSample():
     def __sub__(self, other):
         energy_diff = self.energy_uj - other.energy_uj
         delta_time = (self.sample_time - other.sample_time).total_seconds()
+        # this is overflow!
+        if energy_diff < 0 and delta_time > 0:
+            energy_diff = 2**32 + self.energy_uj - other.energy_uj
         return RaplDiff(energy_diff, delta_time)
 
     def energy(self):
