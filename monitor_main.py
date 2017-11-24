@@ -5,6 +5,7 @@ from process_info import ProcessInfo
 from process_info import SocketProcessItem
 from sample_controller import SampleController
 from process_table import ProcTable
+from rapl import rapl
 import time
 
 topology = ProcTopology()
@@ -15,11 +16,13 @@ process_table = ProcTable()
 
 collector.start_capture(sample_controller.get_timeslice())
 time_to_sleep = sample_controller.get_sleep_time()
+rapl_monitor = rapl.RaplMonitor(topology)
 while True:
+
     time.sleep(time_to_sleep)
     start_time = time.time()
 
-    sample = collector.get_new_sample(sample_controller)
+    sample = collector.get_new_sample(sample_controller, rapl_monitor)
     #print sample
 
     # add stuff to cumulative process table
