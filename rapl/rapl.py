@@ -1,10 +1,4 @@
-import os
-import os.path
-import time
 from datetime import datetime
-
-# Debug
-import pprint
 
 class RaplReader():
 
@@ -48,7 +42,7 @@ class RaplDiff():
 
     def power(self):
         # Convert from microJ to J and return power consumption in delta time
-        return (self.energy_uj / 1000000) / self.delta_time
+        return (self.energy_uj / 1000000.0) / self.delta_time
 
 class RaplMonitor():
 
@@ -66,17 +60,3 @@ class RaplMonitor():
         self.rapl_sample = new_rapl_sample
 
         return rapl_diff
-
-# rr = RaplReader()
-# s1e = rr.read_energy_core_sample("0")
-# print s1e.energy()
-# print s1e.time()
-# time.sleep(5)
-# s2e = rr.read_energy_core_sample("0")
-# print s1e.energy()
-# print s1e.time()
-
-# diff = s2e - s1e
-
-# print "Energy in Joule: ", diff.energy()
-# print "Power in Watt: ", diff.power()
