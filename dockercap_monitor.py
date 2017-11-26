@@ -108,7 +108,7 @@ while True:
     # rapl_sample_start = rapl_reader.read_energy_core_sample("0")
     # d = {key: "{}".format(key) for key in range(1,4)}
     rapl_sample_start = {key: rapl_reader.read_energy_core_sample(str(key)) for key in range(0, len(socket_set))}
-    # rapl_sample_start = { 
+    # rapl_sample_start = {
          # 0: rapl_reader.read_energy_core_sample("0"),
          # 1: rapl_reader.read_energy_core_sample("1") }
 
@@ -125,13 +125,13 @@ while True:
     # rapl_diff = {
         # 0: rapl_sample_end[0] - rapl_sample_start[0],
         # 1: rapl_sample_end[1] - rapl_sample_start[1] }
-    
+
 
     power_millis = {key: rapl_diff[key].power()*1000 for key in range(0, len(socket_set))}
     # power_millis = {
         # 0: rapl_diff[0].power()*1000,
         # 1: rapl_diff[1].power()*1000 }
-    
+
     power_micro = {key: rapl_diff[key].power()*1000000 for key in range(0, len(socket_set))}
     # power_micro = {
         # 0: rapl_diff[0].power()*1000000,

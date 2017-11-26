@@ -44,12 +44,23 @@ class ProcTable:
     def find_cgroup_id(self, pid):
         #scan proc folder searching for the pid
         try:
+            # Non-systemd Docker
             with open(os.path.join('/proc', str(pid), 'cgroup'), 'rb') as f:
                 for line in f:
                     line_array = line.split("/")
                     if len(line_array) > 1 and \
                         len(line_array[len(line_array) -1]) == 65:
                         return line_array[len(line_array) -1]
+            # systemd Docker
+            with open(os.path.join('/proc', str(pid), 'cgroup'), 'rb') as f:
+                for line in f:
+                    line_array = line.split("/")
+                    if len(line_array) > 1 and "docker-" in line_array[len(line_array) -1] and ".scope" in line_array[len(line_array) -1]:
+                        new_id = line_array[len(line_array) -1].replace("docker-", "")
+                        new_id = new_id.replace(".scope", "")
+                        if len(new_id) == 65:
+                            return new_id
+
         except IOError: # proc has already terminated
             return ""
         return ""

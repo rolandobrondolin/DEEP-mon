@@ -16,7 +16,9 @@ struct proc_topology {
         u64 sibling_id;
         u64 core_id;
         u64 processor_id;
-        u64 cycles;
+        u64 cycles_core_updated;
+        u64 cycles_core_delta_sibling;
+        u64 cycles_thread;
         u64 ts;
         int running_pid;
 };
@@ -50,8 +52,6 @@ struct sched_process_exit_args {
         int prio;
 };
 
-//#define DEBUG
-
 #ifdef DEBUG
 struct error_code {
         int err;
@@ -60,7 +60,9 @@ struct error_code {
 BPF_PERF_OUTPUT(err);
 #endif
 
-BPF_PERF_ARRAY(cpu_cycles, NUM_CPUS);
+//BPF_PERF_ARRAY(cpu_cycles, NUM_CPUS);
+BPF_PERF_ARRAY(cycles_core, NUM_CPUS);
+BPF_PERF_ARRAY(cycles_thread, NUM_CPUS);
 BPF_HASH(processors, u64, struct proc_topology);
 BPF_HASH(pids, int, struct pid_status);
 BPF_HASH(idles, u64, struct pid_status);
@@ -70,7 +72,7 @@ BPF_HASH(conf, int, unsigned int);
 #define STEP_MIN 1000000000 //2000000000
 #define STEP_MAX 4000000000 //2000000000
 
-#define HAPPY_FACTOR 5
+#define HAPPY_FACTOR 11/20
 #define STD_FACTOR 1
 
 
@@ -96,7 +98,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&selector_key));
         // if selector is not in place correctly, signal debug error and stop tracing routine
         if (ret!= 0 || bpf_selector > 1) {
-                send_error(ctx, 1);
+                send_error(ctx, -1);
                 return 0;
         }
 
@@ -110,7 +112,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         ret = 0;
         ret = bpf_probe_read(&old_bpf_selector, sizeof(old_bpf_selector), conf.lookup(&old_selector_key));
         if (ret!= 0 || old_bpf_selector > 1) {
-                send_error(ctx, 1);
+                send_error(ctx, -2);
                 return 0;
         } else if(old_bpf_selector != bpf_selector) {
                 switch_count = 1;
@@ -127,7 +129,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         unsigned int step = 1000000000;
         ret = bpf_probe_read(&step, sizeof(step), conf.lookup(&step_key));
         if (ret!= 0 || step < STEP_MIN || step > STEP_MAX) {
-                send_error(ctx, 1);
+                send_error(ctx, -3);
                 return 0;
         }
 
@@ -135,7 +137,8 @@ int trace_switch(struct sched_switch_args *ctx) {
         // get data about processor and performance counters
         // lookup also the pid of the exiting process
         u64 processor_id = bpf_get_smp_processor_id();
-        u64 cycles = cpu_cycles.perf_read(processor_id);
+        u64 thread_cycles_sample = cycles_thread.perf_read(processor_id);
+        u64 core_cycles_sample = cycles_core.perf_read(processor_id);
         u64 ts = bpf_ktime_get_ns();
         int old_pid = ctx->prev_pid;
 
@@ -143,7 +146,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         struct proc_topology topology_info;
         ret = bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
         if(ret!= 0 || topology_info.ht_id > NUM_CPUS) {
-                send_error(ctx, 2);
+                send_error(ctx, -4);
                 return 0;
         }
 
@@ -168,15 +171,18 @@ int trace_switch(struct sched_switch_args *ctx) {
                         send_error(ctx, 3);
                         return 0;
                 }
-                u64 old_cycles = cycles;
+                u64 old_thread_cycles = thread_cycles_sample;
+                u64 cycles_core_delta_sibling = 0;
                 u64 old_time = ts;
                 if (topology_info.ts > 0) {
                         old_time = topology_info.ts;
-                        old_cycles = topology_info.cycles;
+                        old_thread_cycles = topology_info.cycles_thread;
+                        cycles_core_delta_sibling = topology_info.cycles_core_delta_sibling;
+                        if (old_pid > 0 && sibling_info.running_pid > 0 && core_cycles_sample > topology_info.cycles_core_updated) {
+                                cycles_core_delta_sibling += core_cycles_sample - topology_info.cycles_core_updated;
+                        }
                 }
 
-                u64 weight_factor = STD_FACTOR;
-                u64 weight_enabler = 0;
                 //find the sibling pid status
                 int sibling_pid = sibling_info.running_pid;
                 struct pid_status sibling_process;
@@ -211,22 +217,11 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 }
                         }
 
-                        if(sibling_pid > 0) {
-                                weight_factor = HAPPY_FACTOR;
-                                weight_enabler = 1;
-                        }
-
                         //trick the compiler with loop unrolling
-                        // update measurements for sibling pid
+                        //update measurements for sibling pid
                         #pragma clang loop unroll(full)
                         for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
                                 if(array_index == sibling_process.bpf_selector + SELECTOR_DIM * sibling_info.processor_id) {
-                                        //discard sample if cycles counter did overflow
-                                        if (cycles > old_cycles) {
-                                                sibling_process.weighted_cycles[array_index] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
-                                        } else {
-                                                send_error(ctx, old_pid);
-                                        }
                                         sibling_process.time_ns[array_index] += ts - old_time;
                                         sibling_process.ts[array_index] = ts;
                                         if(sibling_pid == 0) {
@@ -237,8 +232,15 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 }
                         }
 
+                        //
+                        // Instead of adding stuff directly, given that we don't have the measure of the sibling thread cycles,
+                        // We are summing up the information on our side to the core cycles of the sibling
+                        //
                         //update sibling process info
-                        sibling_info.cycles = cycles;
+                        if(sibling_pid > 0 && old_pid > 0 && core_cycles_sample > sibling_info.cycles_core_updated) {
+                                sibling_info.cycles_core_delta_sibling += core_cycles_sample - sibling_info.cycles_core_updated;
+                        }
+                        sibling_info.cycles_core_updated = core_cycles_sample;
                         sibling_info.ts = ts;
                         processors.update(&sibling_id, &sibling_info);
                 }
@@ -271,8 +273,11 @@ int trace_switch(struct sched_switch_args *ctx) {
                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
                         if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
                                 //discard sample if cycles counter did overflow
-                                if (cycles > old_cycles) {
-                                        status_old.weighted_cycles[array_index] += (cycles - old_cycles) + ((cycles - old_cycles)/weight_factor)*weight_enabler;
+                                if (thread_cycles_sample > old_thread_cycles){
+                                        u64 cycle1 = thread_cycles_sample - old_thread_cycles;
+                                        u64 cycle_overlap = cycles_core_delta_sibling;
+                                        u64 cycle_non_overlap = cycle1 > cycles_core_delta_sibling ? cycle1 - cycles_core_delta_sibling : 0;
+                                        status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
                                 } else {
                                         send_error(ctx, old_pid);
                                 }
@@ -299,7 +304,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         }
         //If no status for PID, then create one, otherwise update selector
         if(ret) {
-                send_error(ctx, -1 * new_pid);
+                //send_error(ctx, -1 * new_pid);
                 bpf_probe_read(&(status_new.comm), sizeof(status_new.comm), ctx->next_comm);
                 #pragma clang loop unroll(full)
                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
@@ -317,7 +322,9 @@ int trace_switch(struct sched_switch_args *ctx) {
         }
         //add info on new running pid into processors table
         topology_info.running_pid = new_pid;
-        topology_info.cycles = cycles;
+        topology_info.cycles_thread = thread_cycles_sample;
+        topology_info.cycles_core_delta_sibling = 0;
+        topology_info.cycles_core_updated = core_cycles_sample;
         topology_info.ts = ts;
         processors.update(&processor_id, &topology_info);
         return 0;
@@ -339,7 +346,9 @@ int trace_exit(struct sched_process_exit_args *ctx) {
         bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
 
         topology_info.running_pid = 0;
-        topology_info.cycles = cpu_cycles.perf_read(processor_id);
+        topology_info.cycles_thread = cycles_thread.perf_read(processor_id);
+        topology_info.cycles_core_updated = cycles_core.perf_read(processor_id);
+        topology_info.cycles_core_delta_sibling = 0;
         topology_info.ts = ts;
 
         processors.update(&processor_id, &topology_info);

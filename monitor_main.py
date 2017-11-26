@@ -9,7 +9,7 @@ from rapl import rapl
 import time
 
 topology = ProcTopology()
-collector = BpfCollector(topology)
+collector = BpfCollector(topology, False)
 sample_controller = SampleController(topology.get_hyperthread_count())
 
 process_table = ProcTable()
@@ -23,7 +23,7 @@ while True:
     start_time = time.time()
 
     sample = collector.get_new_sample(sample_controller, rapl_monitor)
-    #print sample
+    # print sample
 
     # add stuff to cumulative process table
     process_table.add_process_from_sample(sample)
