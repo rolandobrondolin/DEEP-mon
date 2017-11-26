@@ -9,7 +9,7 @@ from rapl import rapl
 import time
 
 topology = ProcTopology()
-collector = BpfCollector(topology)
+collector = BpfCollector(topology, False)
 sample_controller = SampleController(topology.get_hyperthread_count())
 
 process_table = ProcTable()

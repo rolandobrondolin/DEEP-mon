@@ -56,14 +56,23 @@ class BpfSample:
 
         return str_representation
 
+class ErrorCode(ct.Structure):
+    _fields_ = [("err", ct.c_int)]
 
 class BpfCollector:
 
-    def __init__(self, topology):
+    def __init__(self, topology, debug):
         self.topology = topology
-        self.bpf_program = BPF(src_file="bpf/bpf_monitor.c", \
-            cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
-            "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets())])
+        self.debug = debug
+        if debug == False:
+            self.bpf_program = BPF(src_file="bpf/bpf_monitor.c", \
+                cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
+                "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets())])
+        else:
+            self.bpf_program = BPF(src_file="bpf/bpf_monitor.c", \
+                cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
+                "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets()), \
+                "-DDEBUG"])
 
         self.processors = self.bpf_program.get_table("processors")
         self.pids = self.bpf_program.get_table("pids")
@@ -73,6 +82,7 @@ class BpfCollector:
         self.SELECTOR_DIM = 2
         self.timeslice = 1000000000
 
+
         #self.bpf_program["cpu_cycles"].open_perf_event(PerfType.HARDWARE, \
         #    PerfHWConfig.CPU_CYCLES)
         # 4 means RAW_TYPE
@@ -80,6 +90,10 @@ class BpfCollector:
         # int("53003c",16) is the hex for UNHALTED_CORE_CYCLES
         self.bpf_program["cycles_core"].open_perf_event(4, int("73003c",16))
         self.bpf_program["cycles_thread"].open_perf_event(4, int("53003c",16))
+
+    def print_event(self, cpu, data, size):
+        event = ct.cast(data, ct.POINTER(ErrorCode)).contents
+        print str(cpu) + " " + str(event.err)
 
     def start_capture(self, timeslice):
         for key, value in self.topology.get_new_bpf_topology().iteritems():
@@ -90,6 +104,9 @@ class BpfCollector:
         self.bpf_config[ct.c_int(1)] = ct.c_uint(self.selector)     # old selector
         self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
         self.bpf_config[ct.c_int(3)] = ct.c_uint(0)                 # switch count
+
+        if self.debug == True:
+            self.bpf_program["err"].open_perf_buffer(self.print_event, page_cnt=256)
 
         self.bpf_program.attach_tracepoint(tp="sched:sched_switch", \
             fn_name="trace_switch")
@@ -105,6 +122,9 @@ class BpfCollector:
         sample_controller.compute_sleep_time(sample.get_sched_switch_count())
         self.timeslice = sample_controller.get_timeslice()
         self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
+
+        if self.debug == True:
+            self.bpf_program.kprobe_poll()
 
         return sample
 

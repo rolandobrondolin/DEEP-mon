@@ -52,8 +52,6 @@ struct sched_process_exit_args {
         int prio;
 };
 
-//#define DEBUG
-
 #ifdef DEBUG
 struct error_code {
         int err;
@@ -100,7 +98,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&selector_key));
         // if selector is not in place correctly, signal debug error and stop tracing routine
         if (ret!= 0 || bpf_selector > 1) {
-                send_error(ctx, 1);
+                send_error(ctx, -1);
                 return 0;
         }
 
@@ -114,7 +112,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         ret = 0;
         ret = bpf_probe_read(&old_bpf_selector, sizeof(old_bpf_selector), conf.lookup(&old_selector_key));
         if (ret!= 0 || old_bpf_selector > 1) {
-                send_error(ctx, 1);
+                send_error(ctx, -2);
                 return 0;
         } else if(old_bpf_selector != bpf_selector) {
                 switch_count = 1;
@@ -131,7 +129,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         unsigned int step = 1000000000;
         ret = bpf_probe_read(&step, sizeof(step), conf.lookup(&step_key));
         if (ret!= 0 || step < STEP_MIN || step > STEP_MAX) {
-                send_error(ctx, 1);
+                send_error(ctx, -3);
                 return 0;
         }
 
@@ -148,7 +146,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         struct proc_topology topology_info;
         ret = bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
         if(ret!= 0 || topology_info.ht_id > NUM_CPUS) {
-                send_error(ctx, 2);
+                send_error(ctx, -4);
                 return 0;
         }
 
@@ -293,7 +291,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                                           status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
 
                                   } else {
-                                          send_error(ctx, old_pid);
+                                          send_error(ctx, cycleT - cycle1);
                                   }
                                 // } else if (thread_cycles_sample > old_thread_cycles){
                                 //   status_old.weighted_cycles[array_index] += thread_cycles_sample - old_thread_cycles;
@@ -324,7 +322,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         }
         //If no status for PID, then create one, otherwise update selector
         if(ret) {
-                send_error(ctx, -1 * new_pid);
+                //send_error(ctx, -1 * new_pid);
                 bpf_probe_read(&(status_new.comm), sizeof(status_new.comm), ctx->next_comm);
                 #pragma clang loop unroll(full)
                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
