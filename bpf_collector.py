@@ -88,8 +88,8 @@ class BpfCollector:
         # 4 means RAW_TYPE
         # int("73003c",16) is the hex for UNHALTED_CORE_CYCLES for any thread
         # int("53003c",16) is the hex for UNHALTED_CORE_CYCLES
-        self.bpf_program["cycles_core"].open_perf_event(4, int("72003c",16))
-        self.bpf_program["cycles_thread"].open_perf_event(4, int("52003c",16))
+        self.bpf_program["cycles_core"].open_perf_event(4, int("73003c",16))
+        self.bpf_program["cycles_thread"].open_perf_event(4, int("53003c",16))
 
     def print_event(self, cpu, data, size):
         event = ct.cast(data, ct.POINTER(ErrorCode)).contents

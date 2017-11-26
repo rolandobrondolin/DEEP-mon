@@ -237,7 +237,7 @@ int trace_switch(struct sched_switch_args *ctx) {
 
                         //
                         // Instead of adding stuff directly, given that we don't have the measure of the sibling thread cycles,
-                        // We are summing up the information on our side to the thread cycles of the sibling
+                        // We are summing up the information on our side to the core cycles of the sibling
                         //
                         //update sibling process info
                         if(sibling_pid > 0 && old_pid > 0 && core_cycles_sample > sibling_info.cycles_core_updated) {
