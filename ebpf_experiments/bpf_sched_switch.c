@@ -16,7 +16,7 @@ struct data_t {
         u64 processor_id;
         char old_comm[16];
         char new_comm[16];
-        u64 cycles;
+        u64 cycles[NUM_CPUS];
 };
 
 struct sched_switch_args {
@@ -42,7 +42,11 @@ int trace_function(struct sched_switch_args *ctx) {
                 bpf_probe_read(&(data.old_comm), sizeof(data.old_comm), ctx->prev_comm);
                 bpf_probe_read(&(data.new_comm), sizeof(data.new_comm), ctx->next_comm);
 
-                data.cycles = cpu_cycles.perf_read(data.processor_id);
+                int i = 0;
+                #pragma clang loop unroll(full)
+                for(i = 0; i< NUM_CPUS; i++) {
+                  data.cycles[i] = cpu_cycles.perf_read(i);
+                }
                 events.perf_submit(ctx, &data, sizeof(data));
         }
 

@@ -73,8 +73,13 @@ class BpfCollector:
         self.SELECTOR_DIM = 2
         self.timeslice = 1000000000
 
-        self.bpf_program["cpu_cycles"].open_perf_event(PerfType.HARDWARE, \
-            PerfHWConfig.CPU_CYCLES)
+        #self.bpf_program["cpu_cycles"].open_perf_event(PerfType.HARDWARE, \
+        #    PerfHWConfig.CPU_CYCLES)
+        # 4 means RAW_TYPE
+        # int("73003c",16) is the hex for UNHALTED_CORE_CYCLES for any thread
+        # int("53003c",16) is the hex for UNHALTED_CORE_CYCLES
+        self.bpf_program["cycles_core"].open_perf_event(4, int("73003c",16))
+        self.bpf_program["cycles_thread"].open_perf_event(4, int("53003c",16))
 
     def start_capture(self, timeslice):
         for key, value in self.topology.get_new_bpf_topology().iteritems():
