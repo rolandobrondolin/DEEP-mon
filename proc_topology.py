@@ -8,7 +8,7 @@ class BpfProcTopology(ct.Structure):
                 ("core_id", ct.c_ulonglong),
                 ("processor_id", ct.c_ulonglong),
                 ("cycles_core", ct.c_ulonglong),
-                ("cycles_core_delta", ct.c_ulonglong),
+                ("cycles_thread_delta_sibling", ct.c_ulonglong),
                 ("cycles_thread", ct.c_ulonglong),
                 ("ts", ct.c_ulonglong),
                 ("running_pid", ct.c_int)]
