@@ -16,7 +16,6 @@ struct proc_topology {
         u64 sibling_id;
         u64 core_id;
         u64 processor_id;
-        u64 cycles_core;
         u64 cycles_core_updated;
         u64 cycles_core_delta_sibling;
         u64 cycles_thread;
@@ -173,13 +172,11 @@ int trace_switch(struct sched_switch_args *ctx) {
                         return 0;
                 }
                 u64 old_thread_cycles = thread_cycles_sample;
-                u64 old_core_cycles = core_cycles_sample;
                 u64 cycles_core_delta_sibling = 0;
                 u64 old_time = ts;
                 if (topology_info.ts > 0) {
                         old_time = topology_info.ts;
                         old_thread_cycles = topology_info.cycles_thread;
-                        old_core_cycles = topology_info.cycles_core;
                         cycles_core_delta_sibling = topology_info.cycles_core_delta_sibling;
                         if (old_pid > 0 && sibling_info.running_pid > 0 && core_cycles_sample > topology_info.cycles_core_updated) {
                                 cycles_core_delta_sibling += core_cycles_sample - topology_info.cycles_core_updated;
@@ -326,7 +323,6 @@ int trace_switch(struct sched_switch_args *ctx) {
         //add info on new running pid into processors table
         topology_info.running_pid = new_pid;
         topology_info.cycles_thread = thread_cycles_sample;
-        topology_info.cycles_core = core_cycles_sample;
         topology_info.cycles_core_delta_sibling = 0;
         topology_info.cycles_core_updated = core_cycles_sample;
         topology_info.ts = ts;
@@ -351,7 +347,7 @@ int trace_exit(struct sched_process_exit_args *ctx) {
 
         topology_info.running_pid = 0;
         topology_info.cycles_thread = cycles_thread.perf_read(processor_id);
-        topology_info.cycles_core = cycles_core.perf_read(processor_id);
+        topology_info.cycles_core_updated = cycles_core.perf_read(processor_id);
         topology_info.cycles_core_delta_sibling = 0;
         topology_info.ts = ts;
 
