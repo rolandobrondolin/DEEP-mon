@@ -17,7 +17,8 @@ struct proc_topology {
         u64 core_id;
         u64 processor_id;
         u64 cycles_core;
-        u64 cycles_thread_delta_sibling;
+        u64 cycles_core_updated;
+        u64 cycles_core_delta_sibling;
         u64 cycles_thread;
         u64 ts;
         int running_pid;
@@ -173,19 +174,15 @@ int trace_switch(struct sched_switch_args *ctx) {
                 }
                 u64 old_thread_cycles = thread_cycles_sample;
                 u64 old_core_cycles = core_cycles_sample;
-                u64 cycles_thread_delta_sibling = 0;
+                u64 cycles_core_delta_sibling = 0;
                 u64 old_time = ts;
                 if (topology_info.ts > 0) {
                         old_time = topology_info.ts;
                         old_thread_cycles = topology_info.cycles_thread;
                         old_core_cycles = topology_info.cycles_core;
-                        cycles_thread_delta_sibling = topology_info.cycles_thread_delta_sibling;
-                        if (old_pid > 0 && sibling_info.running_pid > 0) {
-                                if(sibling_info.ts > topology_info.ts) {
-                                        cycles_thread_delta_sibling += core_cycles_sample > sibling_info.cycles_core ? (core_cycles_sample - sibling_info.cycles_core) : 0;
-                                } else {
-                                        cycles_thread_delta_sibling += core_cycles_sample > old_core_cycles ? (core_cycles_sample - old_core_cycles) : 0;
-                                }
+                        cycles_core_delta_sibling = topology_info.cycles_core_delta_sibling;
+                        if (old_pid > 0 && sibling_info.running_pid > 0 && core_cycles_sample > topology_info.cycles_core_updated) {
+                                cycles_core_delta_sibling += core_cycles_sample - topology_info.cycles_core_updated;
                         }
                 }
 
@@ -243,9 +240,10 @@ int trace_switch(struct sched_switch_args *ctx) {
                         // We are summing up the information on our side to the thread cycles of the sibling
                         //
                         //update sibling process info
-                        if(sibling_pid > 0 && old_pid > 0 && thread_cycles_sample - old_thread_cycles > 0) {
-                                sibling_info.cycles_thread_delta_sibling += thread_cycles_sample - old_thread_cycles;
+                        if(sibling_pid > 0 && old_pid > 0 && core_cycles_sample > sibling_info.cycles_core_updated) {
+                                sibling_info.cycles_core_delta_sibling += core_cycles_sample - sibling_info.cycles_core_updated;
                         }
+                        sibling_info.cycles_core_updated = core_cycles_sample;
                         sibling_info.ts = ts;
                         processors.update(&sibling_id, &sibling_info);
                 }
@@ -277,28 +275,15 @@ int trace_switch(struct sched_switch_args *ctx) {
                 #pragma clang loop unroll(full)
                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
                         if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
-
-                                //if(old_pid > 0) {
-                                  //discard sample if cycles counter did overflow
-                                  if (thread_cycles_sample > old_thread_cycles && core_cycles_sample > old_core_cycles) {
-                                          u64 cycle1 = thread_cycles_sample - old_thread_cycles;
-                                          u64 cycleT = core_cycles_sample - old_core_cycles;
-                                          u64 cycle2 = cycles_thread_delta_sibling;
-
-                                          u64 cycle_overlap = cycle1 + cycle2 > cycleT ? cycle1 + cycle2 - cycleT : 0;
-                                          u64 cycle_non_overlap = cycleT > cycle_overlap ? cycleT - cycle_overlap : 0;
-
-                                          status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
-
-                                  } else {
-                                          send_error(ctx, cycleT - cycle1);
-                                  }
-                                // } else if (thread_cycles_sample > old_thread_cycles){
-                                //   status_old.weighted_cycles[array_index] += thread_cycles_sample - old_thread_cycles;
-                                // } else {
-                                //   send_error(ctx, old_pid);
-                                // }
-
+                                //discard sample if cycles counter did overflow
+                                if (thread_cycles_sample > old_thread_cycles){
+                                        u64 cycle1 = thread_cycles_sample - old_thread_cycles;
+                                        u64 cycle_overlap = cycles_core_delta_sibling;
+                                        u64 cycle_non_overlap = cycle1 > cycles_core_delta_sibling ? cycle1 - cycles_core_delta_sibling : 0;
+                                        status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
+                                } else {
+                                        send_error(ctx, old_pid);
+                                }
                                 status_old.time_ns[array_index] += ts - old_time;
                                 status_old.ts[array_index] = ts;
                                 if(old_pid == 0) {
@@ -342,7 +327,8 @@ int trace_switch(struct sched_switch_args *ctx) {
         topology_info.running_pid = new_pid;
         topology_info.cycles_thread = thread_cycles_sample;
         topology_info.cycles_core = core_cycles_sample;
-        topology_info.cycles_thread_delta_sibling = 0;
+        topology_info.cycles_core_delta_sibling = 0;
+        topology_info.cycles_core_updated = core_cycles_sample;
         topology_info.ts = ts;
         processors.update(&processor_id, &topology_info);
         return 0;
@@ -366,7 +352,7 @@ int trace_exit(struct sched_process_exit_args *ctx) {
         topology_info.running_pid = 0;
         topology_info.cycles_thread = cycles_thread.perf_read(processor_id);
         topology_info.cycles_core = cycles_core.perf_read(processor_id);
-        topology_info.cycles_thread_delta_sibling = 0;
+        topology_info.cycles_core_delta_sibling = 0;
         topology_info.ts = ts;
 
         processors.update(&processor_id, &topology_info);

@@ -8,7 +8,8 @@ class BpfProcTopology(ct.Structure):
                 ("core_id", ct.c_ulonglong),
                 ("processor_id", ct.c_ulonglong),
                 ("cycles_core", ct.c_ulonglong),
-                ("cycles_thread_delta_sibling", ct.c_ulonglong),
+                ("cycles_core_updated", ct.c_ulonglong),
+                ("cycles_core_delta_sibling", ct.c_ulonglong),
                 ("cycles_thread", ct.c_ulonglong),
                 ("ts", ct.c_ulonglong),
                 ("running_pid", ct.c_int)]
@@ -68,6 +69,7 @@ class ProcTopology:
                                 ct.c_ulonglong(value[1]), \
                                 ct.c_ulonglong(value[2]), \
                                 ct.c_ulonglong(value[3]), \
+                                ct.c_ulonglong(0), \
                                 ct.c_ulonglong(0), \
                                 ct.c_ulonglong(0), \
                                 ct.c_ulonglong(0), \
