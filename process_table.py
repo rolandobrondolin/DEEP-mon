@@ -55,7 +55,10 @@ class ProcTable:
             with open(os.path.join('/proc', str(pid), 'cgroup'), 'rb') as f:
                 for line in f:
                     line_array = line.split("/")
-                    if len(line_array) > 1 and "docker-" in line_array[len(line_array) -1] and ".scope" in line_array[len(line_array) -1]:
+                    if len(line_array) > 1 \
+                        and "docker-" in line_array[len(line_array) -1] \
+                        and ".scope" in line_array[len(line_array) -1]:
+
                         new_id = line_array[len(line_array) -1].replace("docker-", "")
                         new_id = new_id.replace(".scope", "")
                         if len(new_id) == 65:

@@ -157,25 +157,35 @@ class BpfCollector:
         for key, data in self.pids.items():
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # Compute the number of total weighted cycles per socket
-                cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
-                total_weighted_cycles[cycles_index] = \
-                    total_weighted_cycles[cycles_index] \
-                    + data.weighted_cycles[multisocket_selector]
                 # search max timestamp of the sample
                 if data.ts[multisocket_selector] > tsmax:
                     tsmax = data.ts[multisocket_selector]
         for key, data in self.idles.items():
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # Compute the number of total weighted cycles per socket
-                cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
-                total_weighted_cycles[cycles_index] = \
-                    total_weighted_cycles[cycles_index] \
-                    + data.weighted_cycles[multisocket_selector]
                 # search max timestamp of the sample
                 if data.ts[multisocket_selector] > tsmax:
                     tsmax = data.ts[multisocket_selector]
+
+        for key, data in self.pids.items():
+            for multisocket_selector in \
+                range(read_selector, total_slots_length, self.SELECTOR_DIM):
+                # Compute the number of total weighted cycles per socket
+                cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
+                if data.ts[multisocket_selector] + self.timeslice > tsmax:
+                    total_weighted_cycles[cycles_index] = \
+                        total_weighted_cycles[cycles_index] \
+                        + data.weighted_cycles[multisocket_selector]
+
+        for key, data in self.idles.items():
+            for multisocket_selector in \
+                range(read_selector, total_slots_length, self.SELECTOR_DIM):
+                # Compute the number of total weighted cycles per socket
+                cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
+                if data.ts[multisocket_selector] + self.timeslice > tsmax:
+                    total_weighted_cycles[cycles_index] = \
+                        total_weighted_cycles[cycles_index] \
+                        + data.weighted_cycles[multisocket_selector]
 
         power= [rapl_diff[skt].power()*1000 for skt in self.topology.get_sockets()]
         total_power = sum(power)
