@@ -9,8 +9,8 @@ bpf_tracer = BPF(src_file="bpf_sched_switch.c", cflags=[
 bpf_tracer.attach_tracepoint(tp="sched:sched_switch", fn_name="trace_function")
 #bpf_tracer["cpu_cycles"].open_perf_event(
 #    PerfType.HARDWARE, PerfHWConfig.CPU_CYCLES)
-bpf_tracer["cpu_cycles"].open_perf_event(4, int("73003c",16))
-#bpf_tracer["cpu_cycles"].open_perf_event(4, int("53003c",16))
+bpf_tracer["core_cycles"].open_perf_event(4, int("72003c",16))
+bpf_tracer["thread_cycles"].open_perf_event(4, int("52003c",16))
 
 # define output data structure in Python
 TASK_COMM_LEN = 16    # linux/sched.h

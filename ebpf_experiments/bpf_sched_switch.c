@@ -6,7 +6,8 @@
 //#define SEC(NAME) __attribute__((section(NAME), used))
 
 BPF_PERF_OUTPUT(events);
-BPF_PERF_ARRAY(cpu_cycles, NUM_CPUS);
+BPF_PERF_ARRAY(core_cycles, NUM_CPUS);
+BPF_PERF_ARRAY(thread_cycles, NUM_CPUS);
 
 // define output data structure in C
 struct data_t {
@@ -42,11 +43,14 @@ int trace_function(struct sched_switch_args *ctx) {
                 bpf_probe_read(&(data.old_comm), sizeof(data.old_comm), ctx->prev_comm);
                 bpf_probe_read(&(data.new_comm), sizeof(data.new_comm), ctx->next_comm);
 
-                int i = 0;
-                #pragma clang loop unroll(full)
-                for(i = 0; i< NUM_CPUS; i++) {
-                  data.cycles[i] = cpu_cycles.perf_read(i);
-                }
+                data.cycles[0] = thread_cycles.perf_read(data.processor_id);
+                data.cycles[1] = core_cycles.perf_read(data.processor_id);
+
+                // int i = 0;
+                // #pragma clang loop unroll(full)
+                // for(i = 0; i< NUM_CPUS; i++) {
+                //   data.cycles[i] = thread_cycles.perf_read(i);
+                // }
                 events.perf_submit(ctx, &data, sizeof(data));
         }
 
