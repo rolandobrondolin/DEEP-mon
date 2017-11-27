@@ -2,6 +2,8 @@ class ContainerInfo:
 
     def __init__(self, container_id):
         self.container_id = container_id
+        self.name = ""
+        self.pod = None
         self.weighted_cycles = 0
         self.time_ns = 0
         self.power = 0
@@ -34,4 +36,4 @@ class ContainerInfo:
     def __str__(self):
         return "id: " + self.container_id + " cycles: " \
             + str(self.weighted_cycles) + " time_ns: " + str(self.time_ns) \
-            + " power: " + str(self.power) #+ " pids: " + str(self.pid_set)
+            + " power: " + str(self.power)  # + " pids: " + str(self.pid_set)
