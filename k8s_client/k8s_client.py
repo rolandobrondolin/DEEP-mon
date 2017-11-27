@@ -19,6 +19,7 @@ class K8SClient():
         # or using helper utility
         config.load_kube_config()
         self.v1 = client.CoreV1Api()
+        self.memo = {}
 
     def get_container_name(self, container_info):
         name, pod = self._get_container_name_and_pod(container_info)
@@ -29,11 +30,16 @@ class K8SClient():
         return pod
 
     def _get_container_name_and_pod(self, container_info):
-        pods = self.v1.list_pod_for_all_namespaces(watch=False)
-        for pod in pods.items:
-            for container_status in pod.status.container_statuses:
-                # print("Status: ", container_status.container_id.split("/")[-1][0:12])
-                # print("Info: ", container_info.container_id)
-                if (container_info.container_id ==
-                        container_status.container_id.split("/")[-1][0:12]):
-                    return (container_status.name, pod)
+        if container_info.container_id in self.memo:
+            return self.memo[container_info.container_id]
+        else:
+            pods = self.v1.list_pod_for_all_namespaces(watch=False)
+            for pod in pods.items:
+                for container_status in pod.status.container_statuses:
+                    # print("Status: ", container_status.container_id.split("/")[-1][0:12])
+                    # print("Info: ", container_info.container_id)
+                    if (container_info.container_id ==
+                            container_status.container_id.split("/")[-1][0:12]):
+                        ret = (container_status.name, pod)
+                        self.memo[container_info.container_id] = ret
+                        return ret
