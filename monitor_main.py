@@ -10,6 +10,7 @@ from k8s_client.k8s_client import K8SClient
 from rapl import rapl
 import time
 
+
 topology = ProcTopology()
 collector = BpfCollector(topology, False)
 sample_controller = SampleController(topology.get_hyperthread_count())
@@ -20,6 +21,7 @@ collector.start_capture(sample_controller.get_timeslice())
 time_to_sleep = sample_controller.get_sleep_time()
 rapl_monitor = rapl.RaplMonitor(topology)
 k8s_api = K8SClient()
+
 while True:
 
     time.sleep(time_to_sleep)
@@ -42,12 +44,10 @@ while True:
         if(value.container_id.find("idle") == -1 and
                 value.container_id.find("others") == -1):
             pod = k8s_api.get_container_pod(value)
-            print("pod ip: %s\tnamespace: %s\tpod name: %s\t containername: %s\t" %
-                  (pod.status.pod_ip,
-                   pod.metadata.namespace,
-                   pod.metadata.name,
-                   k8s_api.get_container_name(value)),
-                  end=" ")
+            name = k8s_api.get_container_name(value)
+            if (pod and name):
+                value.name = name
+                value.pod = pod
         print(value)
     print
 
@@ -55,3 +55,4 @@ while True:
 
     time_to_sleep = sample_controller.get_sleep_time() \
         - (time.time() - start_time)
+    print(time_to_sleep)

@@ -34,6 +34,11 @@ class ContainerInfo:
         return self.pid_set
 
     def __str__(self):
-        return "id: " + self.container_id + " cycles: " \
-            + str(self.weighted_cycles) + " time_ns: " + str(self.time_ns) \
-            + " power: " + str(self.power)  # + " pids: " + str(self.pid_set)
+        return "ID: " + self.container_id \
+            + " POD IP: " + (self.pod.status.pod_ip if self.pod else "fetching data...") \
+            + " NAMESPACE: " + (self.pod.metadata.namespace if self.pod else "fetching data...") \
+            + " POD NAME: " + (self.pod.metadata.name if self.pod else "fetching data...") \
+            + " NAME: " + self.name \
+            + " CYCLES: " + str(self.weighted_cycles) \
+            + " TIME_NS: " + str(self.time_ns) \
+            + " POWER: " + str(self.power)  # + " pids: " + str(self.pid_set)
