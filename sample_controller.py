@@ -20,9 +20,7 @@ class SampleController:
             self.timeslice = 1000000000
 
     def get_sleep_time(self):
-        #return self.sleep_time
-        return 1
+        return self.sleep_time
 
     def get_timeslice(self):
-        #return self.timeslice
-        return 1000000000
+        return self.timeslice
