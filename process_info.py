@@ -53,6 +53,7 @@ class ProcessInfo:
         self.pid = -1
         self.comm = ""
         self.power = 0
+        self.cpu_usage = 0
         self.socket_data = []
         self.cgroup_id = ""
         self.container_id = ""
@@ -68,6 +69,13 @@ class ProcessInfo:
 
     def set_power(self, power):
         self.power = power
+
+    def set_cpu_usage(self, cpu_usage):
+        self.cpu_usage = cpu_usage
+
+    def compute_cpu_usage_millis(self, total_execution_time_millis):
+        self.cpu_usage = (self.get_aggregated_time_ns()/1000000) \
+            / total_execution_time_millis
 
     def set_socket_data_array(self, socket_data_array):
         self.socket_data = socket_data_array
@@ -97,6 +105,9 @@ class ProcessInfo:
 
     def get_power(self):
         return self.power
+
+    def get_cpu_usage(self):
+        return self.cpu_usage
 
     def get_socket_data(self, socket_index = -1):
         if socket_index < 0:
@@ -130,7 +141,8 @@ class ProcessInfo:
 
     def __str__(self):
         str_rep = str(self.pid) + " comm: " + str(self.comm) \
-            + " c_id: " + self.container_id + " p: " + str(self.power)
+            + " c_id: " + self.container_id + " p: " + str(self.power) \
+            + " u: " + str(self.cpu_usage)
 
         for socket_item in self.socket_data:
             str_rep = str_rep + " " + str(socket_item)
