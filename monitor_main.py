@@ -1,14 +1,17 @@
 from __future__ import print_function
 from bpf_collector import BpfCollector
-# from bpf_collector import BpfSample
 from proc_topology import ProcTopology
-# from process_info import ProcessInfo
-# from process_info import SocketProcessItem
 from sample_controller import SampleController
 from process_table import ProcTable
 from k8s_client.k8s_client import K8SClient
 from rapl import rapl
 import time
+import os.path
+import yaml
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 
 topology = ProcTopology()
@@ -20,7 +23,15 @@ process_table = ProcTable()
 collector.start_capture(sample_controller.get_timeslice())
 time_to_sleep = sample_controller.get_sleep_time()
 rapl_monitor = rapl.RaplMonitor(topology)
-k8s_api = K8SClient()
+
+try:
+    with open('config.yaml', 'r') as stream:
+        conf = yaml.load(stream)
+        kube_conf = os.path.expanduser(conf.get('kube_conf'))
+        k8s_api = K8SClient(kube_conf)
+except IOError:
+    k8s_api = None
+
 
 while True:
 
@@ -28,14 +39,9 @@ while True:
     start_time = time.time()
 
     sample = collector.get_new_sample(sample_controller, rapl_monitor)
-    # print sample
 
     # add stuff to cumulative process table
     process_table.add_process_from_sample(sample)
-
-    # for key, value in process_table.proc_table.iteritems():
-    #     print value
-    # print
 
     # Now, extract containers!
     container_list = process_table.get_container_dictionary()
@@ -43,11 +49,9 @@ while True:
     for key, value in container_list.iteritems():
         if(value.container_id.find("idle") == -1 and
                 value.container_id.find("others") == -1):
-            pod = k8s_api.get_container_pod(value)
-            name = k8s_api.get_container_name(value)
-            if (pod and name):
-                value.name = name
-                value.pod = pod
+            if k8s_api:
+                pod = k8s_api.get_container_pod(value)
+                print(pod)
         print(value)
     print
 

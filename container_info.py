@@ -2,8 +2,6 @@ class ContainerInfo:
 
     def __init__(self, container_id):
         self.container_id = container_id
-        self.name = ""
-        self.pod = None
         self.weighted_cycles = 0
         self.time_ns = 0
         self.power = 0
@@ -35,10 +33,6 @@ class ContainerInfo:
 
     def __str__(self):
         return "ID: " + self.container_id \
-            + " POD IP: " + (self.pod.status.pod_ip if self.pod else "fetching data...") \
-            + " NAMESPACE: " + (self.pod.metadata.namespace if self.pod else "fetching data...") \
-            + " POD NAME: " + (self.pod.metadata.name if self.pod else "fetching data...") \
-            + " NAME: " + self.name \
             + " CYCLES: " + str(self.weighted_cycles) \
             + " TIME_NS: " + str(self.time_ns) \
             + " POWER: " + str(self.power)  # + " pids: " + str(self.pid_set)
