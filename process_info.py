@@ -6,6 +6,7 @@ class BpfPidStatus(ct.Structure):
     _fields_ = [("pid", ct.c_int),
                 ("comm", ct.c_char * TASK_COMM_LEN),
                 ("weighted_cycles", ct.c_ulonglong * 2 * socket_size),
+                ("instruction_retired", ct.c_ulonglong * 2 * socket_size),
                 ("time_ns", ct.c_ulonglong * 2 * socket_size),
                 ("bpf_selector", ct.c_int),
                 ("ts", ct.c_ulonglong * 2 * socket_size)]
@@ -15,13 +16,17 @@ class BpfPidStatus(ct.Structure):
 
 class SocketProcessItem:
 
-    def __init__(self, weighted_cycles = 0, time_ns = 0, ts = 0):
+    def __init__(self, weighted_cycles = 0, instruction_retired = 0, time_ns = 0, ts = 0):
+        self.instruction_retired = instruction_retired
         self.weighted_cycles = weighted_cycles
         self.time_ns = time_ns
         self.ts = ts
 
     def set_weighted_cycles(self, weighted_cycles):
         self.weighted_cycles = weighted_cycles
+
+    def set_instruction_retired(self, instruction_retired):
+        self.instruction_retired = instruction_retired
 
     def set_time_ns(self, time_ns):
         self.time_ns = time_ns
@@ -32,6 +37,9 @@ class SocketProcessItem:
     def get_weighted_cycles(self):
         return self.weighted_cycles
 
+    def get_instruction_retired(self):
+        return self.instruction_retired
+
     def get_time_ns(self):
         return self.time_ns
 
@@ -40,12 +48,13 @@ class SocketProcessItem:
 
     def reset(self):
         self.weighted_cycles = 0
+        self.instruction_retired = 0
         self.time_ns = 0
         self.ts = 0
 
     def __str__(self):
         return "ts: " + str(self.ts) + " w:" + str(self.weighted_cycles) \
-            + " t:" + str(self.time_ns)
+            + " i:" + str(self.instruction_retired) + " t:" + str(self.time_ns)
 
 class ProcessInfo:
 
@@ -83,9 +92,10 @@ class ProcessInfo:
     def set_socket_data(self, socket_index, socket_data):
         self.socket_data[socket_index] = socket_data
 
-    def set_raw_socket_data(self, socket_index, weighted_cycles, time_ns, ts):
+    def set_raw_socket_data(self, socket_index, weighted_cycles, \
+        instruction_retired, time_ns, ts):
         self.socket_data[socket_index] = \
-            SocketProcessItem(weighted_cycles, time_ns, ts)
+            SocketProcessItem(weighted_cycles, instruction_retired, time_ns, ts)
 
     def set_cgroup_id(self, cgroup_id):
         self.cgroup_id = cgroup_id
@@ -124,6 +134,12 @@ class ProcessInfo:
         aggregated = 0
         for item in self.socket_data:
             aggregated = aggregated + item.get_weighted_cycles()
+        return aggregated
+
+    def get_aggregated_instruction_retired(self):
+        aggregated = 0
+        for item in self.socket_data:
+            aggregated = aggregated + item.get_instruction_retired()
         return aggregated
 
     def get_aggregated_time_ns(self):

@@ -5,6 +5,7 @@ struct pid_status {
         int pid;
         char comm[16];
         u64 weighted_cycles[NUM_SLOTS];
+        u64 instruction_retired[NUM_SLOTS];
         u64 time_ns[NUM_SLOTS];
         // set which item of weighted_cycles should be used in bpf
         // in user space, the weighted_cycles is read and initialized
@@ -16,9 +17,10 @@ struct proc_topology {
         u64 sibling_id;
         u64 core_id;
         u64 processor_id;
-        u64 cycles_core_updated;
+        u64 cycles_core;
         u64 cycles_core_delta_sibling;
         u64 cycles_thread;
+        u64 instruction_thread;
         u64 ts;
         int running_pid;
 };
@@ -60,17 +62,17 @@ struct error_code {
 BPF_PERF_OUTPUT(err);
 #endif
 
-//BPF_PERF_ARRAY(cpu_cycles, NUM_CPUS);
 BPF_PERF_ARRAY(cycles_core, NUM_CPUS);
 BPF_PERF_ARRAY(cycles_thread, NUM_CPUS);
+BPF_PERF_ARRAY(instr_thread, NUM_CPUS);
 BPF_HASH(processors, u64, struct proc_topology);
 BPF_HASH(pids, int, struct pid_status);
 BPF_HASH(idles, u64, struct pid_status);
 BPF_HASH(conf, int, unsigned int);
 
 // Beware: Changing the step in userspace means invalidate the last sample
-#define STEP_MIN 1000000000 //2000000000
-#define STEP_MAX 4000000000 //2000000000
+#define STEP_MIN 1000000000
+#define STEP_MAX 4000000000
 
 #define HAPPY_FACTOR 11/20
 #define STD_FACTOR 1
@@ -139,6 +141,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         u64 processor_id = bpf_get_smp_processor_id();
         u64 thread_cycles_sample = cycles_thread.perf_read(processor_id);
         u64 core_cycles_sample = cycles_core.perf_read(processor_id);
+        u64 instruction_retired_thread = instr_thread.perf_read(processor_id);
         u64 ts = bpf_ktime_get_ns();
         int old_pid = ctx->prev_pid;
 
@@ -174,12 +177,14 @@ int trace_switch(struct sched_switch_args *ctx) {
                 u64 old_thread_cycles = thread_cycles_sample;
                 u64 cycles_core_delta_sibling = 0;
                 u64 old_time = ts;
+                u64 old_instruction_retired = instruction_retired_thread;
                 if (topology_info.ts > 0) {
                         old_time = topology_info.ts;
                         old_thread_cycles = topology_info.cycles_thread;
                         cycles_core_delta_sibling = topology_info.cycles_core_delta_sibling;
-                        if (old_pid > 0 && sibling_info.running_pid > 0 && core_cycles_sample > topology_info.cycles_core_updated) {
-                                cycles_core_delta_sibling += core_cycles_sample - topology_info.cycles_core_updated;
+                        old_instruction_retired = topology_info.instruction_thread;
+                        if (old_pid > 0 && sibling_info.running_pid > 0 && core_cycles_sample > topology_info.cycles_core) {
+                                cycles_core_delta_sibling += core_cycles_sample - topology_info.cycles_core;
                         }
                 }
 
@@ -212,6 +217,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
                                         if(array_index % SELECTOR_DIM == bpf_selector) {
                                                 sibling_process.weighted_cycles[array_index] = 0;
+                                                sibling_process.instruction_retired[array_index] = 0;
                                                 sibling_process.time_ns[array_index] = 0;
                                         }
                                 }
@@ -237,10 +243,10 @@ int trace_switch(struct sched_switch_args *ctx) {
                         // We are summing up the information on our side to the core cycles of the sibling
                         //
                         //update sibling process info
-                        if(sibling_pid > 0 && old_pid > 0 && core_cycles_sample > sibling_info.cycles_core_updated) {
-                                sibling_info.cycles_core_delta_sibling += core_cycles_sample - sibling_info.cycles_core_updated;
+                        if(sibling_pid > 0 && old_pid > 0 && core_cycles_sample > sibling_info.cycles_core) {
+                                sibling_info.cycles_core_delta_sibling += core_cycles_sample - sibling_info.cycles_core;
                         }
-                        sibling_info.cycles_core_updated = core_cycles_sample;
+                        sibling_info.cycles_core = core_cycles_sample;
                         sibling_info.ts = ts;
                         processors.update(&sibling_id, &sibling_info);
                 }
@@ -262,6 +268,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                         for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
                                 if(array_index % SELECTOR_DIM == bpf_selector) {
                                         status_old.weighted_cycles[array_index] = 0;
+                                        status_old.instruction_retired[array_index] = 0;
                                         status_old.time_ns[array_index] = 0;
                                 }
                         }
@@ -278,6 +285,11 @@ int trace_switch(struct sched_switch_args *ctx) {
                                         u64 cycle_overlap = cycles_core_delta_sibling;
                                         u64 cycle_non_overlap = cycle1 > cycles_core_delta_sibling ? cycle1 - cycles_core_delta_sibling : 0;
                                         status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
+                                } else {
+                                        send_error(ctx, old_pid);
+                                }
+                                if (instruction_retired_thread > old_instruction_retired) {
+                                        status_old.instruction_retired[array_index] = instruction_retired_thread - old_instruction_retired;
                                 } else {
                                         send_error(ctx, old_pid);
                                 }
@@ -310,6 +322,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
                         status_new.ts[array_index] = ts;
                         status_new.weighted_cycles[array_index] = 0;
+                        status_new.instruction_retired[array_index] = 0;
                         status_new.time_ns[array_index] = 0;
                 }
                 status_new.pid = new_pid;
@@ -324,7 +337,8 @@ int trace_switch(struct sched_switch_args *ctx) {
         topology_info.running_pid = new_pid;
         topology_info.cycles_thread = thread_cycles_sample;
         topology_info.cycles_core_delta_sibling = 0;
-        topology_info.cycles_core_updated = core_cycles_sample;
+        topology_info.cycles_core = core_cycles_sample;
+        topology_info.instruction_thread = instruction_retired_thread;
         topology_info.ts = ts;
         processors.update(&processor_id, &topology_info);
         return 0;
@@ -347,7 +361,8 @@ int trace_exit(struct sched_process_exit_args *ctx) {
 
         topology_info.running_pid = 0;
         topology_info.cycles_thread = cycles_thread.perf_read(processor_id);
-        topology_info.cycles_core_updated = cycles_core.perf_read(processor_id);
+        topology_info.cycles_core = cycles_core.perf_read(processor_id);
+        topology_info.instruction_thread = instr_thread.perf_read(processor_id);
         topology_info.cycles_core_delta_sibling = 0;
         topology_info.ts = ts;
 

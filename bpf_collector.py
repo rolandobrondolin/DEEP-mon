@@ -88,8 +88,10 @@ class BpfCollector:
         # 4 means RAW_TYPE
         # int("73003c",16) is the hex for UNHALTED_CORE_CYCLES for any thread
         # int("53003c",16) is the hex for UNHALTED_CORE_CYCLES
+        # int("5300c0",16) is the hex for INSTRUCTION_RETIRED
         self.bpf_program["cycles_core"].open_perf_event(4, int("73003c",16))
         self.bpf_program["cycles_thread"].open_perf_event(4, int("53003c",16))
+        self.bpf_program["instr_thread"].open_perf_event(4, int("5300c0",16))
 
     def print_event(self, cpu, data, size):
         event = ct.cast(data, ct.POINTER(ErrorCode)).contents
@@ -212,6 +214,8 @@ class BpfCollector:
                     socket_info.set_weighted_cycles(\
                         data.weighted_cycles[multisocket_selector])
                     socket_info.set_time_ns(data.time_ns[multisocket_selector])
+                    socket_info.set_instruction_retired(\
+                        data.instruction_retired[multisocket_selector])
                     socket_info.set_ts(data.ts[multisocket_selector])
                     proc_info.set_socket_data(\
                         multisocket_selector/self.SELECTOR_DIM, socket_info)
@@ -239,6 +243,8 @@ class BpfCollector:
                     socket_info = SocketProcessItem()
                     socket_info.set_weighted_cycles(\
                         data.weighted_cycles[multisocket_selector])
+                    socket_info.set_instruction_retired(\
+                        data.instruction_retired[multisocket_selector])
                     socket_info.set_time_ns(data.time_ns[multisocket_selector])
                     socket_info.set_ts(data.ts[multisocket_selector])
                     proc_info.set_socket_data(\
