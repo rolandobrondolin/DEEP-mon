@@ -4,7 +4,14 @@ from proc_topology import ProcTopology
 from sample_controller import SampleController
 from process_table import ProcTable
 from rapl import rapl
+import argparse
 import time
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-f", "--format", type=str,
+                    help="Output format", required=False)
+args = parser.parse_args()
+output_format = args.format
 
 
 topology = ProcTopology()
@@ -31,13 +38,17 @@ while True:
     # Now, extract containers!
     container_list = process_table.get_container_dictionary()
 
-    for key, value in container_list.iteritems():
-        # print(value)
-        print(value.to_json())
-    print
-
-    print(sample.get_log_line())
+    if output_format == "json":
+        for key, value in container_list.iteritems():
+            print(value.to_json())
+        print
+        print(sample.get_log_json())
+    else:
+        for key, value in container_list.iteritems():
+            print(value)
+        print
+        print(sample.get_log_line())
 
     time_to_sleep = sample_controller.get_sleep_time() \
         - (time.time() - start_time)
-    print(time_to_sleep)
+    # print(time_to_sleep)
