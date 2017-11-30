@@ -32,7 +32,8 @@ while True:
     container_list = process_table.get_container_dictionary()
 
     for key, value in container_list.iteritems():
-        print(value)
+        # print(value)
+        print(value.to_json())
     print
 
     print(sample.get_log_line())
