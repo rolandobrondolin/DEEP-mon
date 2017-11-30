@@ -165,6 +165,9 @@ int trace_switch(struct sched_switch_args *ctx) {
         }
 
         if(ret == 0) {
+                //
+                // Retrieving information of the sibling processor
+                //
                 u64 sibling_id = topology_info.sibling_id;
                 struct proc_topology sibling_info;
                 ret = bpf_probe_read(&sibling_info, sizeof(sibling_info), processors.lookup(&(sibling_id)));
@@ -186,9 +189,10 @@ int trace_switch(struct sched_switch_args *ctx) {
                 sibling_info.cycles_core = core_cycles_sample;
                 processors.update(&sibling_id, &sibling_info);
 
-
-
-
+                //
+                // Get back to our pid and our processor
+                // Update the data for proc_topology and pid info
+                //
                 u64 last_ts_pid_in = 0;
                 //trick the compiler with loop unrolling
                 #pragma clang loop unroll(full)
