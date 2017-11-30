@@ -36,7 +36,9 @@ class ContainerInfo:
         return self.pid_set
 
     def __str__(self):
-        return "id: " + self.container_id + " cycles: " \
-            + str(self.weighted_cycles) + " time_ns: " + str(self.time_ns) \
-            + " power: " + str(self.power) + " cpu: " + str(self.cpu_usage)
-            #+ " pids: " + str(self.pid_set)
+        return "ID: " + self.container_id \
+            + " CYCLES: " + str(self.weighted_cycles) \
+            + " TIME_NS: " + str(self.time_ns) \
+            + " POWER: " + str(self.power) \
+            + " CPU: " + str(self.cpu_usage)
+            # + " pids: " + str(self.pid_set)
