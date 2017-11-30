@@ -174,82 +174,20 @@ int trace_switch(struct sched_switch_args *ctx) {
                         send_error(ctx, 3);
                         return 0;
                 }
-                u64 old_thread_cycles = thread_cycles_sample;
-                u64 cycles_core_delta_sibling = 0;
-                u64 old_time = ts;
-                u64 old_instruction_retired = instruction_retired_thread;
-                if (topology_info.ts > 0) {
-                        old_time = topology_info.ts;
-                        old_thread_cycles = topology_info.cycles_thread;
-                        cycles_core_delta_sibling = topology_info.cycles_core_delta_sibling;
-                        old_instruction_retired = topology_info.instruction_thread;
-                        if (old_pid > 0 && sibling_info.running_pid > 0 && core_cycles_sample > topology_info.cycles_core) {
-                                cycles_core_delta_sibling += core_cycles_sample - topology_info.cycles_core;
-                        }
+
+                //
+                // Instead of adding stuff directly, given that we don't have the measure of the sibling thread cycles,
+                // We are summing up the information on our side to the core cycles of the sibling
+                //
+                //update sibling process info
+                if(sibling_info.running_pid > 0 && old_pid > 0 && core_cycles_sample > sibling_info.cycles_core) {
+                        sibling_info.cycles_core_delta_sibling += core_cycles_sample - sibling_info.cycles_core;
                 }
+                sibling_info.cycles_core = core_cycles_sample;
+                processors.update(&sibling_id, &sibling_info);
 
-                //find the sibling pid status
-                int sibling_pid = sibling_info.running_pid;
-                struct pid_status sibling_process;
-                if(sibling_pid == 0) {
-                        //read from idles table
-                        ret = bpf_probe_read(&sibling_process, sizeof(sibling_process), idles.lookup(&(sibling_id)));
-                } else {
-                        //read from pids table
-                        ret = bpf_probe_read(&sibling_process, sizeof(sibling_process), pids.lookup(&(sibling_pid)));
-                }
 
-                if(ret == 0) {
-                        u64 last_ts_pid_in = 0;
-                        //trick the compiler with loop unrolling
-                        #pragma clang loop unroll(full)
-                        for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
-                                if(array_index == sibling_process.bpf_selector + SELECTOR_DIM * sibling_info.processor_id) {
-                                        last_ts_pid_in = sibling_process.ts[array_index];
-                                }
-                        }
 
-                        // here just update the selector and reset counter if needed
-                        if(sibling_process.bpf_selector != bpf_selector || last_ts_pid_in + step < ts) {
-                                sibling_process.bpf_selector = bpf_selector;
-                                //trick the compiler with loop unrolling
-                                #pragma clang loop unroll(full)
-                                for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
-                                        if(array_index % SELECTOR_DIM == bpf_selector) {
-                                                sibling_process.weighted_cycles[array_index] = 0;
-                                                sibling_process.instruction_retired[array_index] = 0;
-                                                sibling_process.time_ns[array_index] = 0;
-                                        }
-                                }
-                        }
-
-                        //trick the compiler with loop unrolling
-                        //update measurements for sibling pid
-                        #pragma clang loop unroll(full)
-                        for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
-                                if(array_index == sibling_process.bpf_selector + SELECTOR_DIM * sibling_info.processor_id) {
-                                        sibling_process.time_ns[array_index] += ts - old_time;
-                                        sibling_process.ts[array_index] = ts;
-                                        if(sibling_pid == 0) {
-                                                idles.update(&(sibling_id), &sibling_process);
-                                        } else {
-                                                pids.update(&(sibling_pid), &sibling_process);
-                                        }
-                                }
-                        }
-
-                        //
-                        // Instead of adding stuff directly, given that we don't have the measure of the sibling thread cycles,
-                        // We are summing up the information on our side to the core cycles of the sibling
-                        //
-                        //update sibling process info
-                        if(sibling_pid > 0 && old_pid > 0 && core_cycles_sample > sibling_info.cycles_core) {
-                                sibling_info.cycles_core_delta_sibling += core_cycles_sample - sibling_info.cycles_core;
-                        }
-                        sibling_info.cycles_core = core_cycles_sample;
-                        sibling_info.ts = ts;
-                        processors.update(&sibling_id, &sibling_info);
-                }
 
                 u64 last_ts_pid_in = 0;
                 //trick the compiler with loop unrolling
@@ -271,6 +209,20 @@ int trace_switch(struct sched_switch_args *ctx) {
                                         status_old.instruction_retired[array_index] = 0;
                                         status_old.time_ns[array_index] = 0;
                                 }
+                        }
+                }
+
+                u64 old_thread_cycles = thread_cycles_sample;
+                u64 cycles_core_delta_sibling = 0;
+                u64 old_time = ts;
+                u64 old_instruction_retired = instruction_retired_thread;
+                if (topology_info.ts > 0) {
+                        old_time = topology_info.ts;
+                        old_thread_cycles = topology_info.cycles_thread;
+                        cycles_core_delta_sibling = topology_info.cycles_core_delta_sibling;
+                        old_instruction_retired = topology_info.instruction_thread;
+                        if (old_pid > 0 && sibling_info.running_pid > 0 && core_cycles_sample > topology_info.cycles_core) {
+                                cycles_core_delta_sibling += core_cycles_sample - topology_info.cycles_core;
                         }
                 }
 
