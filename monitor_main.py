@@ -39,7 +39,7 @@ while True:
     start_time = time.time()
 
     sample = collector.get_new_sample(sample_controller, rapl_monitor)
-    print(sample)
+
     # add stuff to cumulative process table
     process_table.add_process_from_sample(sample)
 
@@ -59,4 +59,3 @@ while True:
 
     time_to_sleep = sample_controller.get_sleep_time() \
         - (time.time() - start_time)
-    print(time_to_sleep)
