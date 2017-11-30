@@ -160,6 +160,7 @@ class BpfCollector:
                 # search max timestamp of the sample
                 if data.ts[multisocket_selector] > tsmax:
                     tsmax = data.ts[multisocket_selector]
+
         for key, data in self.idles.items():
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -177,6 +178,9 @@ class BpfCollector:
                         total_weighted_cycles[cycles_index] \
                         + data.weighted_cycles[multisocket_selector]
 
+                    total_execution_time = total_execution_time \
+                        + float(data.time_ns[multisocket_selector])/1000000
+
         for key, data in self.idles.items():
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -186,6 +190,9 @@ class BpfCollector:
                     total_weighted_cycles[cycles_index] = \
                         total_weighted_cycles[cycles_index] \
                         + data.weighted_cycles[multisocket_selector]
+
+                    total_execution_time = total_execution_time \
+                        + float(data.time_ns[multisocket_selector])/1000000
 
         power= [rapl_diff[skt].power()*1000 for skt in self.topology.get_sockets()]
         total_power = sum(power)
@@ -201,9 +208,6 @@ class BpfCollector:
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
 
                 if data.ts[multisocket_selector] + self.timeslice > tsmax:
-                    total_execution_time = total_execution_time \
-                        + float(data.time_ns[multisocket_selector])/1000000
-
                     socket_info = SocketProcessItem()
                     socket_info.set_weighted_cycles(\
                         data.weighted_cycles[multisocket_selector])
@@ -217,6 +221,7 @@ class BpfCollector:
                 pid_dict[data.pid] = proc_info
                 proc_info.set_power(self._get_pid_power(proc_info, \
                     total_weighted_cycles, power))
+                proc_info.compute_cpu_usage_millis(float(total_execution_time))
 
 
         for key, data in self.idles.items():
@@ -230,8 +235,6 @@ class BpfCollector:
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
 
                 if data.ts[multisocket_selector] + self.timeslice > tsmax:
-                    total_execution_time = total_execution_time \
-                        + float(data.time_ns[multisocket_selector])/1000000
 
                     socket_info = SocketProcessItem()
                     socket_info.set_weighted_cycles(\
@@ -246,6 +249,7 @@ class BpfCollector:
                 pid_dict[-1 * (1 + int(key.value))] = proc_info
                 proc_info.set_power(self._get_pid_power(proc_info, \
                     total_weighted_cycles, power))
+                proc_info.compute_cpu_usage_millis(float(total_execution_time))
 
         return BpfSample(tsmax, total_execution_time, sched_switch_count, \
             self.timeslice, total_power, pid_dict)

@@ -17,6 +17,7 @@ class ProcTable:
         # we are still not evicting the entries
         for proc_table_key, proc_table_value in self.proc_table.iteritems():
             proc_table_value.set_power(0)
+            proc_table_value.set_cpu_usage(0)
             proc_table_value.reset_socket_data()
 
         for key, value in sample.get_pid_dict().iteritems():
@@ -25,6 +26,7 @@ class ProcTable:
                 if value.get_comm() == self.proc_table[key].get_comm():
                     # ok, update stuff
                     self.proc_table[key].set_power(value.get_power())
+                    self.proc_table[key].set_cpu_usage(value.get_cpu_usage())
                     self.proc_table[key].set_socket_data_array(\
                         value.get_socket_data())
 
@@ -86,18 +88,22 @@ class ProcTable:
                     value.get_aggregated_time_ns())
                 container_dict[value.container_id].add_power(\
                     value.get_power())
+                container_dict[value.container_id].add_cpu_usage(\
+                    value.get_cpu_usage())
                 container_dict[value.container_id].add_pid(value.get_pid())
             elif key > 0:
                 not_a_container.add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
                 not_a_container.add_time_ns(value.get_aggregated_time_ns())
                 not_a_container.add_power(value.get_power())
+                not_a_container.add_cpu_usage(value.get_cpu_usage())
                 not_a_container.add_pid(value.get_pid())
             else:
                 idle.add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
                 idle.add_time_ns(value.get_aggregated_time_ns())
                 idle.add_power(value.get_power())
+                idle.add_cpu_usage(value.get_cpu_usage())
                 idle.add_pid(value.get_pid())
 
 
