@@ -51,4 +51,3 @@ while True:
 
     time_to_sleep = sample_controller.get_sleep_time() \
         - (time.time() - start_time)
-    # print(time_to_sleep)

@@ -84,6 +84,8 @@ class ProcTable:
                         value.container_id)
                 container_dict[value.container_id].add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
+                container_dict[value.container_id].add_instructions(\
+                    value.get_aggregated_instruction_retired())
                 container_dict[value.container_id].add_time_ns(\
                     value.get_aggregated_time_ns())
                 container_dict[value.container_id].add_power(\
@@ -94,6 +96,8 @@ class ProcTable:
             elif key > 0:
                 not_a_container.add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
+                not_a_container.add_instructions(\
+                    value.get_aggregated_instruction_retired())
                 not_a_container.add_time_ns(value.get_aggregated_time_ns())
                 not_a_container.add_power(value.get_power())
                 not_a_container.add_cpu_usage(value.get_cpu_usage())
@@ -101,6 +105,8 @@ class ProcTable:
             else:
                 idle.add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
+                idle.add_instructions(\
+                    value.get_aggregated_instruction_retired())
                 idle.add_time_ns(value.get_aggregated_time_ns())
                 idle.add_power(value.get_power())
                 idle.add_cpu_usage(value.get_cpu_usage())

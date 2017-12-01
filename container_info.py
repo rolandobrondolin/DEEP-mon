@@ -6,6 +6,7 @@ class ContainerInfo:
     def __init__(self, container_id):
         self.container_id = container_id
         self.weighted_cycles = 0
+        self.instruction_retired = 0
         self.time_ns = 0
         self.power = 0
         self.cpu_usage = 0
@@ -20,6 +21,9 @@ class ContainerInfo:
     def add_power(self, new_power):
         self.power = self.power + new_power
 
+    def add_instructions(self, new_instructions):
+        self.instruction_retired = self.instruction_retired + new_instructions
+
     def add_cpu_usage(self, cpu_usage):
         self.cpu_usage = self.cpu_usage + cpu_usage
 
@@ -28,6 +32,9 @@ class ContainerInfo:
 
     def get_weighted_cycles(self):
         return self.weighted_cycles
+
+    def get_instruction_retired(self):
+        return self.instruction_retired
 
     def get_time_ns(self):
         return self.time_ns
@@ -55,6 +62,7 @@ class ContainerInfo:
     def __str__(self):
         return "ID: " + self.container_id \
             + " CYCLES: " + str(self.weighted_cycles) \
+            + " INSTR: " + str(self.instruction_retired) \
             + " TIME_NS: " + str(self.time_ns) \
             + " POWER: " + str(self.power) \
             + " CPU: " + str(self.cpu_usage)
