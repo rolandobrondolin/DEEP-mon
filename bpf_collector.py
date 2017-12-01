@@ -1,20 +1,22 @@
 from bcc import BPF
 from bcc import PerfType
 from bcc import PerfHWConfig
-import multiprocessing
-import ctypes as ct
-import os
 from proc_topology import BpfProcTopology
 from proc_topology import ProcTopology
 from process_info import BpfPidStatus
 from process_info import SocketProcessItem
 from process_info import ProcessInfo
 from sample_controller import SampleController
+import ctypes as ct
+import json
+import multiprocessing
+import os
+
 
 class BpfSample:
 
-    def __init__(self, max_ts, total_time, sched_switch_count, timeslice, \
-        total_active_power, pid_dict):
+    def __init__(self, max_ts, total_time, sched_switch_count, timeslice,
+                 total_active_power, pid_dict):
         self.max_ts = max_ts
         self.total_execution_time = total_time
         self.sched_switch_count = sched_switch_count
@@ -56,15 +58,27 @@ class BpfSample:
 
         return str_representation
 
+    def get_log_json(self):
+        d = {"proc time": str(self.total_execution_time),
+             "sched switch count": str(self.sched_switch_count),
+             "timeslice": str(self.timeslice),
+             "total active power": str(self.total_active_power)
+             }
+        return json.dumps(d, indent = 4)
+
+        return str_representation
+
+
 class ErrorCode(ct.Structure):
     _fields_ = [("err", ct.c_int)]
+
 
 class BpfCollector:
 
     def __init__(self, topology, debug):
         self.topology = topology
         self.debug = debug
-        if debug == False:
+        if debug is False:
             self.bpf_program = BPF(src_file="bpf/bpf_monitor.c", \
                 cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
                 "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets())])
