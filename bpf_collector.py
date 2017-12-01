@@ -165,7 +165,7 @@ class BpfCollector:
             read_selector = 1
 
         # get new sample from rapl right before changing selector
-        rapl_diff = rapl_monitor.get_sample()
+        rapl_diff = rapl_monitor.get_core_sample()
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)
 
         pid_dict = {}
