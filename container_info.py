@@ -1,3 +1,6 @@
+import json
+
+
 class ContainerInfo:
 
     def __init__(self, container_id):
@@ -34,6 +37,20 @@ class ContainerInfo:
 
     def get_pid_set(self):
         return self.pid_set
+
+    def to_dict(self):
+        return {'container_id': self.container_id,
+                'weighted_cycles': self.weighted_cycles,
+                'time_ns': self.time_ns,
+                'power': self.power,
+                'cpu_usage': self.cpu_usage,
+                'pid_set': self.pid_set
+                }
+
+    def to_json(self):
+        d = self.to_dict()
+        d['pid_set'] = list(d['pid_set'])
+        return json.dumps(d, indent=4)
 
     def __str__(self):
         return "ID: " + self.container_id \

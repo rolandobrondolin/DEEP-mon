@@ -15,6 +15,9 @@ class K8SClient():
         self.v1 = client.CoreV1Api()
         self.memo = {}
 
+    def get_all_pods(self):
+        return self.v1.list_pod_for_all_namespaces(watch=False)
+
     def get_container_pod(self, container_info):
         return self._get_container_pod(container_info)
 
