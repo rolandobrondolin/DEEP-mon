@@ -1,11 +1,11 @@
 from __future__ import print_function
+import argparse
+import time
 from bpf_collector import BpfCollector
 from proc_topology import ProcTopology
 from sample_controller import SampleController
 from process_table import ProcTable
 from rapl import rapl
-import argparse
-import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-f", "--format", type=str,
@@ -27,13 +27,21 @@ rapl_monitor = rapl.RaplMonitor(topology)
 
 while True:
 
+    initial_rapl_sample = {
+            "package": rapl_monitor.take_sample_package(),
+            "core": rapl_monitor.take_sample_core(),
+            "dram": rapl_monitor.take_sample_dram()
+            }
+
     time.sleep(time_to_sleep)
     start_time = time.time()
 
-    sample = collector.get_new_sample(sample_controller, rapl_monitor)
+    bpf_sample = collector.get_new_sample(sample_controller,
+                                          rapl_monitor,
+                                          initial_rapl_sample)
 
     # add stuff to cumulative process table
-    process_table.add_process_from_sample(sample)
+    process_table.add_process_from_sample(bpf_sample)
 
     # Now, extract containers!
     container_list = process_table.get_container_dictionary()
@@ -41,13 +49,13 @@ while True:
     if output_format == "json":
         for key, value in container_list.iteritems():
             print(value.to_json())
-        print
-        print(sample.get_log_json())
+        print(bpf_sample.get_log_json())
+        print()
     else:
         for key, value in container_list.iteritems():
             print(value)
-        print
-        print(sample.get_log_line())
+        print(bpf_sample.get_log_line())
+        print()
 
     time_to_sleep = sample_controller.get_sleep_time() \
         - (time.time() - start_time)
