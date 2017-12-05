@@ -7,47 +7,60 @@ from rapl import rapl
 import argparse
 import time
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-f", "--format", type=str,
-                    help="Output format", required=False)
-args = parser.parse_args()
-output_format = args.format
+class MonitorMain():
+
+    def __init__(self, parse_args):
+        self.topology = ProcTopology()
+        self.collector = BpfCollector(self.topology, False)
+        self.sample_controller = SampleController(self.topology.get_hyperthread_count())
+
+        self.process_table = ProcTable()
+
+        self.collector.start_capture(self.sample_controller.get_timeslice())
+        self.rapl_monitor = rapl.RaplMonitor(self.topology)
+        self.output_format = parse_args
+
+    def get_sample(self):
+        sample = self.collector.get_new_sample(self.sample_controller, self.rapl_monitor)
+        # add stuff to cumulative process table
+        self.process_table.add_process_from_sample(sample)
+        # Now, extract containers!
+        container_list = self.process_table.get_container_dictionary()
+
+        return [sample, container_list]
 
 
-topology = ProcTopology()
-collector = BpfCollector(topology, False)
-sample_controller = SampleController(topology.get_hyperthread_count())
+    def monitor_loop(self):
+        time_to_sleep = self.sample_controller.get_sleep_time()
 
-process_table = ProcTable()
+        while True:
 
-collector.start_capture(sample_controller.get_timeslice())
-time_to_sleep = sample_controller.get_sleep_time()
-rapl_monitor = rapl.RaplMonitor(topology)
+            time.sleep(time_to_sleep)
+            start_time = time.time()
 
+            sample_array = self.get_sample()
+            sample = sample_array[0]
+            container_list = sample_array[1]
 
-while True:
+            if output_format == "json":
+                for key, value in container_list.iteritems():
+                    print(value.to_json())
+                print
+                print(sample.get_log_json())
+            else:
+                for key, value in container_list.iteritems():
+                    print(value)
+                print
+                print(sample.get_log_line())
 
-    time.sleep(time_to_sleep)
-    start_time = time.time()
+            time_to_sleep = self.sample_controller.get_sleep_time() \
+                - (time.time() - start_time)
 
-    sample = collector.get_new_sample(sample_controller, rapl_monitor)
-
-    # add stuff to cumulative process table
-    process_table.add_process_from_sample(sample)
-
-    # Now, extract containers!
-    container_list = process_table.get_container_dictionary()
-
-    if output_format == "json":
-        for key, value in container_list.iteritems():
-            print(value.to_json())
-        print
-        print(sample.get_log_json())
-    else:
-        for key, value in container_list.iteritems():
-            print(value)
-        print
-        print(sample.get_log_line())
-
-    time_to_sleep = sample_controller.get_sleep_time() \
-        - (time.time() - start_time)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--format", type=str,
+                        help="Output format", required=False)
+    args = parser.parse_args()
+    output_format = args.format
+    monitor = MonitorMain(output_format)
+    monitor.monitor_loop()
