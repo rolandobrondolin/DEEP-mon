@@ -1,6 +1,16 @@
+from monitor_main import MonitorMain
 import snap_plugin.v1 as snap
+import time
+import logging
+
+LOG = logging.getLogger(__name__)
 
 class HyppoStreamCollector(snap.StreamCollector):
+
+    def __init__(self, name, version, **kwargs):
+        super(HyppoStreamCollector, self).__init__(name, version, **kwargs)
+        self.hyppo_monitor = MonitorMain("")
+        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
 
     def get_config_policy(self):
         LOG.debug("GetConfigPolicy called on HyppoStreamCollector")
@@ -9,7 +19,7 @@ class HyppoStreamCollector(snap.StreamCollector):
                 ("HyppoStreamCollector"),
                 [
                     (
-                        "kube_conf_path",
+                        "kube_config_path",
                         snap.StringRule(default = "", required = False)
                     )
                 ]
@@ -18,6 +28,22 @@ class HyppoStreamCollector(snap.StreamCollector):
 
     def stream(self, metrics):
         LOG.debug("Metrics collection called on HyppoStreamCollector")
+        metrics_to_stream = []
+
+
+        time.sleep(time_to_sleep)
+        start_time = time.time()
+
+        sample_array = self.hyppo_monitor.get_sample()
+        sample = sample_array[0]
+        container_list = sample_array[1]
+
+        #here wrap up things to match snap format
+        for key, value in container_list.iteritems():
+            metrics_to_stream.extend(value.to_snap())
+
+        time_to_sleep = self.sample_controller.get_sleep_time() \
+            - (time.time() - start_time)
 
 
 
@@ -25,13 +51,13 @@ class HyppoStreamCollector(snap.StreamCollector):
         LOG.debug("update_catalog called on HyppoStreamCollector")
         metrics = []
         #pid related metrics
-        for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
+        for key in ("pid", "cycles", "instructions", "time_ns", "power", "cpu"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),
-                    snap.NamespaceElement(value="monitor"),
+                    snap.NamespaceElement(value="hyppo-monitor"),
                     snap.NamespaceElement(value="thread"),
-                    snap.NamespaceElement.dynamic_namespace_element(name="pid")
+                    snap.NamespaceElement.dynamic_namespace_element(name="pid"),
                     snap.NamespaceElement(value=key)
                 ],
                 version=1,
@@ -44,9 +70,9 @@ class HyppoStreamCollector(snap.StreamCollector):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),
-                    snap.NamespaceElement(value="monitor"),
+                    snap.NamespaceElement(value="hyppo-monitor"),
                     snap.NamespaceElement(value="container"),
-                    snap.NamespaceElement.dynamic_namespace_element(name="id")
+                    snap.NamespaceElement.dynamic_namespace_element(name="id"),
                     snap.NamespaceElement(value=key)
                 ],
                 version=1,

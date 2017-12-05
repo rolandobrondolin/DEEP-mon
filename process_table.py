@@ -93,6 +93,8 @@ class ProcTable:
                 container_dict[value.container_id].add_cpu_usage(\
                     value.get_cpu_usage())
                 container_dict[value.container_id].add_pid(value.get_pid())
+                container_dict[value.container_id].set_last_ts(\
+                    value.get_last_ts())
             elif key > 0:
                 not_a_container.add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
@@ -102,6 +104,7 @@ class ProcTable:
                 not_a_container.add_power(value.get_power())
                 not_a_container.add_cpu_usage(value.get_cpu_usage())
                 not_a_container.add_pid(value.get_pid())
+                not_a_container.set_last_ts(value.get_last_ts())
             else:
                 idle.add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
@@ -111,6 +114,7 @@ class ProcTable:
                 idle.add_power(value.get_power())
                 idle.add_cpu_usage(value.get_cpu_usage())
                 idle.add_pid(value.get_pid())
+                idle.set_last_ts(value.get_last_ts())
 
 
         return container_dict
