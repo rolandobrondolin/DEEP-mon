@@ -109,7 +109,7 @@ class ContainerInfo:
                 snap.NamespaceElement(value="hyppo-monitor"),
                 snap.NamespaceElement(value="container"),
                 snap.NamespaceElement(value=self.container_id),
-                snap.NamespaceElement(value="instruction_retired")
+                snap.NamespaceElement(value="instructions")
             ],
             version=1,
             description="Thread instruction retired",
@@ -154,7 +154,7 @@ class ContainerInfo:
                 snap.NamespaceElement(value="hyppo-monitor"),
                 snap.NamespaceElement(value="container"),
                 snap.NamespaceElement(value=self.container_id),
-                snap.NamespaceElement(value="cpu_usage")
+                snap.NamespaceElement(value="cpu")
             ],
             version=1,
             description="Total cpu usage",

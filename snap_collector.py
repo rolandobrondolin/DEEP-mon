@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+import sys
+sys.path.append("/home/rolndo/dockercap_monitor")
 from monitor_main import MonitorMain
 import snap_plugin.v1 as snap
 import time
@@ -7,8 +10,8 @@ LOG = logging.getLogger(__name__)
 
 class HyppoStreamCollector(snap.StreamCollector):
 
-    def __init__(self, name, version, **kwargs):
-        super(HyppoStreamCollector, self).__init__(name, version, **kwargs)
+    def __init__(self, **kwargs):
+        super(HyppoStreamCollector, self).__init__(**kwargs)
         self.hyppo_monitor = MonitorMain("")
         self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
 
@@ -30,8 +33,7 @@ class HyppoStreamCollector(snap.StreamCollector):
         LOG.debug("Metrics collection called on HyppoStreamCollector")
         metrics_to_stream = []
 
-
-        time.sleep(time_to_sleep)
+        time.sleep(self.time_to_sleep)
         start_time = time.time()
 
         sample_array = self.hyppo_monitor.get_sample()
@@ -42,10 +44,10 @@ class HyppoStreamCollector(snap.StreamCollector):
         for key, value in container_list.iteritems():
             metrics_to_stream.extend(value.to_snap())
 
-        time_to_sleep = self.sample_controller.get_sleep_time() \
+        self.time_to_sleep = self.sample_controller.get_sleep_time() \
             - (time.time() - start_time)
 
-
+        return metrics_to_stream
 
     def update_catalog(self, config):
         LOG.debug("update_catalog called on HyppoStreamCollector")
@@ -62,7 +64,7 @@ class HyppoStreamCollector(snap.StreamCollector):
                 ],
                 version=1,
                 tags={"mtype": "gauge"},
-                description="Random {}".format(key),
+                description=key,
             )
             metrics.append(metric)
         #container related metrics
@@ -77,7 +79,7 @@ class HyppoStreamCollector(snap.StreamCollector):
                 ],
                 version=1,
                 tags={"mtype": "gauge"},
-                description="Random {}".format(key),
+                description=key,
             )
             metrics.append(metric)
 
