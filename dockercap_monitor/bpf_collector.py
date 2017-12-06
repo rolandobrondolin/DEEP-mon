@@ -78,12 +78,14 @@ class BpfCollector:
     def __init__(self, topology, debug):
         self.topology = topology
         self.debug = debug
+        bpf_code_path = os.path.dirname(os.path.abspath(__file__)) \
+                        + "/bpf/bpf_monitor.c"
         if debug is False:
-            self.bpf_program = BPF(src_file="bpf/bpf_monitor.c", \
+            self.bpf_program = BPF(src_file=bpf_code_path, \
                 cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
                 "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets())])
         else:
-            self.bpf_program = BPF(src_file="bpf/bpf_monitor.c", \
+            self.bpf_program = BPF(src_file=bpf_code_path, \
                 cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
                 "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets()), \
                 "-DDEBUG"])

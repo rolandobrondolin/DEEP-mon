@@ -44,7 +44,7 @@ class SocketProcessItem:
         return self.time_ns
 
     def get_ts(self):
-        return ts
+        return self.ts
 
     def reset(self):
         self.weighted_cycles = 0

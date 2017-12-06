@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import sys
-sys.path.append("/home/rolndo/dockercap_monitor")
-from monitor_main import MonitorMain
+sys.path.insert(0, "/home/rolando/dockercap_monitor")
+from dockercap_monitor.monitor_main import MonitorMain
 import snap_plugin.v1 as snap
 import time
 import logging
@@ -10,8 +10,8 @@ LOG = logging.getLogger(__name__)
 
 class HyppoStreamCollector(snap.StreamCollector):
 
-    def __init__(self, **kwargs):
-        super(HyppoStreamCollector, self).__init__(**kwargs)
+    def __init__(self, name, description, **kwargs):
+        super(HyppoStreamCollector, self).__init__(name, description, **kwargs)
         self.hyppo_monitor = MonitorMain("")
         self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
 
@@ -59,7 +59,7 @@ class HyppoStreamCollector(snap.StreamCollector):
                     snap.NamespaceElement(value="hyppo"),
                     snap.NamespaceElement(value="hyppo-monitor"),
                     snap.NamespaceElement(value="thread"),
-                    snap.NamespaceElement.dynamic_namespace_element(name="pid"),
+                    snap.NamespaceElement.dynamic_namespace_element(name="pid", description="pid of the process"),
                     snap.NamespaceElement(value=key)
                 ],
                 version=1,
@@ -74,7 +74,7 @@ class HyppoStreamCollector(snap.StreamCollector):
                     snap.NamespaceElement(value="hyppo"),
                     snap.NamespaceElement(value="hyppo-monitor"),
                     snap.NamespaceElement(value="container"),
-                    snap.NamespaceElement.dynamic_namespace_element(name="id"),
+                    snap.NamespaceElement.dynamic_namespace_element(name="id", description="container id"),
                     snap.NamespaceElement(value=key)
                 ],
                 version=1,
