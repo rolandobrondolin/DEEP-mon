@@ -40,11 +40,14 @@ class HyppoStreamCollector(snap.StreamCollector):
         sample = sample_array[0]
         container_list = sample_array[1]
 
+        #add general metrics
+        metrics_to_stream.extend(sample.to_snap())
+
         #here wrap up things to match snap format
         for key, value in container_list.iteritems():
             metrics_to_stream.extend(value.to_snap())
 
-        self.time_to_sleep = self.sample_controller.get_sleep_time() \
+        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
             - (time.time() - start_time)
 
         return metrics_to_stream
@@ -52,6 +55,59 @@ class HyppoStreamCollector(snap.StreamCollector):
     def update_catalog(self, config):
         LOG.debug("update_catalog called on HyppoStreamCollector")
         metrics = []
+        #general metrics
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="execution_time"),
+            ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="Total execution time",
+        )
+        metrics.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="switch_count"),
+            ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="Sched switch count",
+        )
+        metrics.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="timeslice"),
+            ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="Timeslice",
+        )
+        metrics.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="active_power"),
+            ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="Total active power",
+        )
+        metrics.append(metric)
+
         #pid related metrics
         for key in ("pid", "cycles", "instructions", "time_ns", "power", "cpu"):
             metric = snap.Metric(

@@ -1,5 +1,6 @@
 import json
 import snap_plugin.v1 as snap
+import time
 
 class ContainerInfo:
 
@@ -72,6 +73,7 @@ class ContainerInfo:
 
     def to_snap(self):
         metrics_to_be_returned = []
+        request_time = time.time()
 
         metric = snap.Metric(
             namespace=[
@@ -84,7 +86,7 @@ class ContainerInfo:
             version=1,
             description="Container ID",
             data=self.container_id,
-            timestamp=self.timestamp
+            timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
         #weighted_cycles
@@ -99,7 +101,7 @@ class ContainerInfo:
             version=1,
             description="Weighted cycles",
             data=self.weighted_cycles,
-            timestamp=self.timestamp
+            timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
         #instruction_retired
@@ -114,7 +116,7 @@ class ContainerInfo:
             version=1,
             description="Thread instruction retired",
             data=self.instruction_retired,
-            timestamp=self.timestamp
+            timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
         #instructions
@@ -129,7 +131,7 @@ class ContainerInfo:
             version=1,
             description="Total execution time in nanoseconds",
             data=self.time_ns,
-            timestamp=self.timestamp
+            timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
         #power
@@ -144,7 +146,7 @@ class ContainerInfo:
             version=1,
             description="Total active power in watt",
             data=self.power,
-            timestamp=self.timestamp
+            timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
         #cpu usage
@@ -159,7 +161,7 @@ class ContainerInfo:
             version=1,
             description="Total cpu usage",
             data=self.cpu_usage,
-            timestamp=self.timestamp
+            timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
 

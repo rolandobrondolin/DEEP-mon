@@ -7,10 +7,12 @@ from process_info import BpfPidStatus
 from process_info import SocketProcessItem
 from process_info import ProcessInfo
 from sample_controller import SampleController
+import snap_plugin.v1 as snap
 import ctypes as ct
 import json
 import multiprocessing
 import os
+import time
 
 
 class BpfSample:
@@ -67,6 +69,68 @@ class BpfSample:
         return json.dumps(d, indent = 4)
 
         return str_representation
+
+    def to_snap(self):
+        metrics_to_be_returned = []
+        request_time = time.time()
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="execution_time"),
+            ],
+            version=1,
+            description="Total execution time",
+            data=self.total_execution_time,
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="switch_count"),
+            ],
+            version=1,
+            description="Sched switch count",
+            data=self.sched_switch_count,
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="timeslice"),
+            ],
+            version=1,
+            description="Timeslice",
+            data=self.timeslice,
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="active_power"),
+            ],
+            version=1,
+            description="Total active power",
+            data=self.total_active_power,
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        return metrics_to_be_returned
 
 
 class ErrorCode(ct.Structure):
