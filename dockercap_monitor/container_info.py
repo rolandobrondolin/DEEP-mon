@@ -71,99 +71,159 @@ class ContainerInfo:
         d['pid_set'] = list(d['pid_set'])
         return json.dumps(d, indent=4)
 
-    def to_snap(self):
-        metrics_to_be_returned = []
-        request_time = time.time()
+    def get_snap_container_id(self, request_time):
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value="ID"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="ID")
+        ]
+        return self._get_snap_container_id(request_time,namespace)
 
+    def _get_snap_container_id(self, request_time, snap_namespace):
         metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="container"),
-                snap.NamespaceElement(value=self.container_id),
-                snap.NamespaceElement(value="ID"),
-            ],
+            namespace=snap_namespace,
             version=1,
             description="Container ID",
             data=self.container_id,
             timestamp=request_time
         )
-        metrics_to_be_returned.append(metric)
-        #weighted_cycles
+        return metric
+
+    def get_snap_cycles(self, request_time):
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value="cycles"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="cycles")
+        ]
+        return self._get_snap_cycles(request_time, namespace)
+
+    def _get_snap_cycles(self, request_time, snap_namespace):
         metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="container"),
-                snap.NamespaceElement(value=self.container_id),
-                snap.NamespaceElement(value="cycles")
-            ],
+            namespace=snap_namespace,
             version=1,
             description="Weighted cycles",
             data=self.weighted_cycles,
             timestamp=request_time
         )
-        metrics_to_be_returned.append(metric)
-        #instruction_retired
+        return metric
+
+    def get_snap_instructions(self, request_time):
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value="instructions"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="instructions")
+        ]
+        return self._get_snap_instructions(request_time, namespace)
+
+    def _get_snap_instructions(self, request_time, snap_namespace):
         metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="container"),
-                snap.NamespaceElement(value=self.container_id),
-                snap.NamespaceElement(value="instructions")
-            ],
+            namespace=snap_namespace,
             version=1,
             description="Thread instruction retired",
             data=self.instruction_retired,
             timestamp=request_time
         )
-        metrics_to_be_returned.append(metric)
-        #instructions
+        return metric
+
+    def get_snap_power(self, request_time):
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value="power"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="power")
+        ]
+        return self._get_snap_power(request_time, namespace)
+
+    def _get_snap_power(self, request_time, snap_namespace):
         metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="container"),
-                snap.NamespaceElement(value=self.container_id),
-                snap.NamespaceElement(value="time_ns")
-            ],
-            version=1,
-            description="Total execution time in nanoseconds",
-            data=self.time_ns,
-            timestamp=request_time
-        )
-        metrics_to_be_returned.append(metric)
-        #power
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="container"),
-                snap.NamespaceElement(value=self.container_id),
-                snap.NamespaceElement(value="power")
-            ],
+            namespace=snap_namespace,
             version=1,
             description="Total active power in watt",
             data=self.power,
             timestamp=request_time
         )
-        metrics_to_be_returned.append(metric)
-        #cpu usage
+        return metric
+
+    def get_snap_cpu(self, request_time):
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value="cpu"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="cpu")
+        ]
+        return self._get_snap_cpu(request_time, namespace)
+
+    def _get_snap_cpu(self, request_time, snap_namespace):
         metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="container"),
-                snap.NamespaceElement(value=self.container_id),
-                snap.NamespaceElement(value="cpu")
-            ],
+            namespace=snap_namespace,
             version=1,
             description="Total cpu usage",
             data=self.cpu_usage,
             timestamp=request_time
         )
-        metrics_to_be_returned.append(metric)
+        return metric
+
+
+    def to_snap(self, request_time):
+        metrics_to_be_returned = []
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="ID")
+        ]
+        metrics_to_be_returned.append(self._get_snap_container_id(request_time, namespace))
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="cycles")
+        ]
+        metrics_to_be_returned.append(self._get_snap_cycles(request_time, namespace))
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="instructions")
+        ]
+        metrics_to_be_returned.append(self._get_snap_instructions(request_time, namespace))
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="power")
+        ]
+        metrics_to_be_returned.append(self._get_snap_power(request_time, namespace))
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value="cpu")
+        ]
+        metrics_to_be_returned.append(self._get_snap_cpu(request_time, namespace))
 
         return metrics_to_be_returned
 

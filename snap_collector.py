@@ -41,11 +41,16 @@ class HyppoStreamCollector(snap.StreamCollector):
         container_list = sample_array[1]
 
         #add general metrics
-        metrics_to_stream.extend(sample.to_snap())
+        metrics_to_stream.extend(sample.to_snap(start_time))
 
         #here wrap up things to match snap format
         for key, value in container_list.iteritems():
-            metrics_to_stream.extend(value.to_snap())
+            metrics_to_stream.extend(value.to_snap(start_time))
+            metrics_to_stream.append(value.get_snap_container_id(start_time))
+            metrics_to_stream.append(value.get_snap_cycles(start_time))
+            metrics_to_stream.append(value.get_snap_instructions(start_time))
+            metrics_to_stream.append(value.get_snap_power(start_time))
+            metrics_to_stream.append(value.get_snap_cpu(start_time))
 
         self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
             - (time.time() - start_time)
@@ -130,6 +135,20 @@ class HyppoStreamCollector(snap.StreamCollector):
                     snap.NamespaceElement(value="hyppo"),
                     snap.NamespaceElement(value="hyppo-monitor"),
                     snap.NamespaceElement(value="container"),
+                    snap.NamespaceElement.dynamic_namespace_element(name="id", description="container id"),
+                    snap.NamespaceElement(value=key)
+                ],
+                version=1,
+                tags={"mtype": "gauge"},
+                description=key,
+            )
+            metrics.append(metric)
+            metric = snap.Metric(
+                namespace=[
+                    snap.NamespaceElement(value="hyppo"),
+                    snap.NamespaceElement(value="hyppo-monitor"),
+                    snap.NamespaceElement(value="container"),
+                    snap.NamespaceElement(value=key),
                     snap.NamespaceElement.dynamic_namespace_element(name="id", description="container id"),
                     snap.NamespaceElement(value=key)
                 ],

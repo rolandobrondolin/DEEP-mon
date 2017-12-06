@@ -70,9 +70,8 @@ class BpfSample:
 
         return str_representation
 
-    def to_snap(self):
+    def to_snap(self, request_time):
         metrics_to_be_returned = []
-        request_time = time.time()
 
         metric = snap.Metric(
             namespace=[
