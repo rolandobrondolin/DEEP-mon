@@ -18,8 +18,6 @@ class SampleController:
         else:
             self.sleep_time = 1
             self.timeslice = 1000000000
-        self.sleep_time = 1
-        self.timeslice = 1000000000
 
     def get_sleep_time(self):
         return self.sleep_time
