@@ -24,7 +24,6 @@ ADD . /home/
 RUN pip install .
 
 RUN cp snap_collector.py /opt/snap/plugins
-RUN cp snap_config/hyppo-monitor-influxdb.json /opt/snap/tasks
 RUN chmod 777 /opt/snap/plugins/*
 
 CMD ["snapteld", " --log-level 1 --log-path '' --plugin-trust 0"]
