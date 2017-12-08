@@ -7,10 +7,12 @@ from process_info import BpfPidStatus
 from process_info import SocketProcessItem
 from process_info import ProcessInfo
 from sample_controller import SampleController
+import snap_plugin.v1 as snap
 import ctypes as ct
 import json
 import multiprocessing
 import os
+import time
 
 
 class BpfSample:
@@ -73,6 +75,95 @@ class BpfSample:
              }
         return json.dumps(d, indent=4)
 
+    def to_snap(self, request_time):
+        metrics_to_be_returned = []
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="execution_time"),
+            ],
+            version=1,
+            description="Total execution time",
+            data=self.total_execution_time,
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="switch_count"),
+            ],
+            version=1,
+            description="Sched switch count",
+            data=self.sched_switch_count,
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="timeslice"),
+            ],
+            version=1,
+            description="Timeslice",
+            data=self.timeslice,
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="package_power"),
+            ],
+            version=1,
+            description="Package power",
+            data=self.total_active_power["package"],
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="core_power"),
+            ],
+            version=1,
+            description="Core power",
+            data=self.total_active_power["core"],
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="dram_power"),
+            ],
+            version=1,
+            description="DRAM power",
+            data=self.total_active_power["dram"],
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        return metrics_to_be_returned
+
 
 class ErrorCode(ct.Structure):
     _fields_ = [("err", ct.c_int)]
@@ -83,12 +174,14 @@ class BpfCollector:
     def __init__(self, topology, debug):
         self.topology = topology
         self.debug = debug
+        bpf_code_path = os.path.dirname(os.path.abspath(__file__)) \
+                        + "/bpf/bpf_monitor.c"
         if debug is False:
-            self.bpf_program = BPF(src_file="bpf/bpf_monitor.c", \
+            self.bpf_program = BPF(src_file=bpf_code_path, \
                 cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
                 "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets())])
         else:
-            self.bpf_program = BPF(src_file="bpf/bpf_monitor.c", \
+            self.bpf_program = BPF(src_file=bpf_code_path, \
                 cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
                 "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets()), \
                 "-DDEBUG"])
@@ -138,8 +231,8 @@ class BpfCollector:
         self.bpf_program.detach_tracepoint(tp="sched:sched_switch")
         self.bpf_program.detach_tracepoint(tp="sched:sched_process_exit")
 
-    def get_new_sample(self, sample_controller, rapl_monitor, initial_rapl_sample):
-        sample = self._get_new_sample(rapl_monitor, initial_rapl_sample)
+    def get_new_sample(self, sample_controller, rapl_monitor):
+        sample = self._get_new_sample(rapl_monitor)
         sample_controller.compute_sleep_time(sample.get_sched_switch_count())
         self.timeslice = sample_controller.get_timeslice()
         self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
@@ -149,7 +242,7 @@ class BpfCollector:
 
         return sample
 
-    def _get_new_sample(self, rapl_monitor, initial_rapl_sample):
+    def _get_new_sample(self, rapl_monitor):
 
         total_execution_time = 0.0
         sched_switch_count = self.bpf_config[ct.c_int(3)].value
@@ -170,22 +263,11 @@ class BpfCollector:
             read_selector = 1
 
         # get new sample from rapl right before changing selector
-        # final_rapl_sample = rapl_monitor.take_sample_core()
-        final_rapl_sample = {
-            "package": rapl_monitor.take_sample_package(),
-            "core": rapl_monitor.take_sample_core(),
-            "dram": rapl_monitor.take_sample_dram()
-            }
+        rapl_measurement = rapl_monitor.get_rapl_measure()
 
-        package_diff = rapl_monitor.diff_samples(
-                final_sample=final_rapl_sample["package"],
-                initial_sample=initial_rapl_sample["package"])
-        core_diff = rapl_monitor.diff_samples(
-                final_sample=final_rapl_sample["core"],
-                initial_sample=initial_rapl_sample["core"])
-        dram_diff = rapl_monitor.diff_samples(
-                final_sample=final_rapl_sample["dram"],
-                initial_sample=initial_rapl_sample["dram"])
+        package_diff = rapl_measurement["package"]
+        core_diff = rapl_measurement["core"]
+        dram_diff = rapl_measurement["dram"]
 
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)
 

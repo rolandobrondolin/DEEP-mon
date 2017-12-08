@@ -77,6 +77,12 @@ class RaplMonitor():
     def __init__(self, topology):
         self.rapl_reader = RaplReader()
         self.topology = topology
+        self.sample_core = [self.rapl_reader.read_energy_core_sample(skt)
+                            for skt in self.topology.get_sockets()]
+        self.sample_pkg = [self.rapl_reader.read_energy_package_sample(skt)
+                          for skt in self.topology.get_sockets()]
+        self.sample_dram = [self.rapl_reader.read_energy_dram_sample(skt)
+                            for skt in self.topology.get_sockets()]
 
     def take_sample_package(self):
         package_sample = [self.rapl_reader.read_energy_package_sample(skt)
@@ -97,3 +103,19 @@ class RaplMonitor():
         rapl_diff = [final_sample[skt] - initial_sample[skt]
                      for skt in self.topology.get_sockets()]
         return rapl_diff
+
+    def get_rapl_measure(self):
+        ret = {}
+        package_sample = self.take_sample_package()
+        core_sample = self.take_sample_core()
+        dram_sample = self.take_sample_dram()
+
+        ret["package"] = self.diff_samples(package_sample, self.sample_pkg)
+        ret["core"] = self.diff_samples(core_sample, self.sample_core)
+        ret["dram"] = self.diff_samples(dram_sample, self.sample_dram)
+
+        self.sample_pkg = package_sample
+        self.sample_core = core_sample
+        self.sample_dram = dram_sample
+
+        return ret

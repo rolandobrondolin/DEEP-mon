@@ -45,29 +45,35 @@ class ProcTable:
 
     def find_cgroup_id(self, pid):
         #scan proc folder searching for the pid
-        try:
-            # Non-systemd Docker
-            with open(os.path.join('/proc', str(pid), 'cgroup'), 'rb') as f:
-                for line in f:
-                    line_array = line.split("/")
-                    if len(line_array) > 1 and \
-                        len(line_array[len(line_array) -1]) == 65:
-                        return line_array[len(line_array) -1]
-            # systemd Docker
-            with open(os.path.join('/proc', str(pid), 'cgroup'), 'rb') as f:
-                for line in f:
-                    line_array = line.split("/")
-                    if len(line_array) > 1 \
-                        and "docker-" in line_array[len(line_array) -1] \
-                        and ".scope" in line_array[len(line_array) -1]:
+        for path in ['/host/proc', '/proc']:
+            try:
+                # Non-systemd Docker
+                with open(os.path.join(path, str(pid), 'cgroup'), 'rb') as f:
+                    for line in f:
+                        line_array = line.split("/")
+                        if len(line_array) > 1 and \
+                            len(line_array[len(line_array) -1]) == 65:
+                            return line_array[len(line_array) -1]
+            except IOError:
+                continue
 
-                        new_id = line_array[len(line_array) -1].replace("docker-", "")
-                        new_id = new_id.replace(".scope", "")
-                        if len(new_id) == 65:
-                            return new_id
+        for path in ['/host/proc', '/proc']:
+            try:
+                # systemd Docker
+                with open(os.path.join(path, str(pid), 'cgroup'), 'rb') as f:
+                    for line in f:
+                        line_array = line.split("/")
+                        if len(line_array) > 1 \
+                            and "docker-" in line_array[len(line_array) -1] \
+                            and ".scope" in line_array[len(line_array) -1]:
 
-        except IOError: # proc has already terminated
-            return ""
+                            new_id = line_array[len(line_array) -1].replace("docker-", "")
+                            new_id = new_id.replace(".scope", "")
+                            if len(new_id) == 65:
+                                return new_id
+
+            except IOError: # proc has already terminated
+                continue
         return ""
 
     def get_container_dictionary(self):
@@ -93,6 +99,8 @@ class ProcTable:
                 container_dict[value.container_id].add_cpu_usage(\
                     value.get_cpu_usage())
                 container_dict[value.container_id].add_pid(value.get_pid())
+                container_dict[value.container_id].set_last_ts(\
+                    value.get_last_ts())
             elif key > 0:
                 not_a_container.add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
@@ -102,6 +110,7 @@ class ProcTable:
                 not_a_container.add_power(value.get_power())
                 not_a_container.add_cpu_usage(value.get_cpu_usage())
                 not_a_container.add_pid(value.get_pid())
+                not_a_container.set_last_ts(value.get_last_ts())
             else:
                 idle.add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
@@ -111,6 +120,7 @@ class ProcTable:
                 idle.add_power(value.get_power())
                 idle.add_cpu_usage(value.get_cpu_usage())
                 idle.add_pid(value.get_pid())
+                idle.set_last_ts(value.get_last_ts())
 
 
         return container_dict
