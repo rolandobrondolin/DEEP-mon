@@ -52,23 +52,28 @@ class BpfSample:
         return str_representation
 
     def get_log_line(self):
-        str_representation = "proc time: " \
-            + str(self.total_execution_time) + " sched switch count " \
-            + str(self.sched_switch_count) + " timeslice " \
-            + str(self.timeslice) + " total active power: " \
-            + str(self.total_active_power) + "\n"
-
+        str_representation = (
+                "PROC TIME: " + str(self.total_execution_time)
+                + " SCHED SWITCH COUNT: " + str(self.sched_switch_count)
+                + " TIMESLICE: " + str(self.timeslice)
+                + " TOTAL PACKAGE ACTIVE POWER: "
+                + str(self.total_active_power["package"])
+                + " TOTAL CORE ACTIVE POWER: "
+                + str(self.total_active_power["core"])
+                + " TOTAL DRAM ACTIVE POWER: "
+                + str(self.total_active_power["dram"])
+                )
         return str_representation
 
     def get_log_json(self):
-        d = {"proc time": str(self.total_execution_time),
-             "sched switch count": str(self.sched_switch_count),
-             "timeslice": str(self.timeslice),
-             "total active power": str(self.total_active_power)
+        d = {"PROC TIME": str(self.total_execution_time),
+             "SCHED SWITCH COUNT": str(self.sched_switch_count),
+             "TIMESLICE": str(self.timeslice),
+             "TOTAL PACKAGE ACTIVE POWER": str(self.total_active_power["package"]),
+             "TOTAL CORE ACTIVE POWER": str(self.total_active_power["core"]),
+             "TOTAL DRAM ACTIVE POWER": str(self.total_active_power["dram"])
              }
-        return json.dumps(d, indent = 4)
-
-        return str_representation
+        return json.dumps(d, indent=4)
 
     def to_snap(self, request_time):
         metrics_to_be_returned = []
@@ -120,11 +125,39 @@ class BpfSample:
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
                 snap.NamespaceElement(value="sample"),
-                snap.NamespaceElement(value="active_power"),
+                snap.NamespaceElement(value="package_power"),
             ],
             version=1,
-            description="Total active power",
-            data=self.total_active_power,
+            description="Package power",
+            data=self.total_active_power["package"],
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="core_power"),
+            ],
+            version=1,
+            description="Core power",
+            data=self.total_active_power["core"],
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="dram_power"),
+            ],
+            version=1,
+            description="DRAM power",
+            data=self.total_active_power["dram"],
             timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
@@ -230,7 +263,12 @@ class BpfCollector:
             read_selector = 1
 
         # get new sample from rapl right before changing selector
-        rapl_diff = rapl_monitor.get_sample()
+        rapl_measurement = rapl_monitor.get_rapl_measure()
+
+        package_diff = rapl_measurement["package"]
+        core_diff = rapl_measurement["core"]
+        dram_diff = rapl_measurement["dram"]
+
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)
 
         pid_dict = {}
@@ -275,8 +313,17 @@ class BpfCollector:
                     total_execution_time = total_execution_time \
                         + float(data.time_ns[multisocket_selector])/1000000
 
-        power= [rapl_diff[skt].power()*1000 for skt in self.topology.get_sockets()]
-        total_power = sum(power)
+        package_power = [package_diff[skt].power_milliw()
+                         for skt in self.topology.get_sockets()]
+        core_power = [core_diff[skt].power_milliw()
+                      for skt in self.topology.get_sockets()]
+        dram_power = [dram_diff[skt].power_milliw()
+                      for skt in self.topology.get_sockets()]
+        total_power = {
+                "package": sum(package_power),
+                "core": sum(core_power),
+                "dram": sum(dram_power)
+                }
 
         for key, data in self.pids.items():
 
@@ -303,7 +350,7 @@ class BpfCollector:
             if add_proc:
                 pid_dict[data.pid] = proc_info
                 proc_info.set_power(self._get_pid_power(proc_info, \
-                    total_weighted_cycles, power))
+                    total_weighted_cycles, core_power))
                 proc_info.compute_cpu_usage_millis(float(total_execution_time))
 
 
@@ -333,17 +380,17 @@ class BpfCollector:
             if add_proc:
                 pid_dict[-1 * (1 + int(key.value))] = proc_info
                 proc_info.set_power(self._get_pid_power(proc_info, \
-                    total_weighted_cycles, power))
+                    total_weighted_cycles, core_power))
                 proc_info.compute_cpu_usage_millis(float(total_execution_time))
 
         return BpfSample(tsmax, total_execution_time, sched_switch_count, \
             self.timeslice, total_power, pid_dict)
 
-    def _get_pid_power(self, pid, total_cycles, power):
+    def _get_pid_power(self, pid, total_cycles, core_power):
 
         pid_power = 0
         for socket in self.topology.get_sockets():
-            pid_power = pid_power + (power[socket] * \
+            pid_power = pid_power + (core_power[socket] * \
                 (float(pid.get_socket_data(socket).get_weighted_cycles()) \
                 / float(total_cycles[socket])))
         return pid_power

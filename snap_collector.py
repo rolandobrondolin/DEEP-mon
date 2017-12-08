@@ -104,11 +104,37 @@ class HyppoStreamCollector(snap.StreamCollector):
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
                 snap.NamespaceElement(value="sample"),
-                snap.NamespaceElement(value="active_power"),
+                snap.NamespaceElement(value="package_power"),
             ],
             version=1,
             tags={"mtype": "gauge"},
-            description="Total active power",
+            description="Package power",
+        )
+        metrics.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="core_power"),
+            ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="Core power",
+        )
+        metrics.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value="dram_power"),
+            ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="DRAM power",
         )
         metrics.append(metric)
 
