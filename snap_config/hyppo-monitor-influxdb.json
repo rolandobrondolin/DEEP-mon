@@ -7,12 +7,12 @@
   "workflow": {
     "collect": {
       "metrics": {
-        "/hyppo/hyppo-monitor/container/*/ID": {},
-        "/hyppo/hyppo-monitor/container/*/cpu": {},
-        "/hyppo/hyppo-monitor/container/*/cycles": {},
-        "/hyppo/hyppo-monitor/container/*/instructions": {},
-        "/hyppo/hyppo-monitor/container/*/power": {},
-        "/hyppo/hyppo-monitor/container/*/time_ns": {},
+        "/hyppo/hyppo-monitor/container/ID/*/ID": {},
+        "/hyppo/hyppo-monitor/container/cpu/*/cpu": {},
+        "/hyppo/hyppo-monitor/container/cycles/*/cycles": {},
+        "/hyppo/hyppo-monitor/container/instructions/*/instructions": {},
+        "/hyppo/hyppo-monitor/container/power/*/power": {},
+        "/hyppo/hyppo-monitor/container/time_ns/*/time_ns": {},
         "/hyppo/hyppo-monitor/container/*/ID": {},
         "/hyppo/hyppo-monitor/container/*/cpu": {},
         "/hyppo/hyppo-monitor/container/*/cycles": {},
