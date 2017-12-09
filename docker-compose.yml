@@ -1,7 +1,6 @@
 version: '2'
 
 services:
-
     grafana:
         image: matisq/grafana:latest
         ports:
@@ -17,22 +16,12 @@ services:
             GF_AUTH_ANONYMOUS_ORG_NAME: grafana
             GF_DASHBOARDS_JSON_ENABLED: "true"
             GF_DASHBOARDS_JSON_PATH: /opt/grafana
-        volumes_from:
-            - grafana-data
         restart: always
         networks:
-           - internal
-
-    grafana-data:
-        image: busybox
-        tty: true
+            - internal
         volumes:
-            - /var/lib/grafana
-            - /var/log/grafana
-            - /var/lib/grafana/plugins
-        restart: always
-        networks:
-           - internal
+            - grafana-lib-data:/var/lib/grafana
+            - grafana-log-data:/var/log/grafana
 
     influxdb:
         image: matisq/influxdb:latest
@@ -40,20 +29,11 @@ services:
             INFLUX_DATABASE: "snap"
             INLFUX_ADMIN_USER: "grafana"
             INFLUX_ADMIN_PASS: "grafana"
-        volumes_from:
-            - influxdb-data
         restart: always
         networks:
-           - internal
-
-    influxdb-data:
-        image: busybox
-        tty: true
+            - internal
         volumes:
-            - /var/lib/influxdb
-        restart: always
-        networks:
-           - internal
+            - influx-data:/var/lib/influxdb
 
     hyppo-monitor:
         build: .
@@ -71,3 +51,8 @@ services:
 networks:
     internal:
         driver: bridge
+
+volumes:
+    influx-data:
+    grafana-lib-data:
+    grafana-log-data:
