@@ -162,6 +162,9 @@ class BpfSample:
         )
         metrics_to_be_returned.append(metric)
 
+        for key, value in self.pid_dict.iteritems():
+            metrics_to_be_returned.extend(value.to_snap(request_time))
+
         return metrics_to_be_returned
 
 

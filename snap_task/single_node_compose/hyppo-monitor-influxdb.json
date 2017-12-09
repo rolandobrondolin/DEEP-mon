@@ -7,12 +7,12 @@
   "workflow": {
     "collect": {
       "metrics": {
-        "/hyppo/hyppo-monitor/container/ID/*/ID": {},
-        "/hyppo/hyppo-monitor/container/cpu/*/cpu": {},
-        "/hyppo/hyppo-monitor/container/cycles/*/cycles": {},
-        "/hyppo/hyppo-monitor/container/instructions/*/instructions": {},
-        "/hyppo/hyppo-monitor/container/power/*/power": {},
-        "/hyppo/hyppo-monitor/container/time_ns/*/time_ns": {},
+        "/hyppo/hyppo-monitor/thread/*/cpu": {},
+        "/hyppo/hyppo-monitor/thread/*/cycles": {},
+        "/hyppo/hyppo-monitor/thread/*/instructions": {},
+        "/hyppo/hyppo-monitor/thread/*/pid": {},
+        "/hyppo/hyppo-monitor/thread/*/power": {},
+        "/hyppo/hyppo-monitor/thread/*/time_ns": {},
         "/hyppo/hyppo-monitor/container/*/ID": {},
         "/hyppo/hyppo-monitor/container/*/cpu": {},
         "/hyppo/hyppo-monitor/container/*/cycles": {},
@@ -24,13 +24,7 @@
         "/hyppo/hyppo-monitor/sample/dram_power": {},
         "/hyppo/hyppo-monitor/sample/execution_time": {},
         "/hyppo/hyppo-monitor/sample/switch_count": {},
-        "/hyppo/hyppo-monitor/sample/timeslice": {},
-        "/hyppo/hyppo-monitor/thread/*/cpu": {},
-        "/hyppo/hyppo-monitor/thread/*/cycles": {},
-        "/hyppo/hyppo-monitor/thread/*/instructions": {},
-        "/hyppo/hyppo-monitor/thread/*/pid": {},
-        "/hyppo/hyppo-monitor/thread/*/power": {},
-        "/hyppo/hyppo-monitor/thread/*/time_ns": {}
+        "/hyppo/hyppo-monitor/sample/timeslice": {}
       },
       "publish": [
         {

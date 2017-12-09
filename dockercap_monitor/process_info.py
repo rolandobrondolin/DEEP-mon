@@ -1,4 +1,5 @@
 import ctypes as ct
+import snap_plugin.v1 as snap
 
 class BpfPidStatus(ct.Structure):
     TASK_COMM_LEN = 16
@@ -164,3 +165,83 @@ class ProcessInfo:
             str_rep = str_rep + " " + str(socket_item)
 
         return str_rep
+
+    def to_snap(self, request_time):
+        metrics_to_be_returned = []
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.pid)),
+                snap.NamespaceElement(value="pid")
+            ],
+            version=1,
+            description="Weighted cycles",
+            data=self.get_aggregated_weighted_cycles(),
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.pid)),
+                snap.NamespaceElement(value="instructions")
+            ],
+            version=1,
+            description="Instruction retired",
+            data=self.get_aggregated_instruction_retired(),
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.pid)),
+                snap.NamespaceElement(value="time_ns")
+            ],
+            version=1,
+            description="Execution time",
+            data=self.get_aggregated_time_ns(),
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.pid)),
+                snap.NamespaceElement(value="power")
+            ],
+            version=1,
+            description="Power consumption",
+            data=self.get_power(),
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.pid)),
+                snap.NamespaceElement(value="cpu")
+            ],
+            version=1,
+            description="CPU usage",
+            data=self.get_cpu_usage(),
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        return metrics_to_be_returned

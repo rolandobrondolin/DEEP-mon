@@ -26,4 +26,4 @@ RUN pip install .
 RUN cp snap_collector.py /opt/snap/plugins
 RUN chmod 777 /opt/snap/plugins/*
 
-CMD ["snapteld", " --log-level 1 --log-path '' --plugin-trust 0"]
+CMD ["snapteld", "--log-level", "1", "--plugin-trust", "0", "--config", "/home/snapteld.conf"]
