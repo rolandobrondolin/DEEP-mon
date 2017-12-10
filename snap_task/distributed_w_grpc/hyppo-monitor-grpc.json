@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "schedule": {
+    "type": "streaming"
+  },
+  "max-failures": 10,
+  "workflow": {
+    "collect": {
+      "metrics": {
+        "/hyppo/hyppo-monitor/thread/*/cpu": {},
+        "/hyppo/hyppo-monitor/thread/*/cycles": {},
+        "/hyppo/hyppo-monitor/thread/*/instructions": {},
+        "/hyppo/hyppo-monitor/thread/*/pid": {},
+        "/hyppo/hyppo-monitor/thread/*/power": {},
+        "/hyppo/hyppo-monitor/thread/*/time_ns": {},
+        "/hyppo/hyppo-monitor/container/*/ID": {},
+        "/hyppo/hyppo-monitor/container/*/cpu": {},
+        "/hyppo/hyppo-monitor/container/*/cycles": {},
+        "/hyppo/hyppo-monitor/container/*/instructions": {},
+        "/hyppo/hyppo-monitor/container/*/power": {},
+        "/hyppo/hyppo-monitor/container/*/time_ns": {},
+        "/hyppo/hyppo-monitor/sample/package_power": {},
+        "/hyppo/hyppo-monitor/sample/core_power": {},
+        "/hyppo/hyppo-monitor/sample/dram_power": {},
+        "/hyppo/hyppo-monitor/sample/execution_time": {},
+        "/hyppo/hyppo-monitor/sample/switch_count": {},
+        "/hyppo/hyppo-monitor/sample/timeslice": {}
+      },
+      "publish": [
+        {
+          "plugin_name": "hyppo-publisher",
+          "config": {
+            "remote_collector": "hyppo-collector.necst.it:37000"
+          }
+        }
+      ]
+    }
+  }
+}

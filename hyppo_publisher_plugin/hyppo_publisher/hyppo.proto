@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+service HyppoRemoteCollector {
+
+    rpc SendMonitorSample(DataPoint) returns (Ack) {}
+    rpc SendKubeSample(DataPoint) returns (Ack) {}
+
+}
+
+message DataPoint {
+    repeated string datapoint = 1;
+}
+
+message Ack {
+    bool ack = 1;
+}
