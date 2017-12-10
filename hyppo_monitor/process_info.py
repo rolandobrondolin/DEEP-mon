@@ -166,13 +166,15 @@ class ProcessInfo:
 
         return str_rep
 
-    def to_snap(self, request_time):
+    def to_snap(self, request_time, user_id, hostname):
         metrics_to_be_returned = []
 
         metric = snap.Metric(
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="thread"),
                 snap.NamespaceElement(value=str(self.pid)),
                 snap.NamespaceElement(value="pid")
@@ -188,6 +190,8 @@ class ProcessInfo:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="thread"),
                 snap.NamespaceElement(value=str(self.pid)),
                 snap.NamespaceElement(value="instructions")
@@ -203,6 +207,8 @@ class ProcessInfo:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="thread"),
                 snap.NamespaceElement(value=str(self.pid)),
                 snap.NamespaceElement(value="time_ns")
@@ -218,6 +224,8 @@ class ProcessInfo:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="thread"),
                 snap.NamespaceElement(value=str(self.pid)),
                 snap.NamespaceElement(value="power")
@@ -233,6 +241,8 @@ class ProcessInfo:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="thread"),
                 snap.NamespaceElement(value=str(self.pid)),
                 snap.NamespaceElement(value="cpu")
