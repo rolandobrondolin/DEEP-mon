@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys
-from dockercap_monitor.monitor_main import MonitorMain
+from hyppo_monitor.monitor_main import MonitorMain
 import snap_plugin.v1 as snap
 import time
 import logging
