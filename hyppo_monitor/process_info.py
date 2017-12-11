@@ -193,6 +193,7 @@ class ProcessInfo:
                 snap.NamespaceElement(value=user_id),
                 snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.container_id)),
                 snap.NamespaceElement(value=str(self.pid)),
                 snap.NamespaceElement(value="instructions")
             ],
@@ -210,6 +211,7 @@ class ProcessInfo:
                 snap.NamespaceElement(value=user_id),
                 snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.container_id)),
                 snap.NamespaceElement(value=str(self.pid)),
                 snap.NamespaceElement(value="time_ns")
             ],
@@ -227,6 +229,7 @@ class ProcessInfo:
                 snap.NamespaceElement(value=user_id),
                 snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.container_id)),
                 snap.NamespaceElement(value=str(self.pid)),
                 snap.NamespaceElement(value="power")
             ],
@@ -244,6 +247,7 @@ class ProcessInfo:
                 snap.NamespaceElement(value=user_id),
                 snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.container_id)),
                 snap.NamespaceElement(value=str(self.pid)),
                 snap.NamespaceElement(value="cpu")
             ],

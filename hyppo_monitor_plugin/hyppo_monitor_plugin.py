@@ -44,6 +44,7 @@ class HyppoStreamCollector(snap.StreamCollector):
         sample_array = self.hyppo_monitor.get_sample()
         sample = sample_array[0]
         container_list = sample_array[1]
+        proc_dict = sample_array[2]
 
         hostname = socket.gethostname()
 
@@ -52,6 +53,10 @@ class HyppoStreamCollector(snap.StreamCollector):
 
         #here wrap up things to match snap format
         for key, value in container_list.iteritems():
+            metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
+
+        #add threads from proc_table
+        for key, value in proc_dict.iteritems():
             metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
 
         self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
@@ -166,6 +171,7 @@ class HyppoStreamCollector(snap.StreamCollector):
                     snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
                     snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
                     snap.NamespaceElement(value="thread"),
+                    snap.NamespaceElement.dynamic_namespace_element(name="container_id", description="container id"),
                     snap.NamespaceElement.dynamic_namespace_element(name="pid", description="pid of the process"),
                     snap.NamespaceElement(value=key)
                 ],

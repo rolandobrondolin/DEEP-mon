@@ -24,10 +24,11 @@ class MonitorMain():
         sample = self.collector.get_new_sample(self.sample_controller, self.rapl_monitor)
         # add stuff to cumulative process table
         self.process_table.add_process_from_sample(sample)
+
         # Now, extract containers!
         container_list = self.process_table.get_container_dictionary()
 
-        return [sample, container_list]
+        return [sample, container_list, self.process_table.get_proc_table()]
 
 
     def monitor_loop(self):

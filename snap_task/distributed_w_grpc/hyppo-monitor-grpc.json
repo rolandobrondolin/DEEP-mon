@@ -12,11 +12,11 @@
         }
       },
       "metrics": {
-        "/hyppo/hyppo-monitor/*/*/thread/*/cpu": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/cycles": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/instructions": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/power": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/time_ns": {},
+        "/hyppo/hyppo-monitor/*/*/thread/*/*/cpu": {},
+        "/hyppo/hyppo-monitor/*/*/thread/*/*/cycles": {},
+        "/hyppo/hyppo-monitor/*/*/thread/*/*/instructions": {},
+        "/hyppo/hyppo-monitor/*/*/thread/*/*/power": {},
+        "/hyppo/hyppo-monitor/*/*/thread/*/*/time_ns": {},
         "/hyppo/hyppo-monitor/*/*/container/*/cpu": {},
         "/hyppo/hyppo-monitor/*/*/container/*/cycles": {},
         "/hyppo/hyppo-monitor/*/*/container/*/instructions": {},

@@ -142,7 +142,7 @@ class ContainerInfo:
             snap.NamespaceElement(value=user_id),
             snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value=str(self.container_id)),
             snap.NamespaceElement(value="cycles")
         ]
         metrics_to_be_returned.append(self._get_snap_cycles(request_time, namespace))
@@ -153,7 +153,7 @@ class ContainerInfo:
             snap.NamespaceElement(value=user_id),
             snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value=str(self.container_id)),
             snap.NamespaceElement(value="instructions")
         ]
         metrics_to_be_returned.append(self._get_snap_instructions(request_time, namespace))
@@ -164,7 +164,7 @@ class ContainerInfo:
             snap.NamespaceElement(value=user_id),
             snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value=str(self.container_id)),
             snap.NamespaceElement(value="power")
         ]
         metrics_to_be_returned.append(self._get_snap_power(request_time, namespace))
@@ -175,7 +175,7 @@ class ContainerInfo:
             snap.NamespaceElement(value=user_id),
             snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=self.container_id),
+            snap.NamespaceElement(value=str(self.container_id)),
             snap.NamespaceElement(value="cpu")
         ]
         metrics_to_be_returned.append(self._get_snap_cpu(request_time, namespace))

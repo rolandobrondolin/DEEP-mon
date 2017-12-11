@@ -26,6 +26,9 @@ class BpfSample:
         self.total_active_power = total_active_power
         self.pid_dict = pid_dict
 
+    def get_max_ts(self):
+        return self.max_ts
+
     def get_total_execution_time(self):
         return self.total_execution_time
 
@@ -173,9 +176,6 @@ class BpfSample:
             timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
-
-        for key, value in self.pid_dict.iteritems():
-            metrics_to_be_returned.extend(value.to_snap(request_time, user_id, hostname))
 
         return metrics_to_be_returned
 
