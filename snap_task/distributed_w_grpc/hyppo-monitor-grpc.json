@@ -33,7 +33,7 @@
         {
           "plugin_name": "hyppo-publisher",
           "config": {
-            "remote_collector": "hyppo-collector.necst.it:37000"
+            "remote_collector": "collector.hyppo.necst.it:37000"
           }
         }
       ]

@@ -33,7 +33,7 @@
         {
           "plugin_name": "influxdb",
           "config": {
-            "host": "hyppo-collector.necst.it",
+            "host": "collector.hyppo.necst.it",
             "port": 8086,
             "database": "snap",
             "user": "grafana",
