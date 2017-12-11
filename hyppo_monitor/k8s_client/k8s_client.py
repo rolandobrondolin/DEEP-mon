@@ -10,7 +10,7 @@ import threading
 
 class K8SClient():
 
-    def __init__(self, kube_conf):
+    def __init__(self, kube_conf=None):
         config.load_kube_config(kube_conf)
         self.v1 = client.CoreV1Api()
         self.memo = {}
