@@ -7,7 +7,7 @@
   "workflow": {
     "collect": {
       "config": {
-        "/hyppo/hyppo-monitor" : {
+        "hyppo/hyppo-monitor" : {
           "user_id": "fake_user_id"
         }
       },
