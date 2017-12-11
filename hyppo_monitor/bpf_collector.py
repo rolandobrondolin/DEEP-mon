@@ -75,14 +75,15 @@ class BpfSample:
              }
         return json.dumps(d, indent=4)
 
-    def to_snap(self, request_time):
+    def to_snap(self, request_time, user_id, hostname):
         metrics_to_be_returned = []
 
         metric = snap.Metric(
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="execution_time"),
             ],
             version=1,
@@ -96,7 +97,8 @@ class BpfSample:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="switch_count"),
             ],
             version=1,
@@ -110,7 +112,8 @@ class BpfSample:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="timeslice"),
             ],
             version=1,
@@ -124,7 +127,8 @@ class BpfSample:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="package_power"),
             ],
             version=1,
@@ -138,7 +142,8 @@ class BpfSample:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="core_power"),
             ],
             version=1,
@@ -152,7 +157,8 @@ class BpfSample:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="sample"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="dram_power"),
             ],
             version=1,
@@ -163,7 +169,7 @@ class BpfSample:
         metrics_to_be_returned.append(metric)
 
         for key, value in self.pid_dict.iteritems():
-            metrics_to_be_returned.extend(value.to_snap(request_time))
+            metrics_to_be_returned.extend(value.to_snap(request_time, user_id, hostname))
 
         return metrics_to_be_returned
 

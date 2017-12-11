@@ -20,10 +20,16 @@ WORKDIR /home
 RUN wget https://github.com/intelsdi-x/snap-plugin-publisher-influxdb/releases/download/25/snap-plugin-publisher-influxdb_linux_x86_64
 RUN mv snap-plugin-publisher-influxdb_linux_x86_64 /opt/snap/plugins
 
-ADD . /home/
-RUN pip install .
+ADD hyppo_monitor /home/hyppo_monitor
+ADD hyppo_monitor_plugin /home/hyppo_monitor_plugin
+ADD hyppo_publisher_plugin /home/hyppo_publisher_plugin
+ADD snap_task /home/snap_task
+ADD setup.py /home
+ADD snapteld.conf /home
+RUN pip install . && cd hyppo_publisher_plugin && pip install . && cd ../
 
-RUN cp snap_collector.py /opt/snap/plugins
+RUN cp hyppo_monitor_plugin/hyppo_monitor_plugin.py /opt/snap/plugins
+RUN cp -r hyppo_publisher_plugin/hyppo_publisher_plugin.py /opt/snap/plugins
 RUN chmod 777 /opt/snap/plugins/*
 
 CMD ["snapteld", "--log-level", "1", "--plugin-trust", "0", "--config", "/home/snapteld.conf"]

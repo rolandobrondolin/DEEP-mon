@@ -31,16 +31,9 @@
       },
       "publish": [
         {
-          "plugin_name": "influxdb",
+          "plugin_name": "file",
           "config": {
-            "host": "influxdb",
-            "port": 8086,
-            "database": "snap",
-            "user": "grafana",
-            "password": "grafana",
-            "scheme":"http",
-            "skip-verify":false,
-            "isMultiFields":true
+            "file": "/tmp/culo.json"
           }
         }
       ]

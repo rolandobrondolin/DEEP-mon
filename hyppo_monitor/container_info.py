@@ -122,21 +122,25 @@ class ContainerInfo:
         return metric
 
 
-    def to_snap(self, request_time):
+    def to_snap(self, request_time, user_id, hostname):
         metrics_to_be_returned = []
 
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=self.container_id),
-            snap.NamespaceElement(value="ID")
-        ]
-        metrics_to_be_returned.append(self._get_snap_container_id(request_time, namespace))
+        # namespace=[
+        #     snap.NamespaceElement(value="hyppo"),
+        #     snap.NamespaceElement(value="hyppo-monitor"),
+        #     snap.NamespaceElement(value=user_id),
+        #     snap.NamespaceElement(value=hostname),
+        #     snap.NamespaceElement(value="container"),
+        #     snap.NamespaceElement(value=self.container_id),
+        #     snap.NamespaceElement(value="ID")
+        # ]
+        # metrics_to_be_returned.append(self._get_snap_container_id(request_time, namespace))
 
         namespace=[
             snap.NamespaceElement(value="hyppo"),
             snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
             snap.NamespaceElement(value=self.container_id),
             snap.NamespaceElement(value="cycles")
@@ -146,6 +150,8 @@ class ContainerInfo:
         namespace=[
             snap.NamespaceElement(value="hyppo"),
             snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
             snap.NamespaceElement(value=self.container_id),
             snap.NamespaceElement(value="instructions")
@@ -155,6 +161,8 @@ class ContainerInfo:
         namespace=[
             snap.NamespaceElement(value="hyppo"),
             snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
             snap.NamespaceElement(value=self.container_id),
             snap.NamespaceElement(value="power")
@@ -164,6 +172,8 @@ class ContainerInfo:
         namespace=[
             snap.NamespaceElement(value="hyppo"),
             snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
             snap.NamespaceElement(value=self.container_id),
             snap.NamespaceElement(value="cpu")

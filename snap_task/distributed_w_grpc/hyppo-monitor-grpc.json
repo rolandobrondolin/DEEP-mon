@@ -7,7 +7,7 @@
   "workflow": {
     "collect": {
       "config": {
-        "hyppo/hyppo-monitor" : {
+        "hyppo/hyppo_monitor": {
           "user_id": "fake_user_id"
         }
       },
@@ -31,16 +31,9 @@
       },
       "publish": [
         {
-          "plugin_name": "influxdb",
+          "plugin_name": "hyppo-publisher",
           "config": {
-            "host": "influxdb",
-            "port": 8086,
-            "database": "snap",
-            "user": "grafana",
-            "password": "grafana",
-            "scheme":"http",
-            "skip-verify":false,
-            "isMultiFields":true
+            "remote_collector": "collector.hyppo.necst.it:37000"
           }
         }
       ]
