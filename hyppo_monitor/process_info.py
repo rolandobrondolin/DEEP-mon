@@ -258,4 +258,22 @@ class ProcessInfo:
         )
         metrics_to_be_returned.append(metric)
 
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.container_id)),
+                snap.NamespaceElement(value=str(self.pid)),
+                snap.NamespaceElement(value="cycles")
+            ],
+            version=1,
+            description="weighted cycles",
+            data=self.get_aggregated_weighted_cycles(),
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
         return metrics_to_be_returned

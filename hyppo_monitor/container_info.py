@@ -121,6 +121,16 @@ class ContainerInfo:
         )
         return metric
 
+    def _get_time_ns(self, request_time, snap_namespace):
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="Total execution time",
+            data=self.time_ns,
+            timestamp=request_time
+        )
+        return metric
+
 
     def to_snap(self, request_time, user_id, hostname):
         metrics_to_be_returned = []
@@ -179,6 +189,17 @@ class ContainerInfo:
             snap.NamespaceElement(value="cpu")
         ]
         metrics_to_be_returned.append(self._get_snap_cpu(request_time, namespace))
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=str(self.container_id)),
+            snap.NamespaceElement(value="time_ns")
+        ]
+        metrics_to_be_returned.append(self._get_time_ns(request_time, namespace))
 
         return metrics_to_be_returned
 
