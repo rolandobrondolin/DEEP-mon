@@ -151,7 +151,8 @@ class HyppoStreamCollector(snap.StreamCollector):
         metrics.append(metric)
 
         #pid related metrics
-        for key in ("pid", "cycles", "instructions", "time_ns", "power", "cpu"):
+        # skipping pid: for key in ("pid", "cycles", "instructions", "time_ns", "power", "cpu"):
+        for key in ("cycles", "instructions", "time_ns", "power", "cpu"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),
@@ -168,7 +169,8 @@ class HyppoStreamCollector(snap.StreamCollector):
             )
             metrics.append(metric)
         #container related metrics
-        for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
+        #skipping container id: for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
+        for key in ("cycles", "instructions", "time_ns", "power", "cpu"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),
