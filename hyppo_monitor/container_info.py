@@ -9,8 +9,8 @@ class ContainerInfo:
         self.weighted_cycles = 0
         self.instruction_retired = 0
         self.time_ns = 0
-        self.power = 0
-        self.cpu_usage = 0
+        self.power = 0.0
+        self.cpu_usage = 0.0
         self.pid_set = set()
         self.timestamp = 0
 
@@ -21,13 +21,13 @@ class ContainerInfo:
         self.time_ns = self.time_ns + new_time_ns
 
     def add_power(self, new_power):
-        self.power = self.power + new_power
+        self.power = self.power + float(new_power)
 
     def add_instructions(self, new_instructions):
         self.instruction_retired = self.instruction_retired + new_instructions
 
     def add_cpu_usage(self, cpu_usage):
-        self.cpu_usage = self.cpu_usage + cpu_usage
+        self.cpu_usage = self.cpu_usage + float(cpu_usage)
 
     def add_pid(self, new_pid):
         self.pid_set.add(new_pid)

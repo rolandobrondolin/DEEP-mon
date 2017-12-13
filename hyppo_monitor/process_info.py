@@ -62,8 +62,8 @@ class ProcessInfo:
     def __init__(self, num_sockets):
         self.pid = -1
         self.comm = ""
-        self.power = 0
-        self.cpu_usage = 0
+        self.power = 0.0
+        self.cpu_usage = 0.0
         self.socket_data = []
         self.cgroup_id = ""
         self.container_id = ""
@@ -78,14 +78,14 @@ class ProcessInfo:
         self.comm = comm
 
     def set_power(self, power):
-        self.power = power
+        self.power = float(power)
 
     def set_cpu_usage(self, cpu_usage):
-        self.cpu_usage = cpu_usage
+        self.cpu_usage = float(cpu_usage)
 
     def compute_cpu_usage_millis(self, total_execution_time_millis):
-        self.cpu_usage = (self.get_aggregated_time_ns()/1000000) \
-            / total_execution_time_millis
+        self.cpu_usage = float((self.get_aggregated_time_ns()/1000000) \
+            / total_execution_time_millis)
 
     def set_socket_data_array(self, socket_data_array):
         self.socket_data = socket_data_array
