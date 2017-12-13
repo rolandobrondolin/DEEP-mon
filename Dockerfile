@@ -10,7 +10,7 @@ RUN echo "deb https://repo.iovisor.org/apt/xenial xenial main" | tee /etc/apt/so
 RUN curl -s https://packagecloud.io/install/repositories/intelsdi-x/snap/script.deb.sh | bash
 RUN apt-get update
 
-RUN apt-get install -y libelf1 bcc-tools libbcc-examples linux-headers-$(uname -r)
+RUN apt-get install -y libelf1 bcc-tools libbcc-examples
 RUN apt-get install -y snap-telemetry
 
 RUN pip install kubernetes snap-plugin-lib-py
