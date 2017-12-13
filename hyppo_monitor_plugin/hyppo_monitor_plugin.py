@@ -62,6 +62,22 @@ class HyppoStreamCollector(snap.StreamCollector):
         self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
             - (time.time() - start_time)
 
+        # put timestamp
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=self.user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="ts"),
+            ],
+            version=1,
+            description="timestamp",
+            data=int(start_time),
+            timestamp=start_time
+        )
+        metrics_to_stream.append(metric)
+
         return metrics_to_stream
 
     def update_catalog(self, config):
@@ -71,6 +87,20 @@ class HyppoStreamCollector(snap.StreamCollector):
 
         metrics = []
         #general metrics
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
+                snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
+                snap.NamespaceElement(value="ts"),
+            ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="timestamp",
+        )
+        metrics.append(metric)
+
         metric = snap.Metric(
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
