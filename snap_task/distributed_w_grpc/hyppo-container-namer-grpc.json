@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "schedule": {
+    "type": "streaming"
+  },
+  "max-failures": 10,
+  "workflow": {
+    "collect": {
+      "config": {
+        "hyppo/hyppo-monitor": {
+          "user_id": "fake_user_id"
+        }
+      },
+      "metrics": {
+        "/hyppo/hyppo-monitor/*/*/*/*/container_name": {}
+      },
+      "publish": [
+        {
+          "plugin_name": "container-namer-grpc-publisher",
+          "config": {
+            "remote_collector": "collector.hyppo.necst.it:37000"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "schedule": {
+    "type": "streaming"
+  },
+  "max-failures": 10,
+  "workflow": {
+    "collect": {
+      "config": {
+        "hyppo/hyppo-monitor" : {
+          "user_id": "fake_user_id"
+        }
+      },
+      "metrics": {
+        "/hyppo/hyppo-monitor/*/*/*/*/container_name": {}
+      },
+      "publish": [
+        {
+          "plugin_name": "file",
+          "config": {
+            "file": "/tmp/container-namer.json"
+          }
+        }
+      ]
+    }
+  }
+}
+
