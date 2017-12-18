@@ -59,9 +59,6 @@ class HyppoStreamCollector(snap.StreamCollector):
         for key, value in proc_dict.iteritems():
             metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
 
-        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
-            - (time.time() - start_time)
-
         # put timestamp
         metric = snap.Metric(
             namespace=[
@@ -77,6 +74,9 @@ class HyppoStreamCollector(snap.StreamCollector):
             timestamp=start_time
         )
         metrics_to_stream.append(metric)
+
+        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
+            - (time.time() - start_time)
 
         return metrics_to_stream
 

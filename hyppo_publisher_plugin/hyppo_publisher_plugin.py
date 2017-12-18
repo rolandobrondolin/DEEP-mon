@@ -15,6 +15,11 @@ class HyppoPublisher(snap.Publisher):
     def __init__(self, name, version, **kwargs):
         super(HyppoPublisher, self).__init__(name, version, **kwargs)
 
+    def generate_iterator(self, metrics):
+        for _ in metrics:
+            iterated_metric = hyppo_pb2.DataPoint(datapoint=json_format.MessageToJson(_._pb, including_default_value_fields=True))
+            yield iterated_metric
+
     def publish(self, metrics, config):
         LOG.debug("HyppoPublisher Publish called")
         """
@@ -27,11 +32,9 @@ class HyppoPublisher(snap.Publisher):
         """
         if len(metrics) > 0:
             channel = grpc.insecure_channel(config["remote_collector"])
-            data = []
             stub = hyppo_pb2_grpc.HyppoRemoteCollectorStub(channel)
-            for metric in metrics:
-                data.append(json_format.MessageToJson(metric._pb, including_default_value_fields=True))
-            ack = stub.SendMonitorSample(hyppo_pb2.DataPoint(datapoint=data))
+            iterator = self.generate_iterator(metrics)
+            ack = stub.SendMonitorSample(iterator)
 
 
     def get_config_policy(self):

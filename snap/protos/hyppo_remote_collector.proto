@@ -2,13 +2,13 @@ syntax = "proto3";
 
 service HyppoRemoteCollector {
 
-    rpc SendMonitorSample(DataPoint) returns (Ack) {}
-    rpc SendKubeSample(DataPoint) returns (Ack) {}
+    rpc SendMonitorSample(stream DataPoint) returns (Ack) {}
+    rpc SendKubeSample(stream DataPoint) returns (Ack) {}
 
 }
 
 message DataPoint {
-    repeated string datapoint = 1;
+    string datapoint = 1;
 }
 
 message Ack {

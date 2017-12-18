@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='hyppo.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n\x0bhyppo.proto\"\x1e\n\tDataPoint\x12\x11\n\tdatapoint\x18\x01 \x03(\t\"\x12\n\x03\x41\x63k\x12\x0b\n\x03\x61\x63k\x18\x01 \x01(\x08\x32\x65\n\x14HyppoRemoteCollector\x12\'\n\x11SendMonitorSample\x12\n.DataPoint\x1a\x04.Ack\"\x00\x12$\n\x0eSendKubeSample\x12\n.DataPoint\x1a\x04.Ack\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0bhyppo.proto\"\x1e\n\tDataPoint\x12\x11\n\tdatapoint\x18\x01 \x01(\t\"\x12\n\x03\x41\x63k\x12\x0b\n\x03\x61\x63k\x18\x01 \x01(\x08\x32i\n\x14HyppoRemoteCollector\x12)\n\x11SendMonitorSample\x12\n.DataPoint\x1a\x04.Ack\"\x00(\x01\x12&\n\x0eSendKubeSample\x12\n.DataPoint\x1a\x04.Ack\"\x00(\x01\x62\x06proto3')
 )
 
 
@@ -34,8 +34,8 @@ _DATAPOINT = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='datapoint', full_name='DataPoint.datapoint', index=0,
-      number=1, type=9, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
@@ -113,7 +113,7 @@ _HYPPOREMOTECOLLECTOR = _descriptor.ServiceDescriptor(
   index=0,
   options=None,
   serialized_start=67,
-  serialized_end=168,
+  serialized_end=172,
   methods=[
   _descriptor.MethodDescriptor(
     name='SendMonitorSample',
