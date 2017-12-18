@@ -56,8 +56,8 @@ class HyppoStreamCollector(snap.StreamCollector):
             metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
 
         #add threads from proc_table
-        for key, value in proc_dict.iteritems():
-            metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
+        #for key, value in proc_dict.iteritems():
+        #    metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
 
         # put timestamp
         metric = snap.Metric(

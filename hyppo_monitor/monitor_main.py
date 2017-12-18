@@ -6,6 +6,8 @@ from process_table import ProcTable
 from rapl import rapl
 import argparse
 import time
+import socket
+import snap_plugin.v1 as snap
 
 class MonitorMain():
 
@@ -43,6 +45,7 @@ class MonitorMain():
             sample = sample_array[0]
             container_list = sample_array[1]
 
+
             if output_format == "json":
                 for key, value in container_list.iteritems():
                     print(value.to_json())
@@ -57,6 +60,55 @@ class MonitorMain():
             time_to_sleep = self.sample_controller.get_sleep_time() \
                 - (time.time() - start_time)
 
+    def snap_monitor_loop(self):
+        time_to_sleep = self.sample_controller.get_sleep_time()
+        user_id = "not_registered"
+        while True:
+            metrics_to_stream = []
+
+            time.sleep(time_to_sleep)
+            start_time = time.time()
+
+            sample_array = self.get_sample()
+            sample = sample_array[0]
+            container_list = sample_array[1]
+            proc_dict = sample_array[2]
+
+            hostname = socket.gethostname()
+
+            #add general metrics
+            metrics_to_stream.extend(sample.to_snap(start_time, user_id, hostname))
+
+            #here wrap up things to match snap format
+            for key, value in container_list.iteritems():
+                metrics_to_stream.extend(value.to_snap(start_time, user_id, hostname))
+
+            #add threads from proc_table
+            #for key, value in proc_dict.iteritems():
+            #    metrics_to_stream.extend(value.to_snap(start_time, user_id, hostname))
+
+            # put timestamp
+            metric = snap.Metric(
+                namespace=[
+                    snap.NamespaceElement(value="hyppo"),
+                    snap.NamespaceElement(value="hyppo-monitor"),
+                    snap.NamespaceElement(value=user_id),
+                    snap.NamespaceElement(value=hostname),
+                    snap.NamespaceElement(value="ts"),
+                ],
+                version=1,
+                description="timestamp",
+                data=int(start_time),
+                timestamp=start_time
+            )
+            metrics_to_stream.append(metric)
+
+            time_to_sleep = self.sample_controller.get_sleep_time() \
+                - (time.time() - start_time)
+
+            print(time_to_sleep)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--format", type=str,
@@ -64,4 +116,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     output_format = args.format
     monitor = MonitorMain(output_format)
-    monitor.monitor_loop()
+    monitor.snap_monitor_loop()
