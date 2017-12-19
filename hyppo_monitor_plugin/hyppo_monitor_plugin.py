@@ -38,7 +38,8 @@ class HyppoStreamCollector(snap.StreamCollector):
         LOG.debug("Metrics collection called on HyppoStreamCollector")
         metrics_to_stream = []
 
-        time.sleep(self.time_to_sleep)
+        if self.time_to_sleep > 0:
+            time.sleep(self.time_to_sleep)
         start_time = time.time()
 
         sample_array = self.hyppo_monitor.get_sample()
