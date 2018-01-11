@@ -8,11 +8,11 @@
     "collect": {
       "config": {
         "hyppo/hyppo-monitor": {
-          "user_id": "fake_user_id"
+          "customer_id": "not_registered"
         }
       },
       "metrics": {
-        "/hyppo/hyppo-monitor/*/*/*/*/container_name": {}
+        "/hyppo/hyppo-monitor/container-namer/*/*/*/*/*/container_id": {}
       },
       "publish": [
         {

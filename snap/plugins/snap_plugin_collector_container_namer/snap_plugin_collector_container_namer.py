@@ -20,16 +20,16 @@ class ContainerNamer(snap.StreamCollector):
         kube_conf = os.path.abspath("/home/snap/plugins/snap_plugin_collector_container_namer/kube_config")
         config.load_kube_config(kube_conf)
         self.v1 = client.CoreV1Api()
-        self.user_id = "not_registered"
+        self.customer_id = "not_registered"
 
     def get_config_policy(self):
         LOG.debug("GetConfigPolicy called on ContainerNamer")
         return snap.ConfigPolicy(
             [
-                ("/hyppo/hyppo-monitor"),
+                ("/hyppo/hyppo-monitor/container-namer"),
                 [
                     (
-                        "user_id",
+                        "customer_id",
                         snap.StringRule(default="not_registered", required=True)
                     )
                 ]
@@ -53,16 +53,18 @@ class ContainerNamer(snap.StreamCollector):
                     namespace=[
                         snap.NamespaceElement(value="hyppo"),
                         snap.NamespaceElement(value="hyppo-monitor"),
-                        snap.NamespaceElement(value=self.user_id),
+                        snap.NamespaceElement(value="container-namer"),
+                        snap.NamespaceElement(value=self.customer_id),
                         snap.NamespaceElement(value=pod.metadata.namespace),
+                        snap.NamespaceElement(value=pod.spec.node_name),
                         snap.NamespaceElement(value=pod.metadata.name),
-                        snap.NamespaceElement(value=container_id),
-                        snap.NamespaceElement(value="container_name")
+                        snap.NamespaceElement(value=container.name),
+                        snap.NamespaceElement(value="container_id")
                     ],
                     version=1,
                     tags={"mtype": "gauge"},
                     description="Name of the container",
-                    data=container.name,
+                    data=container_id,
                     timestamp=time.time()
                 )
                 metrics_to_stream.append(metric)
@@ -78,15 +80,17 @@ class ContainerNamer(snap.StreamCollector):
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
+                snap.NamespaceElement(value="container-namer"),
+                snap.NamespaceElement.dynamic_namespace_element(name="customer_id", description="Customer ID"),
                 snap.NamespaceElement.dynamic_namespace_element(name="namespace", description="Kubernetes Namespace"),
+                snap.NamespaceElement.dynamic_namespace_element(name="node_name", description="Kubernetes Node Name"),
                 snap.NamespaceElement.dynamic_namespace_element(name="pod_name", description="Kubernetes Pod Name"),
-                snap.NamespaceElement.dynamic_namespace_element(name="container_id", description="Container ID"),
-                snap.NamespaceElement(value="container_name"),
+                snap.NamespaceElement.dynamic_namespace_element(name="container_name", description="Container Name"),
+                snap.NamespaceElement(value="container_id"),
                       ],
             version=1,
             tags={"mtype": "gauge"},
-            description="Container Name",
+            description="Container ID",
         )
         metrics.append(metric)
 
