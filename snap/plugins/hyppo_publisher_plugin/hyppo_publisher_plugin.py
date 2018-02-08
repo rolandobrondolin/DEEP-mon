@@ -4,8 +4,8 @@ import logging
 from google.protobuf import json_format
 import snap_plugin.v1 as snap
 import grpc
-import hyppo_publisher.hyppo_pb2_grpc as hyppo_pb2_grpc
-import hyppo_publisher.hyppo_pb2 as hyppo_pb2
+import hyppo_proto.hyppo_pb2_grpc as hyppo_pb2_grpc
+import hyppo_proto.hyppo_pb2 as hyppo_pb2
 
 LOG = logging.getLogger(__name__)
 

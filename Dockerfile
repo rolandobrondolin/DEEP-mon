@@ -26,13 +26,10 @@ RUN curl -sL https://github.com/grafana/snap-plugin-collector-kubestate/releases
     -o /opt/snap/plugins/snap-plugin-collector-kubestate_linux_x86_64
 
 ADD hyppo_monitor /home/hyppo_monitor
-ADD hyppo_publisher /home/hyppo_publisher
-#ADD hyppo_monitor_plugin /home/hyppo_monitor_plugin
+ADD hyppo_proto /home/hyppo_proto
 ADD snap /home/snap
-#ADD snap_task /home/snap_task
 ADD setup.py /home
 ADD snapteld.conf /home
-#RUN pip install . && cd hyppo_publisher_plugin && pip install . && cd ../
 
 #Install plugin dependencies
 RUN pip install .
