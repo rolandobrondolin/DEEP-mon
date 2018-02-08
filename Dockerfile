@@ -26,18 +26,22 @@ RUN curl -sL https://github.com/grafana/snap-plugin-collector-kubestate/releases
     -o /opt/snap/plugins/snap-plugin-collector-kubestate_linux_x86_64
 
 ADD hyppo_monitor /home/hyppo_monitor
-ADD hyppo_monitor_plugin /home/hyppo_monitor_plugin
-ADD hyppo_publisher_plugin /home/hyppo_publisher_plugin
+ADD hyppo_publisher /home/hyppo_publisher
+#ADD hyppo_monitor_plugin /home/hyppo_monitor_plugin
 ADD snap /home/snap
-ADD snap_task /home/snap_task
+#ADD snap_task /home/snap_task
 ADD setup.py /home
 ADD snapteld.conf /home
-RUN pip install . && cd hyppo_publisher_plugin && pip install . && cd ../
+#RUN pip install . && cd hyppo_publisher_plugin && pip install . && cd ../
 
-RUN cp hyppo_monitor_plugin/hyppo_monitor_plugin.py /opt/snap/plugins
-RUN cp -r hyppo_publisher_plugin/hyppo_publisher_plugin.py /opt/snap/plugins
-RUN cp -r snap/plugins/snap_plugin_collector_container_namer/snap_plugin_collector_container_namer.py /opt/snap/plugins
-RUN cp -r snap/plugins/snap_plugin_publisher_container_namer_grpc/snap_plugin_publisher_container_namer_grpc.py /opt/snap/plugins
+#Install plugin dependencies
+RUN pip install .
+
+#Copy plugins
+RUN cp snap/plugins/hyppo_monitor_plugin/hyppo_monitor_plugin.py /opt/snap/plugins
+RUN cp snap/plugins/hyppo_publisher_plugin/hyppo_publisher_plugin.py /opt/snap/plugins
+RUN cp snap/plugins/snap_plugin_collector_container_namer/snap_plugin_collector_container_namer.py /opt/snap/plugins
+RUN cp snap/plugins/snap_plugin_publisher_container_namer_grpc/snap_plugin_publisher_container_namer_grpc.py /opt/snap/plugins
 RUN chmod 777 /opt/snap/plugins/*
 
 CMD ["snapteld", "--log-level", "1", "--plugin-trust", "0", "--config", "/home/snapteld.conf"]
