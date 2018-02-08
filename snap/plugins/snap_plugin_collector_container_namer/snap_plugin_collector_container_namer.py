@@ -17,8 +17,9 @@ class ContainerNamer(snap.StreamCollector):
     """
     def __init__(self, name, description, **kwargs):
         super(ContainerNamer, self).__init__(name, description, **kwargs)
-        kube_conf = os.path.abspath("/home/snap/plugins/snap_plugin_collector_container_namer/kube_config")
-        config.load_kube_config(kube_conf)
+        #kube_conf = os.path.abspath("/home/snap/plugins/snap_plugin_collector_container_namer/kube_config")
+        #config.load_kube_config(kube_conf)
+        config.load_incluster_config()
         self.v1 = client.CoreV1Api()
         self.customer_id = "not_registered"
 

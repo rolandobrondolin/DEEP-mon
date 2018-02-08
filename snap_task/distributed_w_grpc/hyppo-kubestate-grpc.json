@@ -9,8 +9,7 @@
     "collect": {
       "config": {
         "/grafanalabs/kubestate": {
-          "incluster": false,
-          "kubeconfigpath": "/home/snap/plugins/snap_plugin_collector_container_namer/kube_config"
+          "incluster": true
         }
       },
       "metrics": {

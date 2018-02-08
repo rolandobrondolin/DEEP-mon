@@ -11,7 +11,10 @@ help: ## This help.
 
 # DOCKER TASKS
 run: ## Run the monitor container
-	sudo docker run --rm -d --privileged --name hyppo_monitor -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro -v $$HOME/monitor/snap_task/distributed_w_grpc:/opt/snap/tasks:ro --net host hyppo_monitor
+	sudo docker run -d --privileged --name hyppo_monitor -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro -v $$HOME/monitor/snap_task/distributed_w_grpc:/opt/snap/tasks:ro --net host hyppo_monitor
+
+run-prod: ## Run the monitor container
+	sudo docker run -d --privileged --name hyppo_monitor -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro --net host hyppo_monitor
 
 stop: ## Stop the monitor container
 	sudo docker stop hyppo_monitor

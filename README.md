@@ -35,3 +35,7 @@ run container with distributed monitoring infrastructure:
 
 - docker build . -t "dockercap_monitor"
 - docker run -d --privileged -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro -v PATH_TO_REPO/snap_task/distributed_w_grpc:/opt/snap/tasks:ro --net host dockercap_monitor
+
+
+to make available data from k8s inside the pod, tweak with RBAC:
+- kubectl create clusterrolebinding --user system:serviceaccount:kube-system:default kube-system-cluster-admin --clusterrole cluster-admin
