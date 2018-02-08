@@ -23,19 +23,19 @@ intel snap plugin library python
 - https://github.com/intelsdi-x/snap/blob/master/docs/PLUGIN_AUTHORING.md#plugin-library
 
 run single node deployment:
-- docker-compuse build
-- docker-compuse up -d
-
-run container alone (distributed influx):
-
-- docker build . -t "dockercap_monitor"
-- docker run -d --privileged -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro -v PATH_TO_REPO/snap_task/distributed_w_influx:/opt/snap/tasks:ro --net host dockercap_monitor
+- docker-compose build
+- docker-compose up -d
 
 run container with distributed monitoring infrastructure:
+- make build
+- make run-prod
 
-- docker build . -t "dockercap_monitor"
-- docker run -d --privileged -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro -v PATH_TO_REPO/snap_task/distributed_w_grpc:/opt/snap/tasks:ro --net host dockercap_monitor
+push on container registry (public)
+- sudo docker build -t registry.gitlab.com/projecthyppo/hyppo-public/monitor .
+- sudo docker push registry.gitlab.com/projecthyppo/hyppo-public/monitor
 
+run with k8s daemonset:
+kubectl apply -f hyppo-monitor-daemonset.yaml
 
 to make available data from k8s inside the pod, tweak with RBAC:
 - kubectl create clusterrolebinding --user system:serviceaccount:kube-system:default kube-system-cluster-admin --clusterrole cluster-admin
