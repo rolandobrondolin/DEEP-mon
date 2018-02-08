@@ -107,7 +107,7 @@ class MonitorMain():
             time_to_sleep = self.sample_controller.get_sleep_time() \
                 - (time.time() - start_time)
 
-            print(time_to_sleep)
+            print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
 
 
 if __name__ == "__main__":
