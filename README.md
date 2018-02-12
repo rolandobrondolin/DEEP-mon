@@ -30,12 +30,13 @@ run container with distributed monitoring infrastructure:
 - make build
 - make run-prod
 
-push on container registry (public)
-- sudo docker build -t registry.gitlab.com/projecthyppo/hyppo-public/monitor .
-- sudo docker push registry.gitlab.com/projecthyppo/hyppo-public/monitor
+push on container registry (private)
+- sudo docker build -t registry.gitlab.com/projecthyppo/monitor .
+- sudo docker push registry.gitlab.com/projecthyppo/monitor
 
 run with k8s daemonset:
-kubectl apply -f hyppo-monitor-daemonset.yaml
+- kubectl create secret -n "kube-system" docker-registry gitlab-registry --docker-server="https://registry.gitlab.com" --docker-username=<GITLAB USERNAME HERE> --docker-password=<GITLAB PASSWORD HERE> --docker-email=<GITLAB EMAIL HERE> -o yaml --dry-run | sed 's/dockercfg/dockerconfigjson/g' | kubectl replace -n "kube-system" --force -f -
+- kubectl apply -f hyppo-monitor-daemonset.yaml
 
 to make available data from k8s inside the pod, tweak with RBAC:
 - kubectl create clusterrolebinding --user system:serviceaccount:kube-system:default kube-system-cluster-admin --clusterrole cluster-admin
