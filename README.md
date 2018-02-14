@@ -31,10 +31,14 @@ run container with distributed monitoring infrastructure:
 - make run-prod
 
 push on container registry (private)
-- sudo docker build -t registry.gitlab.com/projecthyppo/monitor .
-- sudo docker push registry.gitlab.com/projecthyppo/monitor
+- sudo docker login registry.gitlab.com (provide username and password)
+- `make build-kube` to build the container and push it to remote registry
 
-run with k8s daemonset:
+to run with k8s daemonset:
+- `make run-kube` to apply the DaemonSet
+- `make stop-kube` to remove the DaemonSet
+
+if kubernetes is not able to download the images:
 - kubectl create secret -n "kube-system" docker-registry gitlab-registry --docker-server="https://registry.gitlab.com" --docker-username=<GITLAB USERNAME HERE> --docker-password=<GITLAB PASSWORD HERE> --docker-email=<GITLAB EMAIL HERE> -o yaml --dry-run | sed 's/dockercfg/dockerconfigjson/g' | kubectl replace -n "kube-system" --force -f -
 - kubectl apply -f hyppo-monitor-daemonset.yaml
 

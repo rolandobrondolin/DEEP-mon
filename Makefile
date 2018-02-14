@@ -21,3 +21,13 @@ stop: ## Stop the monitor container
 
 build: ## Build the monitor container
 	sudo docker build . -t "hyppo_monitor"
+
+build-kube:
+	sudo docker build -t registry.gitlab.com/projecthyppo/monitor .
+	sudo docker push registry.gitlab.com/projecthyppo/monitor
+
+run-kube:
+	kubectl apply -f hyppo-monitor-daemonset.yaml
+
+stop-kube:
+	kubectl delete -f hyppo-monitor-daemonset.yaml
