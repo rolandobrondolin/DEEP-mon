@@ -10,10 +10,11 @@ import hyppo_publisher.hyppo_pb2 as hyppo_pb2
 
 class HyppoServicer(hyppo_pb2_grpc.HyppoRemoteCollectorServicer):
 
-    def SendMonitorSample(self, request, context):
+    def SendMonitorSample(self, request_iterator, context):
         #for message in request_iterator:
-        print "1"
-        print request.datapoint
+        for item in request_iterator:
+            print "1"
+            print item.datapoint
         return hyppo_pb2.Ack(ack=True)
 
 

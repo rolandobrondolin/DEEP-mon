@@ -38,7 +38,8 @@ class HyppoStreamCollector(snap.StreamCollector):
         LOG.debug("Metrics collection called on HyppoStreamCollector")
         metrics_to_stream = []
 
-        time.sleep(self.time_to_sleep)
+        if self.time_to_sleep > 0:
+            time.sleep(self.time_to_sleep)
         start_time = time.time()
 
         sample_array = self.hyppo_monitor.get_sample()
@@ -56,11 +57,8 @@ class HyppoStreamCollector(snap.StreamCollector):
             metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
 
         #add threads from proc_table
-        for key, value in proc_dict.iteritems():
-            metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
-
-        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
-            - (time.time() - start_time)
+        #for key, value in proc_dict.iteritems():
+        #    metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
 
         # put timestamp
         metric = snap.Metric(
@@ -77,6 +75,9 @@ class HyppoStreamCollector(snap.StreamCollector):
             timestamp=start_time
         )
         metrics_to_stream.append(metric)
+
+        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
+            - (time.time() - start_time)
 
         return metrics_to_stream
 

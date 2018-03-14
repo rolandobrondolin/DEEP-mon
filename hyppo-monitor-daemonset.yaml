@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hyppo-monitor
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: hyppo-monitor
+  template:
+    metadata:
+      labels:
+        name: hyppo-monitor
+    spec:
+      imagePullSecrets:
+      - name: gitlab-registry
+      hostNetwork: true
+      containers:
+      - name: monitor
+        image: registry.gitlab.com/projecthyppo/monitor:latest
+        resources:
+          limits:
+            memory: 1000Mi
+          requests:
+            cpu: 1000m
+            memory: 1000Mi
+        volumeMounts:
+        - name: modules
+          mountPath: /lib/modules
+          readOnly: true
+        - name: src
+          mountPath: /usr/src
+          readOnly: true
+        - name: localtime
+          mountPath: /etc/localtime
+          readOnly: true
+        - name: kernel-dbg
+          mountPath: /sys/kernel/debug
+          readOnly: true
+        - name: host-proc
+          mountPath: /host/proc
+          readOnly: true
+        securityContext:
+          privileged: true
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: modules
+        hostPath:
+          path: /lib/modules
+      - name: src
+        hostPath:
+          path: /usr/src
+      - name: localtime
+        hostPath:
+          path: /etc/localtime
+      - name: kernel-dbg
+        hostPath:
+          path: /sys/kernel/debug
+      - name: host-proc
+        hostPath:
+          path: /proc

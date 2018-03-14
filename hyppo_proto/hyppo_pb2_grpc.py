@@ -14,12 +14,12 @@ class HyppoRemoteCollectorStub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.SendMonitorSample = channel.unary_unary(
+    self.SendMonitorSample = channel.stream_unary(
         '/HyppoRemoteCollector/SendMonitorSample',
         request_serializer=hyppo__pb2.DataPoint.SerializeToString,
         response_deserializer=hyppo__pb2.Ack.FromString,
         )
-    self.SendKubeSample = channel.unary_unary(
+    self.SendKubeSample = channel.stream_unary(
         '/HyppoRemoteCollector/SendKubeSample',
         request_serializer=hyppo__pb2.DataPoint.SerializeToString,
         response_deserializer=hyppo__pb2.Ack.FromString,
@@ -30,14 +30,14 @@ class HyppoRemoteCollectorServicer(object):
   # missing associated documentation comment in .proto file
   pass
 
-  def SendMonitorSample(self, request, context):
+  def SendMonitorSample(self, request_iterator, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
-  def SendKubeSample(self, request, context):
+  def SendKubeSample(self, request_iterator, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -47,12 +47,12 @@ class HyppoRemoteCollectorServicer(object):
 
 def add_HyppoRemoteCollectorServicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'SendMonitorSample': grpc.unary_unary_rpc_method_handler(
+      'SendMonitorSample': grpc.stream_unary_rpc_method_handler(
           servicer.SendMonitorSample,
           request_deserializer=hyppo__pb2.DataPoint.FromString,
           response_serializer=hyppo__pb2.Ack.SerializeToString,
       ),
-      'SendKubeSample': grpc.unary_unary_rpc_method_handler(
+      'SendKubeSample': grpc.stream_unary_rpc_method_handler(
           servicer.SendKubeSample,
           request_deserializer=hyppo__pb2.DataPoint.FromString,
           response_serializer=hyppo__pb2.Ack.SerializeToString,
