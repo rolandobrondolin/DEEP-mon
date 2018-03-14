@@ -13,6 +13,7 @@ LOG = logging.getLogger(__name__)
 class HyppoPublisher(snap.Publisher):
 
     def __init__(self, name, version, **kwargs):
+        self.connected = False
         super(HyppoPublisher, self).__init__(name, version, **kwargs)
 
     def generate_iterator(self, metrics):
@@ -31,10 +32,12 @@ class HyppoPublisher(snap.Publisher):
                 List of collected metrics.
         """
         if len(metrics) > 0:
-            channel = grpc.insecure_channel(config["remote_collector"])
-            stub = hyppo_pb2_grpc.HyppoRemoteCollectorStub(channel)
+            if self.connected == False:
+                self.channel = grpc.insecure_channel(config["remote_collector"])
+                self.stub = hyppo_pb2_grpc.HyppoRemoteCollectorStub(self.channel)
+                self.connected = True
             iterator = self.generate_iterator(metrics)
-            ack = stub.SendMonitorSample(iterator)
+            ack = self.stub.SendMonitorSample(iterator)
 
 
     def get_config_policy(self):

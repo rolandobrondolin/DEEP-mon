@@ -1,7 +1,8 @@
 {
   "version": 1,
   "schedule": {
-    "type": "streaming"
+    "type": "simple",
+    "interval": "2s"
   },
   "max-failures": 10,
   "workflow": {
@@ -12,7 +13,7 @@
         }
       },
       "metrics": {
-        "/hyppo/hyppo-monitor/container-namer/*/*/*/*/*/container_id": {}
+        "/hyppo/hyppo-container-namer/*/*/*/*/*/container_id": {}
       },
       "publish": [
         {

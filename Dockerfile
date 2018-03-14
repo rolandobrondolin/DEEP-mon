@@ -40,6 +40,7 @@ RUN cp snap/plugins/hyppo_monitor_plugin/hyppo_monitor_plugin.py /opt/snap/plugi
 RUN cp snap/plugins/hyppo_publisher_plugin/hyppo_publisher_plugin.py /opt/snap/plugins
 RUN cp snap/plugins/snap_plugin_collector_container_namer/snap_plugin_collector_container_namer.py /opt/snap/plugins
 RUN cp snap/plugins/snap_plugin_publisher_container_namer_grpc/snap_plugin_publisher_container_namer_grpc.py /opt/snap/plugins
+
 RUN cp snap_task/distributed_w_grpc/hyppo-container-namer-grpc.json /opt/snap/tasks
 RUN cp snap_task/distributed_w_grpc/hyppo-kubestate-grpc.json /opt/snap/tasks
 RUN cp snap_task/distributed_w_grpc/hyppo-monitor-grpc.json /opt/snap/tasks

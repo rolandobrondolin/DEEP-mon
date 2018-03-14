@@ -14,6 +14,7 @@ class ContainerNamerGrpcPublisher(snap.Publisher):
 
     def __init__(self, name, version, **kwargs):
         super(ContainerNamerGrpcPublisher, self).__init__(name, version, **kwargs)
+        self.connected = False
 
     def generate_iterator(self, metrics):
         for _ in metrics:
@@ -31,10 +32,12 @@ class ContainerNamerGrpcPublisher(snap.Publisher):
                 List of collected metrics.
         """
         if len(metrics) > 0:
-            channel = grpc.insecure_channel(config["remote_collector"])
-            stub = hyppo_remote_collector_pb2_grpc.HyppoRemoteCollectorStub(channel)
+            if self.connected == False:
+                self.channel = grpc.insecure_channel(config["remote_collector"])
+                self.stub = hyppo_remote_collector_pb2_grpc.HyppoRemoteCollectorStub(self.channel)
+                self.connected = True
             iterator = self.generate_iterator(metrics)
-            ack = stub.SendKubeSample(iterator)
+            ack = self.stub.SendKubeSample(iterator)
 
 
     def get_config_policy(self):

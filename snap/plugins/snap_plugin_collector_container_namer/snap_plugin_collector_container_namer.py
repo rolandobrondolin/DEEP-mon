@@ -10,7 +10,7 @@ from kubernetes import config, client, watch
 LOG = logging.getLogger(__name__)
 
 
-class ContainerNamer(snap.StreamCollector):
+class ContainerNamer(snap.Collector):
     """ContainerNamer
 
     Streams assosiations between container names and ids
@@ -37,7 +37,7 @@ class ContainerNamer(snap.StreamCollector):
             ]
         )
 
-    def stream(self, metrics):
+    def collect(self, metrics):
         LOG.debug("Names collection called on ContainerNamer")
         metrics_to_stream = []
 
@@ -49,26 +49,26 @@ class ContainerNamer(snap.StreamCollector):
                     for cstat in pod.status.container_statuses
                     if cstat.name == container.name))
                 # Clean the id and take only 12 characters
-                container_id = container_id.split("/")[-1][0:12]
-                metric = snap.Metric(
-                    namespace=[
-                        snap.NamespaceElement(value="hyppo"),
-                        snap.NamespaceElement(value="hyppo-monitor"),
-                        snap.NamespaceElement(value="container-namer"),
-                        snap.NamespaceElement(value=self.customer_id),
-                        snap.NamespaceElement(value=pod.metadata.namespace),
-                        snap.NamespaceElement(value=pod.spec.node_name),
-                        snap.NamespaceElement(value=pod.metadata.name),
-                        snap.NamespaceElement(value=container.name),
-                        snap.NamespaceElement(value="container_id")
-                    ],
-                    version=1,
-                    tags={"mtype": "gauge"},
-                    description="Name of the container",
-                    data=container_id,
-                    timestamp=time.time()
-                )
-                metrics_to_stream.append(metric)
+                if container_id is not None and "/" in container_id:
+                    container_id = container_id.split("/")[-1][0:12]
+                    metric = snap.Metric(
+                        namespace=[
+                            snap.NamespaceElement(value="hyppo"),
+                            snap.NamespaceElement(value="hyppo-container-namer"),
+                            snap.NamespaceElement(value=self.customer_id),
+                            snap.NamespaceElement(value=pod.metadata.namespace),
+                            snap.NamespaceElement(value=pod.spec.node_name),
+                            snap.NamespaceElement(value=pod.metadata.name),
+                            snap.NamespaceElement(value=container.name),
+                            snap.NamespaceElement(value="container_id")
+                        ],
+                        version=1,
+                        tags={"mtype": "gauge"},
+                        description="Name of the container",
+                        data=container_id,
+                        timestamp=time.time()
+                    )
+                    metrics_to_stream.append(metric)
         time.sleep(1)
 
         return metrics_to_stream
@@ -80,8 +80,7 @@ class ContainerNamer(snap.StreamCollector):
         metric = snap.Metric(
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value="container-namer"),
+                snap.NamespaceElement(value="hyppo-container-namer"),
                 snap.NamespaceElement.dynamic_namespace_element(name="customer_id", description="Customer ID"),
                 snap.NamespaceElement.dynamic_namespace_element(name="namespace", description="Kubernetes Namespace"),
                 snap.NamespaceElement.dynamic_namespace_element(name="node_name", description="Kubernetes Node Name"),
