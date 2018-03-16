@@ -13,7 +13,7 @@
         }
       },
       "metrics": {
-        "/hyppo/hyppo-container-namer/*/*/*/*/*/container_id": {}
+        "/hyppo/hyppo-container-namer/container-name/*/*/*/*/*/container_id": {}
       },
       "publish": [
         {

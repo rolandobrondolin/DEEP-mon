@@ -55,6 +55,7 @@ class ContainerNamer(snap.Collector):
                         namespace=[
                             snap.NamespaceElement(value="hyppo"),
                             snap.NamespaceElement(value="hyppo-container-namer"),
+                            snap.NamespaceElement(value="container-name"),
                             snap.NamespaceElement(value=self.customer_id),
                             snap.NamespaceElement(value=pod.metadata.namespace),
                             snap.NamespaceElement(value=pod.spec.node_name),
@@ -81,6 +82,7 @@ class ContainerNamer(snap.Collector):
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-container-namer"),
+                snap.NamespaceElement(value="container-name"),
                 snap.NamespaceElement.dynamic_namespace_element(name="customer_id", description="Customer ID"),
                 snap.NamespaceElement.dynamic_namespace_element(name="namespace", description="Kubernetes Namespace"),
                 snap.NamespaceElement.dynamic_namespace_element(name="node_name", description="Kubernetes Node Name"),
