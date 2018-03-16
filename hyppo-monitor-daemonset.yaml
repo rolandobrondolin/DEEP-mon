@@ -18,12 +18,12 @@ spec:
       containers:
       - name: monitor
         image: registry.gitlab.com/projecthyppo/monitor:latest
-        resources:
-          limits:
-            memory: 1000Mi
-          requests:
-            cpu: 1000m
-            memory: 1000Mi
+        # resources:
+        #   limits:
+        #     memory: 1000Mi
+        #   requests:
+        #     cpu: 1000m
+        #     memory: 1000Mi
         volumeMounts:
         - name: modules
           mountPath: /lib/modules
