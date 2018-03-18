@@ -31,3 +31,9 @@ run-kube:
 
 stop-kube:
 	kubectl delete -f hyppo-monitor-daemonset.yaml
+
+run-kube-act:
+	kubectl apply -f hyppo-monitor-act-daemonset.yaml
+
+stop-kube-act:
+	kubectl delete -f hyppo-monitor-act-daemonset.yaml
