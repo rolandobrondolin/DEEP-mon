@@ -4,7 +4,6 @@ from hyppo_monitor.monitor_main import MonitorMain
 import snap_plugin.v1 as snap
 import time
 import logging
-import socket
 
 LOG = logging.getLogger(__name__)
 
@@ -47,7 +46,10 @@ class HyppoStreamCollector(snap.StreamCollector):
         container_list = sample_array[1]
         proc_dict = sample_array[2]
 
-        hostname = socket.gethostname()
+        #open hostname file
+        hostFile = open("/etc/hosthostname","r")
+        hostname = hostFile.read().rstrip()
+        hostFile.close()
 
         #add general metrics
         metrics_to_stream.extend(sample.to_snap(start_time, self.user_id, hostname))

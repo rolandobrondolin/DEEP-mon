@@ -14,7 +14,6 @@ spec:
     spec:
       imagePullSecrets:
       - name: gitlab-registry
-      hostNetwork: true
       containers:
       - name: monitor
         image: registry.gitlab.com/projecthyppo/monitor:latest
@@ -40,6 +39,9 @@ spec:
         - name: host-proc
           mountPath: /host/proc
           readOnly: true
+        - name: hostname
+          mountPath: /etc/hosthostname
+          readOnly: true
         securityContext:
           privileged: true
       terminationGracePeriodSeconds: 30
@@ -59,3 +61,6 @@ spec:
       - name: host-proc
         hostPath:
           path: /proc
+      - name: hostname
+        hostPath:
+          path: /etc/hostname
