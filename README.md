@@ -1,4 +1,4 @@
-#hyppo_monitor
+# Hyppo monitor
 
 ## Build hyppo monitor
 - `make build` to build the container locally
