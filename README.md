@@ -1,4 +1,4 @@
-# dockercap_monitor
+#hyppo_monitor
 
 ## dependencies
 linux image extras
@@ -21,6 +21,8 @@ intel snap plugin library python
 
 - https://github.com/intelsdi-x/snap-plugin-lib-py (pip install . in the repository directory)
 - https://github.com/intelsdi-x/snap/blob/master/docs/PLUGIN_AUTHORING.md#plugin-library
+
+## Running hyppo monitor
 
 run single node deployment:
 - docker-compose build
