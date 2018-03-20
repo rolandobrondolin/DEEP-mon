@@ -48,7 +48,7 @@ class HyppoStreamCollector(snap.StreamCollector):
 
         #open hostname file
         hostFile = open("/etc/hosthostname","r")
-        hostname = hostFile.read().rstrip()
+        hostname = hostFile.read().rstrip().lower()
         hostFile.close()
 
         #add general metrics
