@@ -85,7 +85,7 @@ class ProcessInfo:
 
     def compute_cpu_usage_millis(self, total_execution_time_millis, total_cores):
         self.cpu_usage = float((self.get_aggregated_time_ns()/1000000) \
-            / total_execution_time_millis * total_cores * 1000) # percentage moved to milli-cpus
+            / total_execution_time_millis * total_cores * 100) # percentage moved to other percentage
 
     def set_socket_data_array(self, socket_data_array):
         self.socket_data = socket_data_array
