@@ -366,7 +366,7 @@ class BpfCollector:
                 pid_dict[data.pid] = proc_info
                 proc_info.set_power(self._get_pid_power(proc_info, \
                     total_weighted_cycles, core_power))
-                proc_info.compute_cpu_usage_millis(float(total_execution_time))
+                proc_info.compute_cpu_usage_millis(float(total_execution_time), multiprocessing.cpu_count())
 
 
         for key, data in self.idles.items():
@@ -396,7 +396,7 @@ class BpfCollector:
                 pid_dict[-1 * (1 + int(key.value))] = proc_info
                 proc_info.set_power(self._get_pid_power(proc_info, \
                     total_weighted_cycles, core_power))
-                proc_info.compute_cpu_usage_millis(float(total_execution_time))
+                proc_info.compute_cpu_usage_millis(float(total_execution_time), multiprocessing.cpu_count())
 
         return BpfSample(tsmax, total_execution_time, sched_switch_count, \
             self.timeslice, total_power, pid_dict)
