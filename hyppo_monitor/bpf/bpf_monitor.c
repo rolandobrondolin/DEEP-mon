@@ -5,6 +5,7 @@
  * This process in handled by the bpf_selector variable.
  */
 #define SELECTOR_DIM 2 // Use a binary selector
+
 /**
  * Slots are array cells we use to store events following the selector idea.
  * Let's take as an example NUM_SOCKETS=2 (2 physical CPUs) and let's keep
@@ -33,8 +34,8 @@ struct pid_status {
 /**
  * proc_topology is used to store information about the underlying topology
  * of CPUS.
- * We distinguish processors, cores (physical core) and ht (soft cores).
- * Siblings cores are two ht cores residing on the same physical core.
+ * We distinguish processors, cores (physical core) and ht/thread (soft cores).
+ * Siblings cores are two soft cores residing on the same physical core.
  */
 struct proc_topology {
         u64 ht_id;
@@ -97,6 +98,7 @@ BPF_PERF_ARRAY(instr_thread, NUM_CPUS);
 BPF_HASH(processors, u64, struct proc_topology);
 BPF_HASH(pids, int, struct pid_status);
 BPF_HASH(idles, u64, struct pid_status);
+
 /**
  * conf struct has 4 integer keys initialized in user space
  * 0: current bpf selector
@@ -174,6 +176,10 @@ int trace_switch(struct sched_switch_args *ctx) {
 
         /**
          * Retrieve sampling step (dynamic window)
+         * We need this because later on we check the timestamp of the
+         * context switch, if it's higher than ts_begin_window + step
+         * we need to account the current pcm in the next time window (so in
+         * another bpf selector w.r.t. to the current one)
          * BEWARE: increasing the step in userspace means that the next
          *         sample is invalid. Reducing the step in userspace is not
          *         an issue, it discards data that has already been collected
@@ -247,20 +253,18 @@ int trace_switch(struct sched_switch_args *ctx) {
                 /**
                  * Get back to our pid and our processor
                  * Update the data for proc_topology and pid info
+                 * Take the ts marking the beginning of execution of the exiting pid
                  */
                 u64 last_ts_pid_in = 0;
-                // Trick the bpf compiler with loop unrolling
-                // ??? last_ts_pid_in = status_old.ts[status_old.bpf_selector
-                //                                    + SELECTOR_DIM
-                //                                    * topology_info.processor_id];
-                #pragma clang loop unroll(full)
-                for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
-                        if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
-                                last_ts_pid_in = status_old.ts[array_index];
-                        }
-                }
+                array_index = status_old.bpf_selector
+                              + SELECTOR_DIM * topology_info.processor_id;
+                last_ts_pid_in = status_old.ts[array_index];
 
-                // here just update the selector and reset counter if needed
+                /**
+                 * If we have exceeded the duration of the dynamic window (change
+                 * in the bpf_selector or current ts greater than the end of
+                 * the window) we need to update the selector and reset PCM counters
+                 */
                 if(status_old.bpf_selector != bpf_selector || last_ts_pid_in + step < ts) {
                         status_old.bpf_selector = bpf_selector;
                         //trick the compiler with loop unrolling
@@ -274,6 +278,10 @@ int trace_switch(struct sched_switch_args *ctx) {
                         }
                 }
 
+
+                /**
+                 * Start to account PCM values for the exiting pid
+                 */
                 u64 old_thread_cycles = thread_cycles_sample;
                 u64 cycles_core_delta_sibling = 0;
                 u64 old_time = ts;
