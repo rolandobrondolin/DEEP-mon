@@ -242,6 +242,22 @@ class BpfCollector:
         self.bpf_program.attach_tracepoint(tp="sched:sched_process_exit", \
             fn_name="trace_exit")
 
+    def start_timed_capture(self, count=0, frequency=0):
+        if frequency:
+            sample_freq = frequency
+        elif count:
+            sample_period = count
+        else:
+            # If user didn't specify anything, use default 49Hz sampling
+            sample_freq = 49
+
+        if self.debug == True:
+            self.bpf_program["err"].open_perf_buffer(self.print_event, page_cnt=256)
+
+        self.bpf_program.attach_perf_event(ev_type=PerfType.SOFTWARE,
+                ev_config=PerfSWConfig.CPU_CLOCK, fn_name="timed_trace",
+                sample_period=sample_period, sample_freq=sample_freq)
+
     def stop_capture(self):
         self.bpf_program.detach_tracepoint(tp="sched:sched_switch")
         self.bpf_program.detach_tracepoint(tp="sched:sched_process_exit")
