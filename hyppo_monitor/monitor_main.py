@@ -58,8 +58,8 @@ class MonitorMain():
             elif output_format == "console":
                 for key, value in container_list.iteritems():
                     print(value)
-                print('|')
-                print('└─>', end='\t')
+                print('│')
+                print('└─╼', end='\t')
                 print(sample.get_log_line())
                 print()
                 print()
