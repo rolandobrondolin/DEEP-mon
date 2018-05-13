@@ -59,7 +59,7 @@ class MonitorMain():
                 for key, value in container_list.iteritems():
                     print(value)
                 print('|')
-                print('└─ ', end='')
+                print('└─>', end='\t')
                 print(sample.get_log_line())
                 print()
                 print()

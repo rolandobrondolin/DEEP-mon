@@ -13,6 +13,19 @@ import os
 import time
 
 
+class bcolors:
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    MAGENTA = '\033[95m'
+    CYAN = '\033[96m'
+    WHITE = '\033[97m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
 class BpfSample:
 
     def __init__(self, max_ts, total_time, sched_switch_count, timeslice,
@@ -54,15 +67,18 @@ class BpfSample:
 
     def get_log_line(self):
         str_representation = (
-                "PROC TIME: " + str(self.total_execution_time)
-                + " SCHED SWITCH COUNT: " + str(self.sched_switch_count)
-                + " TIMESLICE: " + str(self.timeslice)
-                + " TOTAL PACKAGE ACTIVE POWER: "
-                + str(self.total_active_power["package"])
-                + " TOTAL CORE ACTIVE POWER: "
-                + str(self.total_active_power["core"])
-                + " TOTAL DRAM ACTIVE POWER: "
-                + str(self.total_active_power["dram"])
+                bcolors.YELLOW + "PROC TIME: " + bcolors.ENDC
+                + "{:.3f}".format(self.total_execution_time)
+                + "\t" + bcolors.YELLOW + "SCHED SWITCH COUNT: " + bcolors.ENDC
+                + str(self.sched_switch_count)
+                + "\t" + bcolors.YELLOW + "TIMESLICE: " + bcolors.ENDC
+                + str(self.timeslice / 1000000000) + "s"
+                + "\n\t" + bcolors.GREEN + "TOTAL PACKAGE ACTIVE POWER:\t" + bcolors.ENDC
+                + "{:.3f}".format(self.total_active_power["package"])
+                + "\n\t" + bcolors.GREEN + "TOTAL CORE ACTIVE POWER:\t" + bcolors.ENDC
+                + "{:.3f}".format(self.total_active_power["core"])
+                + "\n\t" + bcolors.GREEN + "TOTAL DRAM ACTIVE POWER:\t" + bcolors.ENDC
+                + "{:.3f}".format(self.total_active_power["dram"])
                 )
         return str_representation
 
