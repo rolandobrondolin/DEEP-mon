@@ -205,10 +205,12 @@ class ContainerInfo:
 
 
     def __str__(self):
-        return "ID: " + self.container_id \
-            + " CYCLES: " + str(self.weighted_cycles) \
-            + " INSTR: " + str(self.instruction_retired) \
-            + " TIME_NS: " + str(self.time_ns) \
-            + " POWER: " + str(self.power) \
-            + " CPU: " + str(self.cpu_usage)
+        fmt = '{:<18} {:<24} {:<20} {:<26} {:<28} {:<24}'
+        output_line = fmt.format( "ID: " + self.container_id,
+                                  " CYCLES: " + str(self.weighted_cycles),
+                                  " INSTR RET: " + str(self.instruction_retired),
+                                  " TIME_NS: " + str(self.time_ns),
+                                  " TOTAL POWER (mW): " + '{:.3f}'.format(self.power),
+                                  " CPU USAGE: " + '{:.3f}'.format(self.cpu_usage))
             # + " pids: " + str(self.pid_set)
+        return output_line
