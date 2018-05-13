@@ -25,4 +25,4 @@ ADD setup.py /home
 #Install plugin dependencies
 RUN pip install .
 
-CMD ["python", "hyppo_monitor/monitor_main.py"]
+CMD ["python", "hyppo_monitor/monitor_main.py", "--format", "console"]

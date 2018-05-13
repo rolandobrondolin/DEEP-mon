@@ -1,3 +1,6 @@
+# /usr/bin/env python2
+# -*- coding: utf-8 -*-
+
 from __future__ import print_function
 from bpf_collector import BpfCollector
 from proc_topology import ProcTopology
@@ -19,6 +22,7 @@ class MonitorMain():
         self.process_table = ProcTable()
 
         self.collector.start_capture(self.sample_controller.get_timeslice())
+        self.collector.start_timed_capture(frequency=2)
         self.rapl_monitor = rapl.RaplMonitor(self.topology)
         self.output_format = parse_args
 
@@ -51,11 +55,14 @@ class MonitorMain():
                     print(value.to_json())
                 print
                 print(sample.get_log_json())
-            else:
+            elif output_format == "console":
                 for key, value in container_list.iteritems():
                     print(value)
-                print
+                print('|')
+                print('└─ ', end='')
                 print(sample.get_log_line())
+                print()
+                print()
 
             time_to_sleep = self.sample_controller.get_sleep_time() \
                 - (time.time() - start_time)
@@ -117,4 +124,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     output_format = args.format
     monitor = MonitorMain(output_format)
-    monitor.snap_monitor_loop()
+    if output_format in ["json", "console"]:
+        monitor.monitor_loop()
+    else:
+        monitor.snap_monitor_loop()

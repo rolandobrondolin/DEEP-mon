@@ -131,6 +131,14 @@ static void send_error(struct sched_switch_args *ctx, int err_code) {
 #endif
 }
 
+static void send_perf_error(struct bpf_perf_event_data *ctx, int err_code) {
+#ifdef DEBUG
+        struct error_code error;
+        error.err = err_code;
+        err.perf_submit(ctx, &error, sizeof(error));
+#endif
+}
+
 int trace_switch(struct sched_switch_args *ctx) {
 
         // Keys for the conf hash
@@ -258,9 +266,13 @@ int trace_switch(struct sched_switch_args *ctx) {
                  * Take the ts marking the beginning of execution of the exiting pid
                  */
                 u64 last_ts_pid_in = 0;
-                array_index = status_old.bpf_selector
-                              + SELECTOR_DIM * topology_info.processor_id;
-                last_ts_pid_in = status_old.ts[array_index];
+                //trick the compiler with loop unrolling
+                #pragma clang loop unroll(full)
+                for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                        if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
+                                last_ts_pid_in = status_old.ts[array_index];
+                        }
+                }
 
                 /**
                  * If we have exceeded the duration of the dynamic window (change
@@ -395,7 +407,7 @@ int trace_exit(struct sched_process_exit_args *ctx) {
         return 0;
 }
 
-int timed_trace(struct bpf_perf_event_data *ctx) {
+int timed_trace(struct bpf_perf_event_data *perf_ctx) {
 
         // Keys for the conf hash
         int selector_key = 0;
@@ -412,7 +424,7 @@ int timed_trace(struct bpf_perf_event_data *ctx) {
         ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&selector_key));
         // If selector is not in place correctly, signal debug error and stop tracing routine
         if (ret!= 0 || bpf_selector > 1) {
-                send_error(ctx, -1);
+                send_perf_error(perf_ctx, -1);
                 return 0;
         }
 
@@ -423,7 +435,7 @@ int timed_trace(struct bpf_perf_event_data *ctx) {
         ret = 0;
         ret = bpf_probe_read(&old_bpf_selector, sizeof(old_bpf_selector), conf.lookup(&old_selector_key));
         if (ret!= 0 || old_bpf_selector > 1) {
-                send_error(ctx, -2);
+                send_perf_error(perf_ctx, -2);
                 return 0;
         }
 
@@ -440,7 +452,7 @@ int timed_trace(struct bpf_perf_event_data *ctx) {
         unsigned int step = 1000000000;
         ret = bpf_probe_read(&step, sizeof(step), conf.lookup(&step_key));
         if (ret!= 0 || step < STEP_MIN || step > STEP_MAX) {
-                send_error(ctx, -3);
+                send_perf_error(perf_ctx, -3);
                 return 0;
         }
 
@@ -449,35 +461,18 @@ int timed_trace(struct bpf_perf_event_data *ctx) {
          * Collect cycles and IR samples from perf arrays.
          * Save the timestamp and store the exiting pid
          */
-        processor_id = bpf_get_smp_processor_id();
-
-        data.processor_id               = processor_id;;
-        data.pid                        = bpf_get_current_pid_tgid();
-        bpf_get_current_comm(&data.comm, sizeof(data.comm));
-        data.ts                         = bpf_ktime_get_ns();
-        data.thread_cycles              = cycles_thread.perf_read(processor_id);
-        data.core_cycles                = cycles_core.perf_read(processor_id);
-        data.instruction_retired_thread = instr_thread.perf_read(processor_id);
-
-        events.perf_submit(ctx, &data, sizeof(data));
-
-        /**
-         * Get the id of the processor where the sched_switch happened.
-         * Collect cycles and IR samples from perf arrays.
-         * Save the timestamp and store the exiting pid
-         */
         u64 processor_id = bpf_get_smp_processor_id();
+        u32 old_pid = bpf_get_current_pid_tgid();
         u64 thread_cycles_sample = cycles_thread.perf_read(processor_id);
         u64 core_cycles_sample = cycles_core.perf_read(processor_id);
         u64 instruction_retired_thread = instr_thread.perf_read(processor_id);
         u64 ts = bpf_ktime_get_ns();
-        int old_pid = ctx->prev_pid;
 
         // Fetch more data about processor where the sched_switch happened
         struct proc_topology topology_info;
         ret = bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
         if(ret!= 0 || topology_info.ht_id > NUM_CPUS) {
-                send_error(ctx, -4);
+                send_perf_error(perf_ctx, -4);
                 return 0;
         }
 
@@ -503,7 +498,7 @@ int timed_trace(struct bpf_perf_event_data *ctx) {
 
                 if(ret != 0) {
                         // Wrong info on topology, do nothing
-                        send_error(ctx, 3);
+                        send_perf_error(perf_ctx, 3);
                         return 0;
                 }
 
@@ -525,9 +520,18 @@ int timed_trace(struct bpf_perf_event_data *ctx) {
                  * Take the ts marking the beginning of execution of the exiting pid
                  */
                 u64 last_ts_pid_in = 0;
+                //trick the compiler with loop unrolling
+                #pragma clang loop unroll(full)
+                for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                        if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
+                                last_ts_pid_in = status_old.ts[array_index];
+                        }
+                }
+                /*
                 array_index = status_old.bpf_selector
                               + SELECTOR_DIM * topology_info.processor_id;
                 last_ts_pid_in = status_old.ts[array_index];
+                */
 
                 /**
                  * If we have exceeded the duration of the dynamic window (change
@@ -576,12 +580,12 @@ int timed_trace(struct bpf_perf_event_data *ctx) {
                                         u64 cycle_non_overlap = cycle1 > cycles_core_delta_sibling ? cycle1 - cycles_core_delta_sibling : 0;
                                         status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
                                 } else {
-                                        send_error(ctx, old_pid);
+                                        send_perf_error(perf_ctx, old_pid);
                                 }
                                 if (instruction_retired_thread > old_instruction_retired) {
                                         status_old.instruction_retired[array_index] = instruction_retired_thread - old_instruction_retired;
                                 } else {
-                                        send_error(ctx, old_pid);
+                                        send_perf_error(perf_ctx, old_pid);
                                 }
                                 status_old.time_ns[array_index] += ts - old_time;
                                 status_old.ts[array_index] = ts;

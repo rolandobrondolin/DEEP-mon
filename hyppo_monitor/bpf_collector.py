@@ -1,6 +1,4 @@
-from bcc import BPF
-from bcc import PerfType
-from bcc import PerfHWConfig
+from bcc import BPF, PerfType, PerfHWConfig, PerfSWConfig
 from proc_topology import BpfProcTopology
 from proc_topology import ProcTopology
 from process_info import BpfPidStatus
@@ -245,11 +243,14 @@ class BpfCollector:
     def start_timed_capture(self, count=0, frequency=0):
         if frequency:
             sample_freq = frequency
+            sample_period = 0
         elif count:
+            sample_freq = 0
             sample_period = count
         else:
             # If user didn't specify anything, use default 49Hz sampling
             sample_freq = 49
+            sample_period = 0
 
         if self.debug == True:
             self.bpf_program["err"].open_perf_buffer(self.print_event, page_cnt=256)
