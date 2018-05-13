@@ -219,7 +219,7 @@ class ContainerInfo:
 
 
     def __str__(self):
-        fmt = '{:<24} {:<30} {:<30} {:<32} {:<36} {:<30}'
+        fmt = '{:<28} {:<32} {:<34} {:<34} {:<38} {:<30}'
         output_line = fmt.format (
                 bcolors.BLUE + "ID: " + bcolors.ENDC
                     + self.container_id,
