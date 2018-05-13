@@ -11,7 +11,10 @@ help: ## This help.
 
 # DOCKER TASKS
 run: ## Run the monitor container
-	sudo docker run -d --privileged --name hyppo_monitor -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro -v $$HOME/monitor/snap_task/distributed_w_grpc:/opt/snap/tasks:ro --net host hyppo_monitor
+	sudo docker run -d --privileged --name hyppo_monitor -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro -v $$PWD/snap_task/distributed_w_grpc:/opt/snap/tasks:ro --net host hyppo_monitor
+
+run-standalone: ## Run the standalone image, without snap and backend integration
+	sudo docker run --rm --privileged --name hyppo_monitor_standalone -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro --net host hyppo_monitor_standalone
 
 run-prod: ## Run the monitor container
 	sudo docker run -d --privileged --name hyppo_monitor -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro --net host hyppo_monitor
@@ -21,6 +24,9 @@ stop: ## Stop the monitor container
 
 build: ## Build the monitor container
 	sudo docker build . -t "hyppo_monitor"
+
+build-standalone: ## Build a standalone image, without snap and backend integration
+	sudo docker build . -f Dockerfile.standalone -t "hyppo_monitor_standalone"
 
 build-kube:
 	sudo docker build -t registry.gitlab.com/projecthyppo/monitor .
