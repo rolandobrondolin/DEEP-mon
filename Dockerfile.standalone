@@ -25,4 +25,6 @@ ADD setup.py /home
 #Install plugin dependencies
 RUN pip install .
 
-CMD ["python", "hyppo_monitor/monitor_main.py", "--format", "console"]
+# "-u" forces the binary I/O layers of stdout and stderr to be unbuffered and
+# is needed to avoid truncated output in Docker
+CMD ["python", "-u", "hyppo_monitor/monitor_main.py", "--format", "console"]
