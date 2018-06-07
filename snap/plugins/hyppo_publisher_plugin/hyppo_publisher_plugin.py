@@ -44,7 +44,7 @@ class HyppoPublisher(snap.Publisher):
 
         data = []
         for metric in metrics:
-            data.append(json_format.MessageToJson(metric._pb, including_default_value_fields=True))
+            data.append(json_format.MessageToDict(metric._pb, including_default_value_fields=True))
 
 
         req = urllib2.Request("http://" + config["remote_collector"] + "/send_data")

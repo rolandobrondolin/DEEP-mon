@@ -19,7 +19,7 @@
         {
           "plugin_name": "container-namer-grpc-publisher",
           "config": {
-            "remote_collector": "collector.deepmon.necst.it:80"
+            "remote_collector": "collector.deepmon.necst.it"
           }
         }
       ]
