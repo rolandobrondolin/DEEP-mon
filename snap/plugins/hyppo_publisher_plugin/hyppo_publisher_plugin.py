@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 import logging
+import json
+import urllib2
+
 from google.protobuf import json_format
 import snap_plugin.v1 as snap
 import grpc
@@ -16,10 +19,10 @@ class HyppoPublisher(snap.Publisher):
         self.connected = False
         super(HyppoPublisher, self).__init__(name, version, **kwargs)
 
-    def generate_iterator(self, metrics):
-        for _ in metrics:
-            iterated_metric = hyppo_pb2.DataPoint(datapoint=json_format.MessageToJson(_._pb, including_default_value_fields=True))
-            yield iterated_metric
+    # def generate_iterator(self, metrics):
+    #     for _ in metrics:
+    #         iterated_metric = hyppo_pb2.DataPoint(datapoint=json_format.MessageToJson(_._pb, including_default_value_fields=True))
+    #         yield iterated_metric
 
     def publish(self, metrics, config):
         LOG.debug("HyppoPublisher Publish called")
@@ -31,13 +34,22 @@ class HyppoPublisher(snap.Publisher):
             :obj:`list` of :obj:`snap_plugin.v1.Metric`:
                 List of collected metrics.
         """
-        if len(metrics) > 0:
-            if self.connected == False:
-                self.channel = grpc.insecure_channel(config["remote_collector"])
-                self.stub = hyppo_pb2_grpc.HyppoRemoteCollectorStub(self.channel)
-                self.connected = True
-            iterator = self.generate_iterator(metrics)
-            ack = self.stub.SendMonitorSample(iterator)
+        # if len(metrics) > 0:
+        #     if self.connected == False:
+        #         self.channel = grpc.insecure_channel(config["remote_collector"])
+        #         self.stub = hyppo_pb2_grpc.HyppoRemoteCollectorStub(self.channel)
+        #         self.connected = True
+        #     iterator = self.generate_iterator(metrics)
+        #     ack = self.stub.SendMonitorSample(iterator)
+
+        data = []
+        for metric in metrics:
+            data.append(json_format.MessageToJson(metric._pb, including_default_value_fields=True))
+
+
+        req = urllib2.Request("http://" + config["remote_collector"] + "/send_data")
+        req.add_header('Content-Type', 'application/json')
+        response = urllib2.urlopen(req, json.dumps(data))
 
 
     def get_config_policy(self):
