@@ -27,7 +27,7 @@
       },
       "publish": [
         {
-          "plugin_name": "container-namer-grpc-publisher",
+          "plugin_name": "kubernetes-publisher",
           "config": {
             "remote_collector": "collector.deepmon.necst.it"
           }

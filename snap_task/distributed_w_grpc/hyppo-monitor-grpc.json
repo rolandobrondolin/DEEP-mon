@@ -8,7 +8,7 @@
     "collect": {
       "config": {
         "hyppo/hyppo_monitor": {
-          "user_id": "fake_user_id"
+          "user_id": "not_registered"
         }
       },
       "metrics": {

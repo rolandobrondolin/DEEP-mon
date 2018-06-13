@@ -13,7 +13,7 @@ import hyppo_proto.hyppo_pb2 as hyppo_remote_collector_pb2
 LOG = logging.getLogger(__name__)
 
 
-class ContainerNamerGrpcPublisher(snap.Publisher):
+class KubernetesPublisher(snap.Publisher):
 
     def __init__(self, name, version, **kwargs):
         super(ContainerNamerGrpcPublisher, self).__init__(name, version, **kwargs)
@@ -65,4 +65,4 @@ class ContainerNamerGrpcPublisher(snap.Publisher):
         )
 
 if __name__ == "__main__":
-    ContainerNamerGrpcPublisher("container-namer-grpc-publisher", 1).start_plugin()
+    ContainerNamerGrpcPublisher("kubernetes-publisher", 1).start_plugin()
