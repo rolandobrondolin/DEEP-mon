@@ -8,7 +8,7 @@
     "collect": {
       "config": {
         "hyppo/hyppo_monitor": {
-          "user_id": "fake_user_id"
+          "user_id": "not_registered"
         }
       },
       "metrics": {
@@ -34,7 +34,7 @@
         {
           "plugin_name": "hyppo-publisher",
           "config": {
-            "remote_collector": "collector.hyppo.necst.it:37000"
+            "remote_collector": "collector.deepmon.necst.it"
           }
         }
       ]
