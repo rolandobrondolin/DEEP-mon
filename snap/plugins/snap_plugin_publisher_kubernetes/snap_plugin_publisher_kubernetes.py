@@ -16,7 +16,7 @@ LOG = logging.getLogger(__name__)
 class KubernetesPublisher(snap.Publisher):
 
     def __init__(self, name, version, **kwargs):
-        super(ContainerNamerGrpcPublisher, self).__init__(name, version, **kwargs)
+        super(KubernetesPublisher, self).__init__(name, version, **kwargs)
         self.connected = False
 
     # def generate_iterator(self, metrics):
@@ -25,7 +25,7 @@ class KubernetesPublisher(snap.Publisher):
     #         yield iterated_metric
 
     def publish(self, metrics, config):
-        LOG.debug("ContainerNamerGrpcPublisher called")
+        LOG.debug("KubernetesPublisher called")
         """
         Args:
             metrics (obj:`list` of :obj:`snap_plugin.v1.Metric`):
@@ -51,7 +51,7 @@ class KubernetesPublisher(snap.Publisher):
         response = urllib2.urlopen(req, json.dumps(data))
 
     def get_config_policy(self):
-        LOG.debug("ContainerNamerGrpcPublisher GetConfigPolicy called")
+        LOG.debug("KubernetesPublisher GetConfigPolicy called")
         return snap.ConfigPolicy(
             [
                 None,
@@ -65,4 +65,4 @@ class KubernetesPublisher(snap.Publisher):
         )
 
 if __name__ == "__main__":
-    ContainerNamerGrpcPublisher("kubernetes-publisher", 1).start_plugin()
+    KubernetesPublisher("kubernetes-publisher", 1).start_plugin()
