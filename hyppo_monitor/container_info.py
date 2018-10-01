@@ -1,6 +1,20 @@
+from __future__ import division
+
 import json
 import snap_plugin.v1 as snap
 import time
+
+class bcolors:
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    MAGENTA = '\033[95m'
+    CYAN = '\033[96m'
+    WHITE = '\033[97m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 class ContainerInfo:
 
@@ -205,10 +219,19 @@ class ContainerInfo:
 
 
     def __str__(self):
-        return "ID: " + self.container_id \
-            + " CYCLES: " + str(self.weighted_cycles) \
-            + " INSTR: " + str(self.instruction_retired) \
-            + " TIME_NS: " + str(self.time_ns) \
-            + " POWER: " + str(self.power) \
-            + " CPU: " + str(self.cpu_usage)
-            # + " pids: " + str(self.pid_set)
+        fmt = '{:<28} {:<32} {:<34} {:<34} {:<38} {:<30}'
+        output_line = fmt.format (
+                bcolors.BLUE + "ID: " + bcolors.ENDC
+                    + self.container_id,
+                bcolors.BLUE + "CYCLES: " + bcolors.ENDC
+                    + str(self.weighted_cycles),
+                bcolors.BLUE + "INSTR RET: " + bcolors.ENDC
+                    + str(self.instruction_retired),
+                bcolors.BLUE + "EXEC TIME (s): " + bcolors.ENDC
+                    + '{:.5f}'.format(self.time_ns / 1000000000),
+                bcolors.GREEN + "TOTAL POWER (mW): " + bcolors.ENDC
+                    + '{:.3f}'.format(self.power),
+                bcolors.BLUE + "CPU USAGE: " + bcolors.ENDC
+                    + '{:.3f}'.format(self.cpu_usage)
+                )
+        return output_line

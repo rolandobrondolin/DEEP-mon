@@ -1,0 +1,30 @@
+FROM ubuntu:16.04
+MAINTAINER Tommaso Sardelli
+
+RUN apt-get clean
+RUN apt-get update
+RUN apt-get install -y python python-pip wget curl apt-transport-https git
+
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D4284CDD
+RUN echo "deb https://repo.iovisor.org/apt/xenial xenial main" | tee /etc/apt/sources.list.d/iovisor.list
+RUN apt-get update
+
+RUN apt-get install -y libelf1 bcc-tools libbcc-examples
+
+# Install our mod of kubernetes client
+RUN git clone --recursive https://gitlab.com/projecthyppo/kubernetes-client-python.git
+RUN cd kubernetes-client-python && pip install . && cd ../ && rm -r kubernetes-client-python
+RUN pip install snap-plugin-lib-py
+
+WORKDIR /home
+
+ADD hyppo_monitor /home/hyppo_monitor
+ADD hyppo_proto /home/hyppo_proto
+ADD setup.py /home
+
+#Install plugin dependencies
+RUN pip install .
+
+# "-u" forces the binary I/O layers of stdout and stderr to be unbuffered and
+# is needed to avoid truncated output in Docker
+CMD ["python", "-u", "hyppo_monitor/monitor_main.py", "--format", "console"]
