@@ -8,9 +8,16 @@ from sample_controller import SampleController
 from process_table import ProcTable
 from rapl import rapl
 import argparse
-import time
+import click
+import os
 import socket
 import snap_plugin.v1 as snap
+import time
+import yaml
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 class MonitorMain():
 
@@ -117,14 +124,26 @@ class MonitorMain():
             print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--format", type=str,
-                        help="Output format", required=False)
-    args = parser.parse_args()
-    output_format = args.format
-    monitor = MonitorMain(output_format)
-    if output_format in ["json", "console"]:
-        monitor.monitor_loop()
-    else:
+# Load config file with default values
+config = {}
+try:
+    with open('config.yaml', 'r') as config:
+        conf = yaml.load(config)
+except IOError:
+    config = {}
+
+CONTEXT_SETTINGS = dict(
+    default_map=config
+)
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.option('--kube-conf', '-c')
+@click.option('--probing-mode', '-m')
+@click.option('--output-format', '-f')
+
+if __name__ == '__main__':
+    if output_format == 'snap':
+        monitor = MonitorMain(output_format)
         monitor.snap_monitor_loop()
+    else:
+        monitor = MonitorMain(output_format)
+        monitor.monitor_loop()

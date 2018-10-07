@@ -1,1 +1,3 @@
-kube_conf: "~/.kube/config"
+kube_conf:      "~/.kube/config"
+probing_mode:   "fixed"
+format:         "cli"
