@@ -28,14 +28,14 @@ build: ## Build the monitor container
 build-standalone: ## Build a standalone image, without snap and backend integration
 	sudo docker build . -f Dockerfile.standalone -t "hyppo_monitor_standalone"
 
-build-kube:
+build-kube: ## Build DEEPmon and push it to GitLab Registry
 	sudo docker build -t registry.gitlab.com/projecthyppo/monitor .
 	sudo docker push registry.gitlab.com/projecthyppo/monitor
 
-run-kube:
+run-kube: ## Run DEEPmon in Kubernetes as a DaemonSet
 	kubectl apply -f hyppo-monitor-daemonset.yaml
 
-stop-kube:
+stop-kube: ## Stop DEEPmon DaemonSet
 	kubectl delete -f hyppo-monitor-daemonset.yaml
 
 run-kube-act:
