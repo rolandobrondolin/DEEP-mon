@@ -1,3 +1,3 @@
-kube_conf:      "~/.kube/config"
-probing_mode:   "fixed"
-format:         "cli"
+kube_config:    "~/.kube/config"
+window_mode:    "fixed"
+output_format:  "console"

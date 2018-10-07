@@ -21,7 +21,7 @@ except ImportError:
 
 class MonitorMain():
 
-    def __init__(self, parse_args):
+    def __init__(self, output_format):
         self.topology = ProcTopology()
         self.collector = BpfCollector(self.topology, False)
         self.sample_controller = SampleController(self.topology.get_hyperthread_count())
@@ -31,8 +31,7 @@ class MonitorMain():
         self.collector.start_capture(self.sample_controller.get_timeslice())
         self.collector.start_timed_capture(frequency=2)
         self.rapl_monitor = rapl.RaplMonitor(self.topology)
-        print(parse_args)
-        self.output_format = parse_args
+        self.output_format = output_format
 
     def get_sample(self):
         sample = self.collector.get_new_sample(self.sample_controller, self.rapl_monitor)
@@ -137,13 +136,12 @@ CONTEXT_SETTINGS = dict(
     default_map=config
 )
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option('--kube-conf', '-c')
-@click.option('--probing-mode', '-m')
-@click.option('--output-format', '-f')
+@click.option('--kube-config', '-c')
+@click.option('--window-mode', '-w')
+@click.option('--output-format', '-o')
 def deepmon(kube_conf, probing_mode, output_format):
+    monitor = MonitorMain(output_format)
     if output_format == 'snap':
-        monitor = MonitorMain(output_format)
         monitor.snap_monitor_loop()
     else:
-        monitor = MonitorMain(output_format)
         monitor.monitor_loop()
