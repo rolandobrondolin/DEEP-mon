@@ -1,3 +1,4 @@
+from __future__ import print_function
 from bcc import BPF, PerfType, PerfHWConfig, PerfSWConfig
 from proc_topology import BpfProcTopology
 from proc_topology import ProcTopology
@@ -236,7 +237,7 @@ class BpfCollector:
 
     def print_event(self, cpu, data, size):
         event = ct.cast(data, ct.POINTER(ErrorCode)).contents
-        print str(cpu) + " " + str(event.err)
+        print(str(cpu) + " " + str(event.err))
 
     def start_capture(self, timeslice):
         for key, value in self.topology.get_new_bpf_topology().iteritems():

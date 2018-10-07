@@ -31,6 +31,7 @@ class MonitorMain():
         self.collector.start_capture(self.sample_controller.get_timeslice())
         self.collector.start_timed_capture(frequency=2)
         self.rapl_monitor = rapl.RaplMonitor(self.topology)
+        print(parse_args)
         self.output_format = parse_args
 
     def get_sample(self):
@@ -57,12 +58,12 @@ class MonitorMain():
             container_list = sample_array[1]
 
 
-            if output_format == "json":
+            if self.output_format == "json":
                 for key, value in container_list.iteritems():
                     print(value.to_json())
                 print
                 print(sample.get_log_json())
-            elif output_format == "console":
+            elif self.output_format == "console":
                 for key, value in container_list.iteritems():
                     print(value)
                 print('│')
@@ -139,8 +140,7 @@ CONTEXT_SETTINGS = dict(
 @click.option('--kube-conf', '-c')
 @click.option('--probing-mode', '-m')
 @click.option('--output-format', '-f')
-
-if __name__ == '__main__':
+def deepmon(kube_conf, probing_mode, output_format):
     if output_format == 'snap':
         monitor = MonitorMain(output_format)
         monitor.snap_monitor_loop()
