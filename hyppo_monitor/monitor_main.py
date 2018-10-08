@@ -7,7 +7,6 @@ from proc_topology import ProcTopology
 from sample_controller import SampleController
 from process_table import ProcTable
 from rapl import rapl
-import argparse
 import click
 import os
 import socket
@@ -21,17 +20,29 @@ except ImportError:
 
 class MonitorMain():
 
-    def __init__(self, output_format):
+    def __init__(self, output_format, window_mode):
+        self.output_format = output_format
+        self.window_mode = window_mode
+        # TODO: Don't hardcode the frequency
+        self.frequency = 1
+
         self.topology = ProcTopology()
         self.collector = BpfCollector(self.topology, False)
         self.sample_controller = SampleController(self.topology.get_hyperthread_count())
-
         self.process_table = ProcTable()
-
-        self.collector.start_capture(self.sample_controller.get_timeslice())
-        self.collector.start_timed_capture(frequency=2)
         self.rapl_monitor = rapl.RaplMonitor(self.topology)
-        self.output_format = output_format
+
+        self._start_bpf_program(window_mode)
+
+
+    def _start_bpf_program(self, window_mode):
+        if window_mode == 'dynamic':
+            self.collector.start_capture(self.sample_controller.get_timeslice())
+        elif window_mode == 'fixed':
+            self.collector.start_timed_capture(frequency=self.frequency)
+        else:
+            print("Please provide a window mode")
+
 
     def get_sample(self):
         sample = self.collector.get_new_sample(self.sample_controller, self.rapl_monitor)
@@ -45,7 +56,10 @@ class MonitorMain():
 
 
     def monitor_loop(self):
-        time_to_sleep = self.sample_controller.get_sleep_time()
+        if self.window_mode == 'dynamic':
+            time_to_sleep = self.sample_controller.get_sleep_time()
+        else:
+            time_to_sleep = float(1 / self.frequency)
 
         while True:
 
@@ -63,7 +77,7 @@ class MonitorMain():
                 print
                 print(sample.get_log_json())
             elif self.output_format == "console":
-                for key, value in container_list.iteritems():
+                for key, value in sorted(container_list.items()):
                     print(value)
                 print('│')
                 print('└─╼', end='\t')
@@ -71,8 +85,11 @@ class MonitorMain():
                 print()
                 print()
 
+        if self.window_mode == 'dynamic':
             time_to_sleep = self.sample_controller.get_sleep_time() \
                 - (time.time() - start_time)
+        else:
+            time_to_sleep = float(1 / self.frequency)
 
     def snap_monitor_loop(self):
         time_to_sleep = self.sample_controller.get_sleep_time()
@@ -127,20 +144,24 @@ class MonitorMain():
 # Load config file with default values
 config = {}
 try:
-    with open('config.yaml', 'r') as config:
-        conf = yaml.load(config)
+    with open('hyppo_monitor/config.yaml', 'r') as config_file:
+        config = yaml.load(config_file)
 except IOError:
+    print("Couldn't find a config file, check your path")
     config = {}
 
 CONTEXT_SETTINGS = dict(
     default_map=config
 )
+
+print(config)
+
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option('--kube-config', '-c')
 @click.option('--window-mode', '-w')
 @click.option('--output-format', '-o')
-def deepmon(kube_conf, probing_mode, output_format):
-    monitor = MonitorMain(output_format)
+def deepmon(kube_config, window_mode, output_format):
+    monitor = MonitorMain(output_format, window_mode)
     if output_format == 'snap':
         monitor.snap_monitor_loop()
     else:
