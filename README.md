@@ -54,7 +54,7 @@ kubectl create secret -n "kube-system" docker-registry gitlab-registry --docker-
 ```
 2. [Relaunch](#build-deep-mon-1) the monitor DaemonSet
 
-## Old stuff
-To make available data from k8s inside the pod, tweak with RBAC:
+#### DEEP-mon is not able to extract information on Kubernetes
+To make data from Kubernates available inside the pod (Pod Name, Node, Namespace, etc.), it might be necessary to tweak RBAC rules:
 - `kubectl create clusterrolebinding --user system:serviceaccount:kube-system:default kube-system-cluster-admin --clusterrole cluster-admin`
 
