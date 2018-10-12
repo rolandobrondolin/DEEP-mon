@@ -19,7 +19,6 @@ RUN pip install snap-plugin-lib-py
 WORKDIR /home
 
 ADD hyppo_monitor /home/hyppo_monitor
-ADD hyppo_proto /home/hyppo_proto
 ADD setup.py /home
 
 #Install plugin dependencies
