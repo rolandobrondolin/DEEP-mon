@@ -11,7 +11,8 @@ class HyppoStreamCollector(snap.StreamCollector):
 
     def __init__(self, name, description, **kwargs):
         super(HyppoStreamCollector, self).__init__(name, description, **kwargs)
-        self.hyppo_monitor = MonitorMain("")
+        # TODO: Don't hardcode MonitorMain parameters
+        self.hyppo_monitor = MonitorMain("snap", "fixed")
         self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
         self.user_id = "not_registered"
 
