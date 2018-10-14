@@ -5,6 +5,8 @@ import logging
 import snap_plugin.v1 as snap
 import urllib2
 
+from google.protobuf import json_format
+
 LOG = logging.getLogger(__name__)
 
 
