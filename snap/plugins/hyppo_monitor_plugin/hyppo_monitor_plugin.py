@@ -13,7 +13,9 @@ class HyppoStreamCollector(snap.StreamCollector):
         super(HyppoStreamCollector, self).__init__(name, description, **kwargs)
         # TODO: Don't hardcode MonitorMain parameters
         self.hyppo_monitor = MonitorMain("snap", "fixed")
-        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
+        # self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
+        # TODO: Don't hardcode Sleep time
+        self.time_to_sleep = 1
         self.user_id = "not_registered"
 
     def get_config_policy(self):
@@ -79,8 +81,10 @@ class HyppoStreamCollector(snap.StreamCollector):
         )
         metrics_to_stream.append(metric)
 
-        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
-            - (time.time() - start_time)
+        # TODO: Don't hardcode Sleep time
+        self.time_to_sleep = 1
+        # self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
+            # - (time.time() - start_time)
 
         return metrics_to_stream
 
