@@ -1,7 +1,7 @@
 # /usr/bin/env python2
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
+from __future__ import print_function, division
 from bpf_collector import BpfCollector
 from proc_topology import ProcTopology
 from sample_controller import SampleController
@@ -58,7 +58,7 @@ class MonitorMain():
         if self.window_mode == 'dynamic':
             time_to_sleep = self.sample_controller.get_sleep_time()
         else:
-            time_to_sleep = float(1 / self.frequency)
+            time_to_sleep = 1 / self.frequency
 
         while True:
 
@@ -88,12 +88,14 @@ class MonitorMain():
             time_to_sleep = self.sample_controller.get_sleep_time() \
                 - (time.time() - start_time)
         else:
-            time_to_sleep = float(1 / self.frequency)
+            time_to_sleep = 1 / self.frequency
 
     def snap_monitor_loop(self):
-        # TODO: Don't hardcode Sleep time
-        time_to_sleep = 1
-        # time_to_sleep = self.sample_controller.get_sleep_time()
+        if self.window_mode == 'dynamic':
+            time_to_sleep = self.sample_controller.get_sleep_time()
+        else:
+            time_to_sleep = 1 / self.frequency
+
         user_id = "not_registered"
         while True:
             metrics_to_stream = []
@@ -136,36 +138,10 @@ class MonitorMain():
             )
             metrics_to_stream.append(metric)
 
-            # TODO: Don't hardcode Sleep time
-            time_to_sleep = 1
-            # time_to_sleep = self.sample_controller.get_sleep_time() \
-                # - (time.time() - start_time)
+            if self.window_mode == 'dynamic':
+                time_to_sleep = self.sample_controller.get_sleep_time() \
+                    - (time.time() - start_time)
+            else:
+            time_to_sleep = 1 / self.frequency
 
             # print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
-
-
-# Load config file with default values
-# config = {}
-# try:
-    # with open('hyppo_monitor/config.yaml', 'r') as config_file:
-        # config = yaml.load(config_file)
-# except IOError:
-    # print("Couldn't find a config file, check your path")
-    # config = {}
-
-# CONTEXT_SETTINGS = dict(
-    # default_map=config
-# )
-
-# print(config)
-
-# @click.command(context_settings=CONTEXT_SETTINGS)
-# @click.option('--kube-config', '-c')
-# @click.option('--window-mode', '-w')
-# @click.option('--output-format', '-o')
-# def deepmon(kube_config, window_mode, output_format):
-    # monitor = MonitorMain(output_format, window_mode)
-    # if output_format == 'snap':
-        # monitor.snap_monitor_loop()
-    # else:
-        # monitor.monitor_loop()
