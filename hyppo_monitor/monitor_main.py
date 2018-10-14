@@ -7,7 +7,6 @@ from proc_topology import ProcTopology
 from sample_controller import SampleController
 from process_table import ProcTable
 from rapl import rapl
-import click
 import os
 import socket
 import snap_plugin.v1 as snap
@@ -92,7 +91,9 @@ class MonitorMain():
             time_to_sleep = float(1 / self.frequency)
 
     def snap_monitor_loop(self):
-        time_to_sleep = self.sample_controller.get_sleep_time()
+        # TODO: Don't hardcode Sleep time
+        time_to_sleep = 1
+        # time_to_sleep = self.sample_controller.get_sleep_time()
         user_id = "not_registered"
         while True:
             metrics_to_stream = []
@@ -135,34 +136,36 @@ class MonitorMain():
             )
             metrics_to_stream.append(metric)
 
-            time_to_sleep = self.sample_controller.get_sleep_time() \
-                - (time.time() - start_time)
+            # TODO: Don't hardcode Sleep time
+            time_to_sleep = 1
+            # time_to_sleep = self.sample_controller.get_sleep_time() \
+                # - (time.time() - start_time)
 
-            print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
+            # print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
 
 
 # Load config file with default values
-config = {}
-try:
-    with open('hyppo_monitor/config.yaml', 'r') as config_file:
-        config = yaml.load(config_file)
-except IOError:
-    print("Couldn't find a config file, check your path")
-    config = {}
+# config = {}
+# try:
+    # with open('hyppo_monitor/config.yaml', 'r') as config_file:
+        # config = yaml.load(config_file)
+# except IOError:
+    # print("Couldn't find a config file, check your path")
+    # config = {}
 
-CONTEXT_SETTINGS = dict(
-    default_map=config
-)
+# CONTEXT_SETTINGS = dict(
+    # default_map=config
+# )
 
-print(config)
+# print(config)
 
-@click.command(context_settings=CONTEXT_SETTINGS)
-@click.option('--kube-config', '-c')
-@click.option('--window-mode', '-w')
-@click.option('--output-format', '-o')
-def deepmon(kube_config, window_mode, output_format):
-    monitor = MonitorMain(output_format, window_mode)
-    if output_format == 'snap':
-        monitor.snap_monitor_loop()
-    else:
-        monitor.monitor_loop()
+# @click.command(context_settings=CONTEXT_SETTINGS)
+# @click.option('--kube-config', '-c')
+# @click.option('--window-mode', '-w')
+# @click.option('--output-format', '-o')
+# def deepmon(kube_config, window_mode, output_format):
+    # monitor = MonitorMain(output_format, window_mode)
+    # if output_format == 'snap':
+        # monitor.snap_monitor_loop()
+    # else:
+        # monitor.monitor_loop()
