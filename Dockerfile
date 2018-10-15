@@ -26,7 +26,6 @@ RUN curl -sL https://github.com/grafana/snap-plugin-collector-kubestate/releases
     -o /opt/snap/plugins/snap-plugin-collector-kubestate_linux_x86_64
 
 ADD hyppo_monitor /home/hyppo_monitor
-ADD hyppo_proto /home/hyppo_proto
 ADD snap /home/snap
 ADD snap_task /home/snap_task
 ADD setup.py /home
@@ -41,9 +40,9 @@ RUN cp snap/plugins/hyppo_publisher_plugin/hyppo_publisher_plugin.py /opt/snap/p
 RUN cp snap/plugins/snap_plugin_collector_container_namer/snap_plugin_collector_container_namer.py /opt/snap/plugins
 RUN cp snap/plugins/snap_plugin_publisher_kubernetes/snap_plugin_publisher_kubernetes.py /opt/snap/plugins
 
-RUN cp snap_task/distributed_w_grpc/hyppo-container-namer-grpc.json /opt/snap/tasks
-RUN cp snap_task/distributed_w_grpc/hyppo-kubestate-grpc.json /opt/snap/tasks
-RUN cp snap_task/distributed_w_grpc/hyppo-monitor-grpc.json /opt/snap/tasks
+RUN cp snap_task/distributed_w_http/hyppo-container-namer-http.json /opt/snap/tasks
+RUN cp snap_task/distributed_w_http/hyppo-kubestate-http.json /opt/snap/tasks
+RUN cp snap_task/distributed_w_http/hyppo-monitor-http.json /opt/snap/tasks
 
 RUN chmod 777 /opt/snap/plugins/*
 

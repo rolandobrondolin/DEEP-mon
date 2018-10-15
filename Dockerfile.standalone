@@ -19,7 +19,6 @@ RUN pip install snap-plugin-lib-py
 WORKDIR /home
 
 ADD hyppo_monitor /home/hyppo_monitor
-ADD hyppo_proto /home/hyppo_proto
 ADD setup.py /home
 
 #Install plugin dependencies
@@ -27,4 +26,6 @@ RUN pip install .
 
 # "-u" forces the binary I/O layers of stdout and stderr to be unbuffered and
 # is needed to avoid truncated output in Docker
-CMD ["python", "-u", "hyppo_monitor/monitor_main.py", "--format", "console"]
+ENV PYTHONUNBUFFERED="on"
+#CMD ["python", "-u", "hyppo_monitor/monitor_main.py", "--output-format", "console"]
+CMD ["cli"]

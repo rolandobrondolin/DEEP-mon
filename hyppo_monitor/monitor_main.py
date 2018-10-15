@@ -1,30 +1,47 @@
 # /usr/bin/env python2
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
+from __future__ import print_function, division
 from bpf_collector import BpfCollector
 from proc_topology import ProcTopology
 from sample_controller import SampleController
 from process_table import ProcTable
 from rapl import rapl
-import argparse
-import time
+import os
 import socket
 import snap_plugin.v1 as snap
+import time
+import yaml
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 class MonitorMain():
 
-    def __init__(self, parse_args):
+    def __init__(self, output_format, window_mode):
+        self.output_format = output_format
+        self.window_mode = window_mode
+        # TODO: Don't hardcode the frequency
+        self.frequency = 1
+
         self.topology = ProcTopology()
         self.collector = BpfCollector(self.topology, False)
         self.sample_controller = SampleController(self.topology.get_hyperthread_count())
-
         self.process_table = ProcTable()
-
-        self.collector.start_capture(self.sample_controller.get_timeslice())
-        self.collector.start_timed_capture(frequency=2)
         self.rapl_monitor = rapl.RaplMonitor(self.topology)
-        self.output_format = parse_args
+
+        self._start_bpf_program(window_mode)
+
+
+    def _start_bpf_program(self, window_mode):
+        if window_mode == 'dynamic':
+            self.collector.start_capture(self.sample_controller.get_timeslice())
+        elif window_mode == 'fixed':
+            self.collector.start_timed_capture(frequency=self.frequency)
+        else:
+            print("Please provide a window mode")
+
 
     def get_sample(self):
         sample = self.collector.get_new_sample(self.sample_controller, self.rapl_monitor)
@@ -38,7 +55,10 @@ class MonitorMain():
 
 
     def monitor_loop(self):
-        time_to_sleep = self.sample_controller.get_sleep_time()
+        if self.window_mode == 'dynamic':
+            time_to_sleep = self.sample_controller.get_sleep_time()
+        else:
+            time_to_sleep = 1 / self.frequency
 
         while True:
 
@@ -50,13 +70,13 @@ class MonitorMain():
             container_list = sample_array[1]
 
 
-            if output_format == "json":
+            if self.output_format == "json":
                 for key, value in container_list.iteritems():
                     print(value.to_json())
                 print
                 print(sample.get_log_json())
-            elif output_format == "console":
-                for key, value in container_list.iteritems():
+            elif self.output_format == "console":
+                for key, value in sorted(container_list.items()):
                     print(value)
                 print('│')
                 print('└─╼', end='\t')
@@ -64,11 +84,18 @@ class MonitorMain():
                 print()
                 print()
 
-            time_to_sleep = self.sample_controller.get_sleep_time() \
-                - (time.time() - start_time)
+            if self.window_mode == 'dynamic':
+                time_to_sleep = self.sample_controller.get_sleep_time() \
+                    - (time.time() - start_time)
+            else:
+                time_to_sleep = 1 / self.frequency - (time.time() - start_time)
 
     def snap_monitor_loop(self):
-        time_to_sleep = self.sample_controller.get_sleep_time()
+        if self.window_mode == 'dynamic':
+            time_to_sleep = self.sample_controller.get_sleep_time()
+        else:
+            time_to_sleep = 1 / self.frequency
+
         user_id = "not_registered"
         while True:
             metrics_to_stream = []
@@ -111,20 +138,10 @@ class MonitorMain():
             )
             metrics_to_stream.append(metric)
 
-            time_to_sleep = self.sample_controller.get_sleep_time() \
-                - (time.time() - start_time)
+            if self.window_mode == 'dynamic':
+                time_to_sleep = self.sample_controller.get_sleep_time() \
+                    - (time.time() - start_time)
+            else:
+                time_to_sleep = 1 / self.frequency
 
-            print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--format", type=str,
-                        help="Output format", required=False)
-    args = parser.parse_args()
-    output_format = args.format
-    monitor = MonitorMain(output_format)
-    if output_format in ["json", "console"]:
-        monitor.monitor_loop()
-    else:
-        monitor.snap_monitor_loop()
+            # print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))

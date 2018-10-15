@@ -1,1 +1,3 @@
-kube_conf: "~/.kube/config"
+kube_config:    "~/.kube/config"
+window_mode:    "fixed"
+output_format:  "console"

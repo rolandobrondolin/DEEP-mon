@@ -1,9 +1,17 @@
 #!/usr/bin/env python
+
+import os
+
 import sys
 from hyppo_monitor.monitor_main import MonitorMain
 import snap_plugin.v1 as snap
 import time
 import logging
+import yaml
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 LOG = logging.getLogger(__name__)
 
@@ -11,9 +19,21 @@ class HyppoStreamCollector(snap.StreamCollector):
 
     def __init__(self, name, description, **kwargs):
         super(HyppoStreamCollector, self).__init__(name, description, **kwargs)
-        self.hyppo_monitor = MonitorMain("")
-        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
         self.user_id = "not_registered"
+        # Load config file with default values
+        self.config = {}
+        try:
+            with open('hyppo_monitor/config.yaml', 'r') as config_file:
+                self.config = yaml.load(config_file)
+        except IOError:
+            LOG.error("Couldn't find a config file, current path is %s", os.getcwd())
+
+        self.hyppo_monitor = MonitorMain(self.config["output_format"], self.config["window_mode"])
+
+        if self.config["window_mode"] == "dynamic":
+            self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
+        else:
+            self.time_to_sleep = 1
 
     def get_config_policy(self):
         LOG.debug("GetConfigPolicy called on HyppoStreamCollector")
@@ -78,8 +98,11 @@ class HyppoStreamCollector(snap.StreamCollector):
         )
         metrics_to_stream.append(metric)
 
-        self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
-            - (time.time() - start_time)
+        if self.config["window_mode"] == "dynamic":
+            self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
+                - (time.time() - start_time)
+        else:
+            self.time_to_sleep = 1
 
         return metrics_to_stream
 

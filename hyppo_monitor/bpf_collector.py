@@ -1,3 +1,4 @@
+from __future__ import print_function
 from bcc import BPF, PerfType, PerfHWConfig, PerfSWConfig
 from proc_topology import BpfProcTopology
 from proc_topology import ProcTopology
@@ -222,7 +223,7 @@ class BpfCollector:
         self.selector = 0
         self.SELECTOR_DIM = 2
         self.timeslice = 1000000000
-
+        self.timed_capture = False
 
         #self.bpf_program["cpu_cycles"].open_perf_event(PerfType.HARDWARE, \
         #    PerfHWConfig.CPU_CYCLES)
@@ -236,12 +237,13 @@ class BpfCollector:
 
     def print_event(self, cpu, data, size):
         event = ct.cast(data, ct.POINTER(ErrorCode)).contents
-        print str(cpu) + " " + str(event.err)
+        print(str(cpu) + " " + str(event.err))
 
     def start_capture(self, timeslice):
         for key, value in self.topology.get_new_bpf_topology().iteritems():
             self.processors[ct.c_ulonglong(key)] = value
 
+        self.timed_capture = False
         self.timeslice = timeslice
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)     # current selector
         self.bpf_config[ct.c_int(1)] = ct.c_uint(self.selector)     # old selector
@@ -260,17 +262,33 @@ class BpfCollector:
         if frequency:
             sample_freq = frequency
             sample_period = 0
+            self.timeslice = int((1 / float(frequency)) * 1000000000)
         elif count:
             sample_freq = 0
             sample_period = count
+            self.timeslice = int(sample_period * 1000000000)
         else:
             # If user didn't specify anything, use default 49Hz sampling
             sample_freq = 49
             sample_period = 0
+            self.timeslice = int((1 / float(frequency)) * 1000000000)
+
+        self.timed_capture = True
+
+        for key, value in self.topology.get_new_bpf_topology().iteritems():
+            self.processors[ct.c_ulonglong(key)] = value
+
+        self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)     # current selector
+        self.bpf_config[ct.c_int(1)] = ct.c_uint(self.selector)     # old selector
+        self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
+        self.bpf_config[ct.c_int(3)] = ct.c_uint(0)                 # switch count
+
 
         if self.debug == True:
             self.bpf_program["err"].open_perf_buffer(self.print_event, page_cnt=256)
 
+        self.bpf_program.attach_tracepoint(tp="sched:sched_switch", \
+            fn_name="trace_switch")
         self.bpf_program.attach_perf_event(ev_type=PerfType.SOFTWARE,
                 ev_config=PerfSWConfig.CPU_CLOCK, fn_name="timed_trace",
                 sample_period=sample_period, sample_freq=sample_freq)
@@ -281,9 +299,10 @@ class BpfCollector:
 
     def get_new_sample(self, sample_controller, rapl_monitor):
         sample = self._get_new_sample(rapl_monitor)
-        sample_controller.compute_sleep_time(sample.get_sched_switch_count())
-        self.timeslice = sample_controller.get_timeslice()
-        self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
+        if not self.timed_capture:
+            sample_controller.compute_sleep_time(sample.get_sched_switch_count())
+            self.timeslice = sample_controller.get_timeslice()
+            self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
 
         if self.debug == True:
             self.bpf_program.kprobe_poll()
@@ -296,13 +315,19 @@ class BpfCollector:
         sched_switch_count = self.bpf_config[ct.c_int(3)].value
         tsmax = 0
 
+        # Initialize the weighted cycles for each core to 0
         total_weighted_cycles = []
         for socket in self.topology.get_sockets():
             total_weighted_cycles.append(0)
 
+        # We use a binary selector so that while userspace is reading events
+        # using selector 0 we write events using selector 1 and vice versa.
+        # Here we initialize it to 0 and set the number of slots used for
+        # read/write equal to the number of sockets * the number of selectors
         read_selector = 0
         total_slots_length = len(self.topology.get_sockets())*self.SELECTOR_DIM
 
+        # Every time we get a new sample we want to switch the selector we are using
         if self.selector == 0:
             self.selector = 1
             read_selector = 0
@@ -310,17 +335,20 @@ class BpfCollector:
             self.selector = 0
             read_selector = 1
 
-        # get new sample from rapl right before changing selector
+        # Get new sample from rapl right before changing selector in eBPF
         rapl_measurement = rapl_monitor.get_rapl_measure()
 
         package_diff = rapl_measurement["package"]
         core_diff = rapl_measurement["core"]
         dram_diff = rapl_measurement["dram"]
 
+        # Propagate the update of the selector to the eBPF program
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)
 
         pid_dict = {}
 
+        # Set the maximum timestamp as the maximum sample timestamp among all
+        # running processes
         for key, data in self.pids.items():
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -328,6 +356,8 @@ class BpfCollector:
                 if data.ts[multisocket_selector] > tsmax:
                     tsmax = data.ts[multisocket_selector]
 
+        # Repeat the check of maximum timestamp using timestamps
+        # of the idle processes
         for key, data in self.idles.items():
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
@@ -335,7 +365,24 @@ class BpfCollector:
                 if data.ts[multisocket_selector] > tsmax:
                     tsmax = data.ts[multisocket_selector]
 
+        # Add the count of clock cycles for each active process to the total
+        # number of clock cycles of the socket
         for key, data in self.pids.items():
+            for multisocket_selector in \
+                range(read_selector, total_slots_length, self.SELECTOR_DIM):
+                # Compute the number of total weighted cycles per socket
+                cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
+
+                if data.ts[multisocket_selector] + self.timeslice > tsmax:
+                    total_weighted_cycles[cycles_index] = \
+                        total_weighted_cycles[cycles_index] \
+                        + data.weighted_cycles[multisocket_selector]
+                    total_execution_time = total_execution_time \
+                        + float(data.time_ns[multisocket_selector])/1000000
+
+        # Add the count of clock cycles for each idle process to the total
+        # number of clock cycles of the socket
+        for key, data in self.idles.items():
             for multisocket_selector in \
                 range(read_selector, total_slots_length, self.SELECTOR_DIM):
                 # Compute the number of total weighted cycles per socket
@@ -348,19 +395,7 @@ class BpfCollector:
                     total_execution_time = total_execution_time \
                         + float(data.time_ns[multisocket_selector])/1000000
 
-        for key, data in self.idles.items():
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # Compute the number of total weighted cycles per socket
-                cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
-                if data.ts[multisocket_selector] + self.timeslice > tsmax:
-                    total_weighted_cycles[cycles_index] = \
-                        total_weighted_cycles[cycles_index] \
-                        + data.weighted_cycles[multisocket_selector]
-
-                    total_execution_time = total_execution_time \
-                        + float(data.time_ns[multisocket_selector])/1000000
-
+        # Compute package/core/dram power in mW from RAPL samples
         package_power = [package_diff[skt].power_milliw()
                          for skt in self.topology.get_sockets()]
         core_power = [core_diff[skt].power_milliw()
