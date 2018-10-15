@@ -1,7 +1,8 @@
 # DEEP-mon (Hyppo monitor)
 
+## Deployment
 
-## Standalone local deployment (Textual output)
+### Standalone local deployment (Textual output)
 If you just want to try DEEP-mon locally, with few containers and a textual output in console, follow these steps.
 If you are looking for the Kubernetes deployment with Intel Snap, Grafana Integration and additional
 information about Kubernetes (pods, namespaces, etc.), look at [Kubernetes deployment](#kubernetes-deployment-integrated-with-grafana)
@@ -16,7 +17,7 @@ make build-standalone
 make run-standalone
 ```
 
-## Kubernetes deployment (Integrated with Grafana)
+### Kubernetes deployment (Integrated with Grafana)
 Deployment on Kubernetes is a little bit more involved. Containers images must be pulled
 from a registry in order to run on Kubernetes, we use the Gitlab Registry for that
 
@@ -44,6 +45,21 @@ that loads the DaemonSet from `hyppo-monitor-daemonset.yaml` running a monitor c
 If there is already a DaemonSet running you will see the message `daemonset "hyppo-monitor" unchanged`.
 In that case delete the DaemonSet with `make stop-kube` before starting it.
 
+## Configuration
+There are three parameters that can be configured in DEEP-mon:
+1. `kube-config`: specify the path of Kubernetes configuration file
+2. `window-mode`: select between `fixed` window (information is collected from eBPF
+at fixed time intervals) and `dynamic` (window length is automatically adjusted
+based on average tasks duration)
+3. `output-format`: select between `json`, `console` (pretty printed on terminal)
+or `snap` (for Snap deployments)
+
+Parameters can be set in two different ways. In both deployment modes you can
+use the file `hyppo_monitor/config.yaml` to set them. If you are doing a
+standalone deployment you can pass the parameters as flags to `cli.py`. Parameters
+that are not passed as flags will get their default value from the config file.
+Have a look to `CMD` in `Dockerfile.standalone` for an example. Run `cli.py -h` to
+get a list of all flags.
 
 ## Troubleshooting
 #### Kubernetes is not able to download the images
