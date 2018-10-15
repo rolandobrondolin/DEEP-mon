@@ -1,3 +1,3 @@
 kube_config:    "~/.kube/config"
 window_mode:    "fixed"
-output_format:  "console"
+output_format:  "snap"
