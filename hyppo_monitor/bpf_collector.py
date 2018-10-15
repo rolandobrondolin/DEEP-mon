@@ -223,6 +223,7 @@ class BpfCollector:
         self.selector = 0
         self.SELECTOR_DIM = 2
         self.timeslice = 1000000000
+        self.timed_capture = False
 
         #self.bpf_program["cpu_cycles"].open_perf_event(PerfType.HARDWARE, \
         #    PerfHWConfig.CPU_CYCLES)
@@ -242,6 +243,7 @@ class BpfCollector:
         for key, value in self.topology.get_new_bpf_topology().iteritems():
             self.processors[ct.c_ulonglong(key)] = value
 
+        self.timed_capture = False
         self.timeslice = timeslice
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)     # current selector
         self.bpf_config[ct.c_int(1)] = ct.c_uint(self.selector)     # old selector
@@ -271,6 +273,8 @@ class BpfCollector:
             sample_period = 0
             self.timeslice = int((1 / float(frequency)) * 1000000000)
 
+        self.timed_capture = True
+
         for key, value in self.topology.get_new_bpf_topology().iteritems():
             self.processors[ct.c_ulonglong(key)] = value
 
@@ -295,9 +299,10 @@ class BpfCollector:
 
     def get_new_sample(self, sample_controller, rapl_monitor):
         sample = self._get_new_sample(rapl_monitor)
-        sample_controller.compute_sleep_time(sample.get_sched_switch_count())
-        self.timeslice = sample_controller.get_timeslice()
-        self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
+        if not self.timed_capture:
+            sample_controller.compute_sleep_time(sample.get_sched_switch_count())
+            self.timeslice = sample_controller.get_timeslice()
+            self.bpf_config[ct.c_int(2)] = ct.c_uint(self.timeslice)    # timeslice
 
         if self.debug == True:
             self.bpf_program.kprobe_poll()

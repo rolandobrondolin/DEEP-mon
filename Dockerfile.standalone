@@ -28,4 +28,4 @@ RUN pip install .
 # is needed to avoid truncated output in Docker
 ENV PYTHONUNBUFFERED="on"
 #CMD ["python", "-u", "hyppo_monitor/monitor_main.py", "--output-format", "console"]
-CMD ["cli", "--output-format", "console"]
+CMD ["cli"]

@@ -84,11 +84,11 @@ class MonitorMain():
                 print()
                 print()
 
-        if self.window_mode == 'dynamic':
-            time_to_sleep = self.sample_controller.get_sleep_time() \
-                - (time.time() - start_time)
-        else:
-            time_to_sleep = 1 / self.frequency
+            if self.window_mode == 'dynamic':
+                time_to_sleep = self.sample_controller.get_sleep_time() \
+                    - (time.time() - start_time)
+            else:
+                time_to_sleep = 1 / self.frequency - (time.time() - start_time)
 
     def snap_monitor_loop(self):
         if self.window_mode == 'dynamic':
