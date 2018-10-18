@@ -108,7 +108,11 @@ BPF_HASH(idles, u64, struct pid_status);
  * 2: timeslice (dynamic window duration)
  * 3: switch count (global context switch counter). Used to compute the window size
  */
-BPF_HASH(conf, int, unsigned int);
+#define BPF_SELECTOR_INDEX 0
+#define BPF_SELECTOR_INDEX_OLD 1
+#define BPF_TIMESLICE 2
+#define BPF_SWITCH_COUNT 3
+BPF_ARRAY(conf, u32, 4);
 
 /*
  * timestamp array to store the last timestamp of a given time slot
@@ -127,6 +131,16 @@ BPF_ARRAY(global_timestamps, u64, SELECTOR_DIM);
 
 #define HAPPY_FACTOR 11/20
 #define STD_FACTOR 1
+
+/*
+ * Errors code for userspace debug
+ */
+#define BPF_PROCEED_WITH_DEBUG_MODE -1
+#define BPF_SELECTOR_NOT_IN_PLACE -2
+#define OLD_BPF_SELECTOR_NOT_IN_PLACE -3
+#define TIMESTEP_NOT_IN_PLACE -4
+#define CORRUPTED_TOPOLOGY_MAP -5
+#define WRONG_SIBLING_TOPOLOGY_MAP -6
 
 
 static void send_error(struct sched_switch_args *ctx, int err_code) {
@@ -156,7 +170,7 @@ static inline int update_cycles_count(void *ctx,
     struct proc_topology topology_info;
     ret = bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
     if(ret!= 0 || topology_info.ht_id > NUM_CPUS) {
-            send_error(ctx, -4);
+            send_error(ctx, CORRUPTED_TOPOLOGY_MAP);
             return 0;
     }
 
@@ -181,7 +195,7 @@ static inline int update_cycles_count(void *ctx,
 
     if(ret != 0) {
         // Wrong info on topology, do nothing
-        send_error(ctx, 3);
+        send_error(ctx, WRONG_SIBLING_TOPOLOGY_MAP);
         return 0;
     }
 
@@ -281,10 +295,10 @@ static inline int update_cycles_count(void *ctx,
 int trace_switch(struct sched_switch_args *ctx) {
 
         // Keys for the conf hash
-        int selector_key = 0;
-        int old_selector_key = 1;
-        int step_key = 2;
-        int switch_count_key = 3;
+        int selector_key = BPF_SELECTOR_INDEX;
+        int old_selector_key = BPF_SELECTOR_INDEX_OLD;
+        int step_key = BPF_TIMESLICE;
+        int switch_count_key = BPF_SWITCH_COUNT;
 
         // Slot iterator for the selector
         int array_index = 0;
@@ -295,7 +309,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&selector_key));
         // If selector is not in place correctly, signal debug error and stop tracing routine
         if (ret!= 0 || bpf_selector > 1) {
-                send_error(ctx, -1);
+                send_error(ctx, BPF_SELECTOR_NOT_IN_PLACE);
                 return 0;
         }
 
@@ -313,7 +327,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         ret = 0;
         ret = bpf_probe_read(&old_bpf_selector, sizeof(old_bpf_selector), conf.lookup(&old_selector_key));
         if (ret!= 0 || old_bpf_selector > 1) {
-                send_error(ctx, -2);
+                send_error(ctx, OLD_BPF_SELECTOR_NOT_IN_PLACE);
                 return 0;
         } else if(old_bpf_selector != bpf_selector) {
                 switch_count = 1;
@@ -336,7 +350,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         unsigned int step = 1000000000;
         ret = bpf_probe_read(&step, sizeof(step), conf.lookup(&step_key));
         if (ret!= 0 || step < STEP_MIN || step > STEP_MAX) {
-                send_error(ctx, -3);
+                send_error(ctx, TIMESTEP_NOT_IN_PLACE);
                 return 0;
         }
 
@@ -359,7 +373,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         struct proc_topology topology_info;
         ret = bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
         if(ret!= 0 || topology_info.ht_id > NUM_CPUS) {
-                send_error(ctx, -4);
+                send_error(ctx, CORRUPTED_TOPOLOGY_MAP);
                 return 0;
         }
 
@@ -435,10 +449,10 @@ int trace_exit(struct sched_process_exit_args *ctx) {
 int timed_trace(struct bpf_perf_event_data *perf_ctx) {
 
         // Keys for the conf hash
-        int selector_key = 0;
-        int old_selector_key = 1;
-        int step_key = 2;
-        int switch_count_key = 3;
+        int selector_key = BPF_SELECTOR_INDEX;
+        int old_selector_key = BPF_SELECTOR_INDEX_OLD;
+        int step_key = BPF_TIMESLICE;
+        int switch_count_key = BPF_SWITCH_COUNT;
 
         // Slot iterator for the selector
         int array_index = 0;
@@ -449,7 +463,7 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&selector_key));
         // If selector is not in place correctly, signal debug error and stop tracing routine
         if (ret!= 0 || bpf_selector > 1) {
-                send_perf_error(perf_ctx, -1);
+                send_perf_error(perf_ctx, BPF_SELECTOR_NOT_IN_PLACE);
                 return 0;
         }
 
@@ -468,7 +482,7 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         ret = 0;
         ret = bpf_probe_read(&old_bpf_selector, sizeof(old_bpf_selector), conf.lookup(&old_selector_key));
         if (ret!= 0 || old_bpf_selector > 1) {
-                send_perf_error(perf_ctx, -2);
+                send_perf_error(perf_ctx, OLD_BPF_SELECTOR_NOT_IN_PLACE);
                 return 0;
         } else if(old_bpf_selector != bpf_selector) {
                 switch_count = 1;
@@ -491,7 +505,7 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         unsigned int step = 1000000000;
         ret = bpf_probe_read(&step, sizeof(step), conf.lookup(&step_key));
         if (ret!= 0 || step < STEP_MIN || step > STEP_MAX) {
-                send_perf_error(perf_ctx, -3);
+                send_perf_error(perf_ctx, TIMESTEP_NOT_IN_PLACE);
                 return 0;
         }
 
@@ -514,7 +528,7 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         struct proc_topology topology_info;
         ret = bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
         if(ret!= 0 || topology_info.ht_id > NUM_CPUS) {
-                send_perf_error(perf_ctx, -4);
+                send_perf_error(perf_ctx, CORRUPTED_TOPOLOGY_MAP);
                 return 0;
         }
 
@@ -528,6 +542,8 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         processors.update(&processor_id, &topology_info);
 
         global_timestamps.update(&bpf_selector, &ts);
+
+        send_perf_error(perf_ctx, BPF_PROCEED_WITH_DEBUG_MODE);
 
         return 0;
 }
