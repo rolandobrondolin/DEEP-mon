@@ -140,21 +140,11 @@ static void send_perf_error(struct bpf_perf_event_data *ctx, int err_code) {
 }
 
 static inline int update_cycles_count(void *ctx,
-        int old_pid, int bpf_selector, int step) {
+        u32 old_pid, u32 bpf_selector, u32 step, u64 processor_id,
+        u64 thread_cycles_sample, u64 core_cycles_sample,
+        u64 instruction_retired_thread, u64 ts) {
 
     int ret = 0;
-
-    /**
-     * Get the id of the processor where the sched_switch happened.
-     * Collect cycles and IR samples from perf arrays.
-     * Save the timestamp and store the exiting pid
-     */
-    u64 processor_id = bpf_get_smp_processor_id();
-    u64 thread_cycles_sample = cycles_thread.perf_read(processor_id);
-    u64 core_cycles_sample = cycles_core.perf_read(processor_id);
-    u64 instruction_retired_thread = instr_thread.perf_read(processor_id);
-    u64 ts = bpf_ktime_get_ns();
-    /*int old_pid = ctx->prev_pid;*/
 
     // Fetch more data about processor where the sched_switch happened
     struct proc_topology topology_info;
@@ -208,7 +198,7 @@ static inline int update_cycles_count(void *ctx,
      */
     u64 last_ts_pid_in = 0;
     //trick the compiler with loop unrolling
-#pragma clang loop unroll(full)
+    #pragma clang loop unroll(full)
     for(int array_index = 0; array_index<NUM_SLOTS; array_index++) {
             if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
                     last_ts_pid_in = status_old.ts[array_index];
@@ -253,7 +243,7 @@ static inline int update_cycles_count(void *ctx,
 
     //trick the compiler with loop unrolling
     // update measurements for our pid
-#pragma clang loop unroll(full)
+    #pragma clang loop unroll(full)
     for(int array_index = 0; array_index<NUM_SLOTS; array_index++) {
             if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
                     //discard sample if cycles counter did overflow
@@ -356,7 +346,7 @@ int trace_switch(struct sched_switch_args *ctx) {
         u64 ts = bpf_ktime_get_ns();
         int current_pid = ctx->prev_pid;
 
-        update_cycles_count(ctx, current_pid, bpf_selector, step);
+        update_cycles_count(ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, ts);
 
         // Fetch more data about processor where the sched_switch happened
         ret = 0;
@@ -379,7 +369,6 @@ int trace_switch(struct sched_switch_args *ctx) {
         }
         //If no status for PID, then create one, otherwise update selector
         if(ret) {
-                //send_error(ctx, -1 * new_pid);
                 bpf_probe_read(&(status_new.comm), sizeof(status_new.comm), ctx->next_comm);
                 #pragma clang loop unroll(full)
                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
@@ -455,8 +444,16 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
                 return 0;
         }
 
+
+        // Retrieve general switch count
+        unsigned int switch_count = 0;
+        ret = 0;
+        ret = bpf_probe_read(&switch_count, sizeof(switch_count), conf.lookup(&switch_count_key));
+
         /**
-         * Retrieve old selector 
+         * Retrieve old selector to update switch count correctly
+         * If the current selector is still active increase the switch count
+         * otherwise reset the count and update the current selector
          */
         unsigned int old_bpf_selector = 0;
         ret = 0;
@@ -464,7 +461,13 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         if (ret!= 0 || old_bpf_selector > 1) {
                 send_perf_error(perf_ctx, -2);
                 return 0;
+        } else if(old_bpf_selector != bpf_selector) {
+                switch_count = 1;
+                conf.update(&old_selector_key, &bpf_selector);
+        } else {
+                switch_count++;
         }
+        conf.update(&switch_count_key, &switch_count);
 
         /**
          * Retrieve sampling step (dynamic window)
@@ -485,7 +488,35 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
 
         u32 current_pid = bpf_get_current_pid_tgid();
 
-        update_cycles_count(perf_ctx, current_pid, bpf_selector, step);
+        /* Read the values of the performance counters to update the data
+         * inside our hashmap
+         */
+        u64 processor_id = bpf_get_smp_processor_id();
+        u64 thread_cycles_sample = cycles_thread.perf_read(processor_id);
+        u64 core_cycles_sample = cycles_core.perf_read(processor_id);
+        u64 instruction_retired_thread = instr_thread.perf_read(processor_id);
+        u64 ts = bpf_ktime_get_ns();
+
+        update_cycles_count(perf_ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, ts);
+
+
+        // Fetch more data about processor we are currently dealing with
+        ret = 0;
+        struct proc_topology topology_info;
+        ret = bpf_probe_read(&topology_info, sizeof(topology_info), processors.lookup(&processor_id));
+        if(ret!= 0 || topology_info.ht_id > NUM_CPUS) {
+                send_perf_error(perf_ctx, -4);
+                return 0;
+        }
+
+        //update topology info since we are forcing the update with a timer
+        topology_info.running_pid = current_pid;
+        topology_info.cycles_thread = thread_cycles_sample;
+        topology_info.cycles_core_delta_sibling = 0;
+        topology_info.cycles_core = core_cycles_sample;
+        topology_info.instruction_thread = instruction_retired_thread;
+        topology_info.ts = ts;
+        processors.update(&processor_id, &topology_info);
 
         return 0;
 }
