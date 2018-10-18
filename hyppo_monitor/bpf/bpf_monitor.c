@@ -110,6 +110,12 @@ BPF_HASH(idles, u64, struct pid_status);
  */
 BPF_HASH(conf, int, unsigned int);
 
+/*
+ * timestamp array to store the last timestamp of a given time slot
+ */
+BPF_ARRAY(global_timestamps, u64, SELECTOR_DIM);
+
+
 /**
  * STEP_MIN and STEP_MAX are the lower and upper bound for the duration
  * of the dynamic window (interval between two reads from user space)
@@ -393,6 +399,9 @@ int trace_switch(struct sched_switch_args *ctx) {
         topology_info.instruction_thread = instruction_retired_thread;
         topology_info.ts = ts;
         processors.update(&processor_id, &topology_info);
+
+        global_timestamps.update(&bpf_selector, &ts);
+
         return 0;
 
 }
@@ -517,6 +526,8 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         topology_info.instruction_thread = instruction_retired_thread;
         topology_info.ts = ts;
         processors.update(&processor_id, &topology_info);
+
+        global_timestamps.update(&bpf_selector, &ts);
 
         return 0;
 }

@@ -220,6 +220,7 @@ class BpfCollector:
         self.pids = self.bpf_program.get_table("pids")
         self.idles = self.bpf_program.get_table("idles")
         self.bpf_config = self.bpf_program.get_table("conf")
+        self.bpf_global_timestamps = self.bpf_program.get_table("global_timestamps")
         self.selector = 0
         self.SELECTOR_DIM = 2
         self.timeslice = 1000000000
@@ -347,23 +348,7 @@ class BpfCollector:
 
         pid_dict = {}
 
-        # Set the maximum timestamp as the maximum sample timestamp among all
-        # running processes
-        for key, data in self.pids.items():
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # search max timestamp of the sample
-                if data.ts[multisocket_selector] > tsmax:
-                    tsmax = data.ts[multisocket_selector]
-
-        # Repeat the check of maximum timestamp using timestamps
-        # of the idle processes
-        for key, data in self.idles.items():
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # search max timestamp of the sample
-                if data.ts[multisocket_selector] > tsmax:
-                    tsmax = data.ts[multisocket_selector]
+        tsmax = self.bpf_global_timestamps[ct.c_int(read_selector)].value
 
         # Add the count of clock cycles for each active process to the total
         # number of clock cycles of the socket
