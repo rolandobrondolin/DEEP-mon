@@ -102,7 +102,7 @@ class HyppoStreamCollector(snap.StreamCollector):
             self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
                 - (time.time() - start_time)
         else:
-            self.time_to_sleep = 1
+            self.time_to_sleep = 1 - (time.time() - start_time)
 
         return metrics_to_stream
 

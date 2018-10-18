@@ -62,7 +62,8 @@ class MonitorMain():
 
         while True:
 
-            time.sleep(time_to_sleep)
+            if time_to_sleep > 0:
+                time.sleep(time_to_sleep)
             start_time = time.time()
 
             sample_array = self.get_sample()
