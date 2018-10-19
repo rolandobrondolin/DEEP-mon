@@ -7,7 +7,6 @@ class ProcTable:
 
     def __init__(self):
         self.proc_table = {}
-        self.PROC_FOLDER_PATH="/proc"
 
     def add_process(self, proc_info):
         self.proc_table[proc_info.get_pid()] = proc_info
