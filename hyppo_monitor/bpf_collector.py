@@ -198,6 +198,14 @@ class BpfSample:
 class ErrorCode(ct.Structure):
     _fields_ = [("err", ct.c_int)]
 
+class BPFErrors:
+    error_dict = {-1: "BPF_PROCEED_WITH_DEBUG_MODE", \
+        -2: "BPF_SELECTOR_NOT_IN_PLACE", \
+        -3: "OLD_BPF_SELECTOR_NOT_IN_PLACE", \
+        -4: "TIMESTEP_NOT_IN_PLACE", \
+        -5: "CORRUPTED_TOPOLOGY_MAP", \
+        -6: "WRONG_SIBLING_TOPOLOGY_MAP"}
+
 
 class BpfCollector:
 
@@ -220,6 +228,7 @@ class BpfCollector:
         self.pids = self.bpf_program.get_table("pids")
         self.idles = self.bpf_program.get_table("idles")
         self.bpf_config = self.bpf_program.get_table("conf")
+        self.bpf_global_timestamps = self.bpf_program.get_table("global_timestamps")
         self.selector = 0
         self.SELECTOR_DIM = 2
         self.timeslice = 1000000000
@@ -235,9 +244,16 @@ class BpfCollector:
         self.bpf_program["cycles_thread"].open_perf_event(4, int("53003c",16))
         self.bpf_program["instr_thread"].open_perf_event(4, int("5300c0",16))
 
+
     def print_event(self, cpu, data, size):
         event = ct.cast(data, ct.POINTER(ErrorCode)).contents
-        print(str(cpu) + " " + str(event.err))
+        if event.err >= 0:
+            print("core: " + str(cpu) + " topology counters overflow or initialized with pid: " + str(event.err))
+        elif event.err < -1:
+            # exclude the BPF_PROCEED_WITH_DEBUG_MODE event, since it is used
+            # just to advance computation for the timed capture
+            print("core: " + str(cpu) + " " + str(BPFErrors.error_dict[event.err]))
+
 
     def start_capture(self, timeslice):
         for key, value in self.topology.get_new_bpf_topology().iteritems():
@@ -347,23 +363,7 @@ class BpfCollector:
 
         pid_dict = {}
 
-        # Set the maximum timestamp as the maximum sample timestamp among all
-        # running processes
-        for key, data in self.pids.items():
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # search max timestamp of the sample
-                if data.ts[multisocket_selector] > tsmax:
-                    tsmax = data.ts[multisocket_selector]
-
-        # Repeat the check of maximum timestamp using timestamps
-        # of the idle processes
-        for key, data in self.idles.items():
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # search max timestamp of the sample
-                if data.ts[multisocket_selector] > tsmax:
-                    tsmax = data.ts[multisocket_selector]
+        tsmax = self.bpf_global_timestamps[ct.c_int(read_selector)].value
 
         # Add the count of clock cycles for each active process to the total
         # number of clock cycles of the socket

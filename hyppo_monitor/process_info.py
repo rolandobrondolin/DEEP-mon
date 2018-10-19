@@ -169,23 +169,6 @@ class ProcessInfo:
     def to_snap(self, request_time, user_id, hostname):
         metrics_to_be_returned = []
 
-        # metric = snap.Metric(
-        #     namespace=[
-        #         snap.NamespaceElement(value="hyppo"),
-        #         snap.NamespaceElement(value="hyppo-monitor"),
-        #         snap.NamespaceElement(value=user_id),
-        #         snap.NamespaceElement(value=hostname),
-        #         snap.NamespaceElement(value="thread"),
-        #         snap.NamespaceElement(value=str(self.pid)),
-        #         snap.NamespaceElement(value="pid")
-        #     ],
-        #     version=1,
-        #     description="Weighted cycles",
-        #     data=self.get_aggregated_weighted_cycles(),
-        #     timestamp=request_time
-        # )
-        # metrics_to_be_returned.append(metric)
-
         metric = snap.Metric(
             namespace=[
                 snap.NamespaceElement(value="hyppo"),

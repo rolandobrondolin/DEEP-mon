@@ -7,11 +7,6 @@
   "max-failures": 10,
   "workflow": {
     "collect": {
-      "config": {
-        "hyppo/hyppo-monitor": {
-          "customer_id": "not_registered"
-        }
-      },
       "metrics": {
         "/hyppo/hyppo-container-namer/container-name/*/*/*/*/*/container_id": {}
       },

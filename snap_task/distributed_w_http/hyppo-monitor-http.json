@@ -6,11 +6,6 @@
   "max-failures": 10,
   "workflow": {
     "collect": {
-      "config": {
-        "hyppo/hyppo_monitor": {
-          "user_id": "not_registered"
-        }
-      },
       "metrics": {
         "/hyppo/hyppo-monitor/*/*/ts": {},
         "/hyppo/hyppo-monitor/*/*/thread/*/*/cpu": {},
