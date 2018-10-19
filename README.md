@@ -36,7 +36,7 @@ You should find at least an image named `projecthyppo/monitor` and check that a 
 has been created by clicking on the image name. Sometimes it might happen that during the push of
 the images the image is created but not the tag, leading to issues when you try to pull the image.
 
-#### Build DEEP-mon
+#### Run DEEP-mon
 To run DEEP-mon on Kubernetes use the command
 ```
 make run-kube
