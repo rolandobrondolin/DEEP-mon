@@ -100,6 +100,8 @@ class ProcTable:
                 if value.container_id not in container_dict:
                     container_dict[value.container_id] = ContainerInfo(\
                         value.container_id)
+                container_dict[value.container_id].add_cycles(\
+                    value.get_aggregated_cycles())
                 container_dict[value.container_id].add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
                 container_dict[value.container_id].add_instructions(\

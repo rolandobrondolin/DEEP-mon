@@ -422,6 +422,7 @@ class BpfCollector:
                     socket_info = SocketProcessItem()
                     socket_info.set_weighted_cycles(\
                         data.weighted_cycles[multisocket_selector])
+                    socket_info.set_cycles(data.cycles[multisocket_selector])
                     socket_info.set_time_ns(data.time_ns[multisocket_selector])
                     socket_info.set_instruction_retired(\
                         data.instruction_retired[multisocket_selector])
@@ -452,6 +453,7 @@ class BpfCollector:
                     socket_info = SocketProcessItem()
                     socket_info.set_weighted_cycles(\
                         data.weighted_cycles[multisocket_selector])
+                    socket_info.set_cycles(data.cycles[multisocket_selector])
                     socket_info.set_instruction_retired(\
                         data.instruction_retired[multisocket_selector])
                     socket_info.set_time_ns(data.time_ns[multisocket_selector])

@@ -26,6 +26,7 @@
 struct pid_status {
         int pid;                            /**< Process ID */
         char comm[TASK_COMM_LEN];                      /**< Process name */
+        u64 cycles[NUM_SLOTS];
         u64 weighted_cycles[NUM_SLOTS];     /**< Number of weighted cycles executed by the process */
         u64 instruction_retired[NUM_SLOTS]; /**< Number of instructions executed by the process */
         u64 time_ns[NUM_SLOTS];             /**< Execution time of the process (in ns) */
@@ -236,6 +237,7 @@ static inline int update_cycles_count(void *ctx,
             #pragma clang loop unroll(full)
             for(int array_index = 0; array_index<NUM_SLOTS; array_index++) {
                     if(array_index % SELECTOR_DIM == bpf_selector) {
+                            status_old.cycles[array_index] = 0;
                             status_old.weighted_cycles[array_index] = 0;
                             status_old.instruction_retired[array_index] = 0;
                             status_old.time_ns[array_index] = 0;
@@ -272,6 +274,7 @@ static inline int update_cycles_count(void *ctx,
                             u64 cycle_overlap = cycles_core_delta_sibling;
                             u64 cycle_non_overlap = cycle1 > cycles_core_delta_sibling ? cycle1 - cycles_core_delta_sibling : 0;
                             status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
+                            status_old.cycles[array_index] += cycle1;
                     } else {
                             send_error(ctx, old_pid);
                     }
@@ -393,6 +396,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                 #pragma clang loop unroll(full)
                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
                         status_new.ts[array_index] = ts;
+                        status_new.cycles[array_index] = 0;
                         status_new.weighted_cycles[array_index] = 0;
                         status_new.instruction_retired[array_index] = 0;
                         status_new.time_ns[array_index] = 0;
@@ -475,8 +479,6 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
 
         /**
          * Retrieve old selector to update switch count correctly
-         * If the current selector is still active increase the switch count
-         * otherwise reset the count and update the current selector
          */
         unsigned int old_bpf_selector = 0;
         ret = 0;
@@ -486,11 +488,9 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
                 return 0;
         } else if(old_bpf_selector != bpf_selector) {
                 switch_count = 1;
+                conf.update(&switch_count_key, &switch_count);
                 conf.update(&old_selector_key, &bpf_selector);
-        } else {
-                switch_count++;
         }
-        conf.update(&switch_count_key, &switch_count);
 
         /**
          * Retrieve sampling step (dynamic window)
