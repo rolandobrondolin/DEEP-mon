@@ -25,7 +25,7 @@
  */
 struct pid_status {
         int pid;                            /**< Process ID */
-        char comm[TASK_COMM_LEN];                      /**< Process name */
+        char comm[TASK_COMM_LEN];           /**< Process name */
         u64 cycles[NUM_SLOTS];
         u64 weighted_cycles[NUM_SLOTS];     /**< Number of weighted cycles executed by the process */
         u64 instruction_retired[NUM_SLOTS]; /**< Number of instructions executed by the process */

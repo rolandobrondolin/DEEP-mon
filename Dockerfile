@@ -46,4 +46,4 @@ RUN cp snap_task/distributed_w_http/hyppo-monitor-http.json /opt/snap/tasks
 
 RUN chmod 777 /opt/snap/plugins/*
 
-CMD ["snapteld", "--log-level", "1", "--plugin-trust", "0", "--config", "/home/snapteld.conf"]
+CMD ["snapteld", "--log-level", "2", "--plugin-trust", "0", "--config", "/home/snapteld.conf"]

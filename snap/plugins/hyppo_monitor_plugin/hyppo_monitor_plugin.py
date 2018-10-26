@@ -64,7 +64,7 @@ class HyppoStreamCollector(snap.StreamCollector):
         sample_array = self.hyppo_monitor.get_sample()
         sample = sample_array[0]
         container_list = sample_array[1]
-        proc_dict = sample_array[2]
+        # proc_dict = sample_array[2]
 
         #open hostname file
         hostFile = open("/etc/hosthostname","r")
