@@ -161,7 +161,7 @@ static void send_perf_error(struct bpf_perf_event_data *ctx, int err_code) {
 }
 
 static inline int update_cycles_count(void *ctx,
-        u32 old_pid, u32 bpf_selector, u32 step, u64 processor_id,
+        int old_pid, u32 bpf_selector, u32 step, u64 processor_id,
         u64 thread_cycles_sample, u64 core_cycles_sample,
         u64 instruction_retired_thread, u64 ts) {
 
@@ -187,6 +187,11 @@ static inline int update_cycles_count(void *ctx,
             ret = bpf_probe_read(&status_old, sizeof(status_old), idles.lookup(&(processor_id)));
     } else {
             ret = bpf_probe_read(&status_old, sizeof(status_old), pids.lookup(&(old_pid)));
+    }
+
+    if(ret != 0) {
+        // no data for this thread, for now do not account data
+        return 0;
     }
 
     // Retrieving information of the sibling processor
@@ -509,7 +514,7 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
                 return 0;
         }
 
-        u32 current_pid = bpf_get_current_pid_tgid();
+        int current_pid = bpf_get_current_pid_tgid();
 
         /* Read the values of the performance counters to update the data
          * inside our hashmap

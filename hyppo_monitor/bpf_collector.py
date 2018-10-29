@@ -305,6 +305,8 @@ class BpfCollector:
 
         self.bpf_program.attach_tracepoint(tp="sched:sched_switch", \
             fn_name="trace_switch")
+        self.bpf_program.attach_tracepoint(tp="sched:sched_process_exit", \
+            fn_name="trace_exit")
         self.bpf_program.attach_perf_event(ev_type=PerfType.SOFTWARE,
                 ev_config=PerfSWConfig.CPU_CLOCK, fn_name="timed_trace",
                 sample_period=sample_period, sample_freq=sample_freq)
@@ -436,7 +438,6 @@ class BpfCollector:
                 proc_info.set_power(self._get_pid_power(proc_info, \
                     total_weighted_cycles, core_power))
                 proc_info.compute_cpu_usage_millis(float(total_execution_time), multiprocessing.cpu_count())
-
 
         for key, data in self.idles.items():
 
