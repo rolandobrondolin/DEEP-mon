@@ -34,10 +34,14 @@ class ContainerNamer(snap.Collector):
         self.customer_id = ""
 
         try:
-            with open('hyppo_monitor/config.yaml', 'r') as config_file:
+            with open('/hyppo-config/config.yaml', 'r') as config_file:
                 self.config = yaml.load(config_file)
-        except IOError:
-            LOG.error("Couldn't find a config file, current path is %s", os.getcwd())
+        except Exception:
+            try:
+                with open('hyppo_monitor/config.yaml', 'r') as config_file:
+                    self.config = yaml.load(config_file)
+            except Exception:
+                LOG.error("Couldn't find a config file, current path is %s", os.getcwd())
 
         try:
             self.output_format = self.config["output_format"]
