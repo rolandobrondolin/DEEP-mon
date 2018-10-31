@@ -414,6 +414,7 @@ class BpfCollector:
 
             proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
+            proc_info.set_tgid(data.tgid)
             proc_info.set_comm(data.comm)
             add_proc = False
 
@@ -443,6 +444,7 @@ class BpfCollector:
 
             proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
+            proc_info.set_tgid(-1 * (1 + int(key.value)))
             proc_info.set_comm(data.comm)
             add_proc = False
 

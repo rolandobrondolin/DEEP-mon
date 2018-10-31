@@ -5,6 +5,7 @@ class BpfPidStatus(ct.Structure):
     TASK_COMM_LEN = 16
     socket_size = 0
     _fields_ = [("pid", ct.c_int),
+                ("tgid", ct.c_int),
                 ("comm", ct.c_char * TASK_COMM_LEN),
                 ("cycles", ct.c_ulonglong * 2 * socket_size),
                 ("weighted_cycles", ct.c_ulonglong * 2 * socket_size),
@@ -72,6 +73,7 @@ class ProcessInfo:
 
     def __init__(self, num_sockets):
         self.pid = -1
+        self.tgid = -1
         self.comm = ""
         self.power = 0.0
         self.cpu_usage = 0.0
@@ -84,6 +86,9 @@ class ProcessInfo:
 
     def set_pid(self, pid):
         self.pid = pid
+
+    def set_tgid(self, tgid):
+        self.tgid = tgid
 
     def set_comm(self, comm):
         self.comm = comm
@@ -121,6 +126,9 @@ class ProcessInfo:
 
     def get_pid(self):
         return self.pid
+
+    def get_tgid(self):
+        return self.tgid
 
     def get_comm(self):
         return self.comm

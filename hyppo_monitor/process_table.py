@@ -40,49 +40,52 @@ class ProcTable:
 
                 else:
                     # process is changed, replace entry and find cgroup_id
-                    value.set_cgroup_id(self.find_cgroup_id(key))
+                    value.set_cgroup_id(self.find_cgroup_id(key, value.tgid))
                     value.set_container_id(value.get_cgroup_id()[0:12])
                     self.proc_table[key] = value
             else:
                 # new process, add it and find cgroup_id
-                value.set_cgroup_id(self.find_cgroup_id(key))
+                value.set_cgroup_id(self.find_cgroup_id(key, value.tgid))
                 value.set_container_id(value.get_cgroup_id()[0:12])
                 self.proc_table[key] = value
 
-    def find_cgroup_id(self, pid):
+    def find_cgroup_id(self, pid, tgid):
         # exclude idle
         if pid < 0:
             return "----idle----"
-        #scan proc folder searching for the pid
-        for path in ['/host/proc', '/proc']:
-            try:
-                # Non-systemd Docker
-                with open(os.path.join(path, str(pid), 'cgroup'), 'rb') as f:
-                    for line in f:
-                        line_array = line.split("/")
-                        if len(line_array) > 1 and \
-                            len(line_array[len(line_array) -1]) == 65:
-                            return line_array[len(line_array) -1]
-            except IOError:
-                continue
 
-        for path in ['/host/proc', '/proc']:
-            try:
-                # systemd Docker
-                with open(os.path.join(path, str(pid), 'cgroup'), 'rb') as f:
-                    for line in f:
-                        line_array = line.split("/")
-                        if len(line_array) > 1 \
-                            and "docker-" in line_array[len(line_array) -1] \
-                            and ".scope" in line_array[len(line_array) -1]:
+        for id in [pid, tgid]:
 
-                            new_id = line_array[len(line_array) -1].replace("docker-", "")
-                            new_id = new_id.replace(".scope", "")
-                            if len(new_id) == 65:
-                                return new_id
+            #scan proc folder searching for the pid
+            for path in ['/host/proc', '/proc']:
+                try:
+                    # Non-systemd Docker
+                    with open(os.path.join(path, str(id), 'cgroup'), 'rb') as f:
+                        for line in f:
+                            line_array = line.split("/")
+                            if len(line_array) > 1 and \
+                                len(line_array[len(line_array) -1]) == 65:
+                                return line_array[len(line_array) -1]
+                except IOError:
+                    continue
 
-            except IOError: # proc has already terminated
-                continue
+            for path in ['/host/proc', '/proc']:
+                try:
+                    # systemd Docker
+                    with open(os.path.join(path, str(id), 'cgroup'), 'rb') as f:
+                        for line in f:
+                            line_array = line.split("/")
+                            if len(line_array) > 1 \
+                                and "docker-" in line_array[len(line_array) -1] \
+                                and ".scope" in line_array[len(line_array) -1]:
+
+                                new_id = line_array[len(line_array) -1].replace("docker-", "")
+                                new_id = new_id.replace(".scope", "")
+                                if len(new_id) == 65:
+                                    return new_id
+
+                except IOError: # proc has already terminated
+                    continue
         return "---others---"
 
     def get_proc_table(self):
