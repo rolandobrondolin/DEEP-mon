@@ -15,6 +15,7 @@
         "/hyppo/hyppo-monitor/*/*/thread/*/*/time_ns": {},
         "/hyppo/hyppo-monitor/*/*/container/*/cpu": {},
         "/hyppo/hyppo-monitor/*/*/container/*/cycles": {},
+        "/hyppo/hyppo-monitor/*/*/container/*/weighted_cycles": {},
         "/hyppo/hyppo-monitor/*/*/container/*/instructions": {},
         "/hyppo/hyppo-monitor/*/*/container/*/power": {},
         "/hyppo/hyppo-monitor/*/*/container/*/time_ns": {},

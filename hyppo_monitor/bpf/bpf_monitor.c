@@ -25,7 +25,9 @@
  */
 struct pid_status {
         int pid;                            /**< Process ID */
-        char comm[TASK_COMM_LEN];                      /**< Process name */
+        int tgid;
+        char comm[TASK_COMM_LEN];           /**< Process name */
+        u64 cycles[NUM_SLOTS];
         u64 weighted_cycles[NUM_SLOTS];     /**< Number of weighted cycles executed by the process */
         u64 instruction_retired[NUM_SLOTS]; /**< Number of instructions executed by the process */
         u64 time_ns[NUM_SLOTS];             /**< Execution time of the process (in ns) */
@@ -160,7 +162,7 @@ static void send_perf_error(struct bpf_perf_event_data *ctx, int err_code) {
 }
 
 static inline int update_cycles_count(void *ctx,
-        u32 old_pid, u32 bpf_selector, u32 step, u64 processor_id,
+        int old_pid, u32 bpf_selector, u32 step, u64 processor_id,
         u64 thread_cycles_sample, u64 core_cycles_sample,
         u64 instruction_retired_thread, u64 ts) {
 
@@ -186,6 +188,11 @@ static inline int update_cycles_count(void *ctx,
             ret = bpf_probe_read(&status_old, sizeof(status_old), idles.lookup(&(processor_id)));
     } else {
             ret = bpf_probe_read(&status_old, sizeof(status_old), pids.lookup(&(old_pid)));
+    }
+
+    if(ret != 0) {
+        // no data for this thread, for now do not account data
+        return 0;
     }
 
     // Retrieving information of the sibling processor
@@ -236,6 +243,7 @@ static inline int update_cycles_count(void *ctx,
             #pragma clang loop unroll(full)
             for(int array_index = 0; array_index<NUM_SLOTS; array_index++) {
                     if(array_index % SELECTOR_DIM == bpf_selector) {
+                            status_old.cycles[array_index] = 0;
                             status_old.weighted_cycles[array_index] = 0;
                             status_old.instruction_retired[array_index] = 0;
                             status_old.time_ns[array_index] = 0;
@@ -272,6 +280,7 @@ static inline int update_cycles_count(void *ctx,
                             u64 cycle_overlap = cycles_core_delta_sibling;
                             u64 cycle_non_overlap = cycle1 > cycles_core_delta_sibling ? cycle1 - cycles_core_delta_sibling : 0;
                             status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
+                            status_old.cycles[array_index] += cycle1;
                     } else {
                             send_error(ctx, old_pid);
                     }
@@ -283,8 +292,10 @@ static inline int update_cycles_count(void *ctx,
                     status_old.time_ns[array_index] += ts - old_time;
                     status_old.ts[array_index] = ts;
                     if(old_pid == 0) {
+                            status_old.tgid = bpf_get_current_pid_tgid() >> 32;
                             idles.update(&processor_id, &status_old);
                     } else {
+                            status_old.tgid = bpf_get_current_pid_tgid() >> 32;
                             pids.update(&old_pid, &status_old);
                     }
             }
@@ -366,7 +377,9 @@ int trace_switch(struct sched_switch_args *ctx) {
         u64 ts = bpf_ktime_get_ns();
         int current_pid = ctx->prev_pid;
 
-        update_cycles_count(ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, ts);
+        if (ret == 0) {
+                update_cycles_count(ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, ts);
+        }
 
         // Fetch more data about processor where the sched_switch happened
         ret = 0;
@@ -393,6 +406,7 @@ int trace_switch(struct sched_switch_args *ctx) {
                 #pragma clang loop unroll(full)
                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
                         status_new.ts[array_index] = ts;
+                        status_new.cycles[array_index] = 0;
                         status_new.weighted_cycles[array_index] = 0;
                         status_new.instruction_retired[array_index] = 0;
                         status_new.time_ns[array_index] = 0;
@@ -422,11 +436,114 @@ int trace_switch(struct sched_switch_args *ctx) {
 
 int trace_exit(struct sched_process_exit_args *ctx) {
 
+        // // Keys for the conf hash
+        // int selector_key = BPF_SELECTOR_INDEX;
+        // int old_selector_key = BPF_SELECTOR_INDEX_OLD;
+        // int step_key = BPF_TIMESLICE;
+        // int switch_count_key = BPF_SWITCH_COUNT;
+        //
+        //
+        // // Binary selector to avoid event overwriting
+        // unsigned int bpf_selector = 0;
+        // int ret = 0;
+        // ret = bpf_probe_read(&bpf_selector, sizeof(bpf_selector), conf.lookup(&selector_key));
+        // // If selector is not in place correctly, signal debug error and stop tracing routine
+        // if (ret!= 0 || bpf_selector > 1) {
+        //         //send_error(ctx, BPF_SELECTOR_NOT_IN_PLACE);
+        //         return 0;
+        // }
+        //
+        // unsigned int step = 1000000000;
+        // ret = bpf_probe_read(&step, sizeof(step), conf.lookup(&step_key));
+        // if (ret!= 0 || step < STEP_MIN || step > STEP_MAX) {
+        //         //send_error(ctx, TIMESTEP_NOT_IN_PLACE);
+        //         return 0;
+        // }
+
         char comm[16];
         bpf_probe_read(&(comm), sizeof(comm), ctx->comm);
         int pid = ctx->pid;
         u64 ts = bpf_ktime_get_ns();
         u64 processor_id = bpf_get_smp_processor_id();
+
+        //
+        // // if (ret==0) {
+        // //         u64 thread_cycles_sample = cycles_thread.perf_read(processor_id);
+        // //         u64 core_cycles_sample = cycles_core.perf_read(processor_id);
+        // //         u64 instruction_retired_thread = instr_thread.perf_read(processor_id);
+        // //         update_cycles_count(ctx, pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, ts);
+        // // }
+        //
+        // //account data to the father
+        // u64 tgid_pid = bpf_get_current_pid_tgid();
+        // int tgid = tgid_pid >> 32;
+        //
+        // struct pid_status tg_status;
+        // if(tgid == 0) {
+        //         ret = bpf_probe_read(&tg_status, sizeof(tg_status), idles.lookup(&(processor_id)));
+        // } else {
+        //         ret = bpf_probe_read(&tg_status, sizeof(tg_status), pids.lookup(&(tgid)));
+        // }
+        //
+        // if(ret == 0) {
+        //
+        //         //retrieve data about the exiting pid
+        //         struct pid_status status_old;
+        //         status_old.pid = -1;
+        //
+        //         /**
+        //          * Fetch the status of the exiting pid.
+        //          * If the pid is 0 then use the idles perf_hash
+        //          */
+        //         if(pid == 0) {
+        //                 ret = bpf_probe_read(&status_old, sizeof(status_old), idles.lookup(&(processor_id)));
+        //         } else {
+        //                 ret = bpf_probe_read(&status_old, sizeof(status_old), pids.lookup(&(pid)));
+        //         }
+        //
+        //         if(ret == 0) {
+        //
+        //                 // do the summation for all the sockets when the data
+        //                 // for a given socket are updated
+        //
+        //                 #pragma clang loop unroll(full)
+        //                 for(int array_index = 0; array_index<NUM_SLOTS; array_index++) {
+        //                         if(array_index % SELECTOR_DIM == bpf_selector) {
+        //                                 u64 last_ts_pid_in = status_old.ts[array_index];
+        //                                 u64 last_ts_tgid_in = tg_status.ts[array_index];
+        //
+        //                                 if(last_ts_tgid_in + step > ts) {
+        //                                         if(last_ts_pid_in + step > ts){
+        //                                                 tg_status.ts[array_index] = ts;
+        //                                                 tg_status.cycles[array_index] += status_old.cycles[array_index];
+        //                                                 tg_status.weighted_cycles[array_index] += status_old.weighted_cycles[array_index];
+        //                                                 tg_status.instruction_retired[array_index] += status_old.instruction_retired[array_index];
+        //                                                 tg_status.time_ns[array_index] += status_old.time_ns[array_index];
+        //                                                 tg_status.bpf_selector = bpf_selector;
+        //                                         }
+        //                                 } else {
+        //                                         if(last_ts_pid_in + step > ts){
+        //                                                 tg_status.ts[array_index] = ts;
+        //                                                 tg_status.cycles[array_index] = status_old.cycles[array_index];
+        //                                                 tg_status.weighted_cycles[array_index] = status_old.weighted_cycles[array_index];
+        //                                                 tg_status.instruction_retired[array_index] = status_old.instruction_retired[array_index];
+        //                                                 tg_status.time_ns[array_index] = status_old.time_ns[array_index];
+        //                                                 tg_status.bpf_selector = bpf_selector;
+        //                                         }
+        //                                 }
+        //                         }
+        //                 }
+        //
+        //                 if(tgid == 0) {
+        //                         idles.update(&processor_id, &tg_status);
+        //                 } else {
+        //                         pids.update(&tgid, &tg_status);
+        //                 }
+        //         }
+        // }
+
+        //send_error(ctx, tgid);
+        //send_error(ctx, pid);
 
         //remove the pid from the table if there
         pids.delete(&pid);
@@ -475,8 +592,6 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
 
         /**
          * Retrieve old selector to update switch count correctly
-         * If the current selector is still active increase the switch count
-         * otherwise reset the count and update the current selector
          */
         unsigned int old_bpf_selector = 0;
         ret = 0;
@@ -486,11 +601,9 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
                 return 0;
         } else if(old_bpf_selector != bpf_selector) {
                 switch_count = 1;
+                conf.update(&switch_count_key, &switch_count);
                 conf.update(&old_selector_key, &bpf_selector);
-        } else {
-                switch_count++;
         }
-        conf.update(&switch_count_key, &switch_count);
 
         /**
          * Retrieve sampling step (dynamic window)
@@ -509,7 +622,7 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
                 return 0;
         }
 
-        u32 current_pid = bpf_get_current_pid_tgid();
+        int current_pid = bpf_get_current_pid_tgid();
 
         /* Read the values of the performance counters to update the data
          * inside our hashmap
@@ -520,7 +633,9 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         u64 instruction_retired_thread = instr_thread.perf_read(processor_id);
         u64 ts = bpf_ktime_get_ns();
 
-        update_cycles_count(perf_ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, ts);
+        if (ret == 0) {
+                update_cycles_count(perf_ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, ts);
+        }
 
 
         // Fetch more data about processor we are currently dealing with

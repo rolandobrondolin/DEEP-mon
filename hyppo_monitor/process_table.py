@@ -7,7 +7,6 @@ class ProcTable:
 
     def __init__(self):
         self.proc_table = {}
-        self.PROC_FOLDER_PATH="/proc"
 
     def add_process(self, proc_info):
         self.proc_table[proc_info.get_pid()] = proc_info
@@ -41,49 +40,52 @@ class ProcTable:
 
                 else:
                     # process is changed, replace entry and find cgroup_id
-                    value.set_cgroup_id(self.find_cgroup_id(key))
+                    value.set_cgroup_id(self.find_cgroup_id(key, value.tgid))
                     value.set_container_id(value.get_cgroup_id()[0:12])
                     self.proc_table[key] = value
             else:
                 # new process, add it and find cgroup_id
-                value.set_cgroup_id(self.find_cgroup_id(key))
+                value.set_cgroup_id(self.find_cgroup_id(key, value.tgid))
                 value.set_container_id(value.get_cgroup_id()[0:12])
                 self.proc_table[key] = value
 
-    def find_cgroup_id(self, pid):
+    def find_cgroup_id(self, pid, tgid):
         # exclude idle
         if pid < 0:
             return "----idle----"
-        #scan proc folder searching for the pid
-        for path in ['/host/proc', '/proc']:
-            try:
-                # Non-systemd Docker
-                with open(os.path.join(path, str(pid), 'cgroup'), 'rb') as f:
-                    for line in f:
-                        line_array = line.split("/")
-                        if len(line_array) > 1 and \
-                            len(line_array[len(line_array) -1]) == 65:
-                            return line_array[len(line_array) -1]
-            except IOError:
-                continue
 
-        for path in ['/host/proc', '/proc']:
-            try:
-                # systemd Docker
-                with open(os.path.join(path, str(pid), 'cgroup'), 'rb') as f:
-                    for line in f:
-                        line_array = line.split("/")
-                        if len(line_array) > 1 \
-                            and "docker-" in line_array[len(line_array) -1] \
-                            and ".scope" in line_array[len(line_array) -1]:
+        for id in [pid, tgid]:
 
-                            new_id = line_array[len(line_array) -1].replace("docker-", "")
-                            new_id = new_id.replace(".scope", "")
-                            if len(new_id) == 65:
-                                return new_id
+            #scan proc folder searching for the pid
+            for path in ['/host/proc', '/proc']:
+                try:
+                    # Non-systemd Docker
+                    with open(os.path.join(path, str(id), 'cgroup'), 'rb') as f:
+                        for line in f:
+                            line_array = line.split("/")
+                            if len(line_array) > 1 and \
+                                len(line_array[len(line_array) -1]) == 65:
+                                return line_array[len(line_array) -1]
+                except IOError:
+                    continue
 
-            except IOError: # proc has already terminated
-                continue
+            for path in ['/host/proc', '/proc']:
+                try:
+                    # systemd Docker
+                    with open(os.path.join(path, str(id), 'cgroup'), 'rb') as f:
+                        for line in f:
+                            line_array = line.split("/")
+                            if len(line_array) > 1 \
+                                and "docker-" in line_array[len(line_array) -1] \
+                                and ".scope" in line_array[len(line_array) -1]:
+
+                                new_id = line_array[len(line_array) -1].replace("docker-", "")
+                                new_id = new_id.replace(".scope", "")
+                                if len(new_id) == 65:
+                                    return new_id
+
+                except IOError: # proc has already terminated
+                    continue
         return "---others---"
 
     def get_proc_table(self):
@@ -101,6 +103,8 @@ class ProcTable:
                 if value.container_id not in container_dict:
                     container_dict[value.container_id] = ContainerInfo(\
                         value.container_id)
+                container_dict[value.container_id].add_cycles(\
+                    value.get_aggregated_cycles())
                 container_dict[value.container_id].add_weighted_cycles(\
                     value.get_aggregated_weighted_cycles())
                 container_dict[value.container_id].add_instructions(\
@@ -114,26 +118,6 @@ class ProcTable:
                 container_dict[value.container_id].add_pid(value.get_pid())
                 container_dict[value.container_id].set_last_ts(\
                     value.get_last_ts())
-            # elif key > 0:
-            #     not_a_container.add_weighted_cycles(\
-            #         value.get_aggregated_weighted_cycles())
-            #     not_a_container.add_instructions(\
-            #         value.get_aggregated_instruction_retired())
-            #     not_a_container.add_time_ns(value.get_aggregated_time_ns())
-            #     not_a_container.add_power(value.get_power())
-            #     not_a_container.add_cpu_usage(value.get_cpu_usage())
-            #     not_a_container.add_pid(value.get_pid())
-            #     not_a_container.set_last_ts(value.get_last_ts())
-            # else:
-            #     idle.add_weighted_cycles(\
-            #         value.get_aggregated_weighted_cycles())
-            #     idle.add_instructions(\
-            #         value.get_aggregated_instruction_retired())
-            #     idle.add_time_ns(value.get_aggregated_time_ns())
-            #     idle.add_power(value.get_power())
-            #     idle.add_cpu_usage(value.get_cpu_usage())
-            #     idle.add_pid(value.get_pid())
-            #     idle.set_last_ts(value.get_last_ts())
 
 
         return container_dict

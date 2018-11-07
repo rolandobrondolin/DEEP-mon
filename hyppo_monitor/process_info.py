@@ -5,7 +5,9 @@ class BpfPidStatus(ct.Structure):
     TASK_COMM_LEN = 16
     socket_size = 0
     _fields_ = [("pid", ct.c_int),
+                ("tgid", ct.c_int),
                 ("comm", ct.c_char * TASK_COMM_LEN),
+                ("cycles", ct.c_ulonglong * 2 * socket_size),
                 ("weighted_cycles", ct.c_ulonglong * 2 * socket_size),
                 ("instruction_retired", ct.c_ulonglong * 2 * socket_size),
                 ("time_ns", ct.c_ulonglong * 2 * socket_size),
@@ -17,11 +19,15 @@ class BpfPidStatus(ct.Structure):
 
 class SocketProcessItem:
 
-    def __init__(self, weighted_cycles = 0, instruction_retired = 0, time_ns = 0, ts = 0):
+    def __init__(self, cycles = 0, weighted_cycles = 0, instruction_retired = 0, time_ns = 0, ts = 0):
         self.instruction_retired = instruction_retired
+        self.cycles = cycles
         self.weighted_cycles = weighted_cycles
         self.time_ns = time_ns
         self.ts = ts
+
+    def set_cycles(self, cycles):
+        self.cycles = cycles
 
     def set_weighted_cycles(self, weighted_cycles):
         self.weighted_cycles = weighted_cycles
@@ -34,6 +40,9 @@ class SocketProcessItem:
 
     def set_ts(self, ts):
         self.ts = ts
+
+    def get_cycles(self):
+        return self.cycles
 
     def get_weighted_cycles(self):
         return self.weighted_cycles
@@ -54,13 +63,17 @@ class SocketProcessItem:
         self.ts = 0
 
     def __str__(self):
-        return "ts: " + str(self.ts) + " w:" + str(self.weighted_cycles) \
-            + " i:" + str(self.instruction_retired) + " t:" + str(self.time_ns)
+        return "ts: " + str(self.ts) \
+            + " c:" + str(self.cycles) \
+            + " w:" + str(self.weighted_cycles) \
+            + " i:" + str(self.instruction_retired) \
+            + " t:" + str(self.time_ns)
 
 class ProcessInfo:
 
     def __init__(self, num_sockets):
         self.pid = -1
+        self.tgid = -1
         self.comm = ""
         self.power = 0.0
         self.cpu_usage = 0.0
@@ -73,6 +86,9 @@ class ProcessInfo:
 
     def set_pid(self, pid):
         self.pid = pid
+
+    def set_tgid(self, tgid):
+        self.tgid = tgid
 
     def set_comm(self, comm):
         self.comm = comm
@@ -111,6 +127,9 @@ class ProcessInfo:
     def get_pid(self):
         return self.pid
 
+    def get_tgid(self):
+        return self.tgid
+
     def get_comm(self):
         return self.comm
 
@@ -130,6 +149,12 @@ class ProcessInfo:
 
     def get_container_id(self):
         return self.container_id
+
+    def get_aggregated_cycles(self):
+        aggregated = 0
+        for item in self.socket_data:
+            aggregated = aggregated + item.get_cycles()
+        return aggregated
 
     def get_aggregated_weighted_cycles(self):
         aggregated = 0
@@ -250,11 +275,29 @@ class ProcessInfo:
                 snap.NamespaceElement(value="thread"),
                 snap.NamespaceElement(value=str(self.container_id)),
                 snap.NamespaceElement(value=str(self.pid)),
-                snap.NamespaceElement(value="cycles")
+                snap.NamespaceElement(value="weighted-cycles")
             ],
             version=1,
             description="weighted cycles",
             data=self.get_aggregated_weighted_cycles(),
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.container_id)),
+                snap.NamespaceElement(value=str(self.pid)),
+                snap.NamespaceElement(value="cycles")
+            ],
+            version=1,
+            description="cycles",
+            data=self.get_aggregated_cycles(),
             timestamp=request_time
         )
         metrics_to_be_returned.append(metric)

@@ -20,6 +20,7 @@ class ContainerInfo:
 
     def __init__(self, container_id):
         self.container_id = container_id
+        self.cycles = 0
         self.weighted_cycles = 0
         self.instruction_retired = 0
         self.time_ns = 0
@@ -30,6 +31,9 @@ class ContainerInfo:
 
     def add_weighted_cycles(self, new_cycles):
         self.weighted_cycles = self.weighted_cycles + new_cycles
+
+    def add_cycles(self, new_cycles):
+        self.cycles = self.cycles + new_cycles
 
     def add_time_ns(self, new_time_ns):
         self.time_ns = self.time_ns + new_time_ns
@@ -53,6 +57,9 @@ class ContainerInfo:
         if(self.timestamp < ts):
             self.timestamp = ts
 
+    def get_cycles(self):
+        return self.cycles
+
     def get_weighted_cycles(self):
         return self.weighted_cycles
 
@@ -73,6 +80,7 @@ class ContainerInfo:
 
     def to_dict(self):
         return {'container_id': self.container_id,
+                'cycles': self.cycles,
                 'weighted_cycles': self.weighted_cycles,
                 'time_ns': self.time_ns,
                 'power': self.power,
@@ -96,6 +104,16 @@ class ContainerInfo:
         return metric
 
     def _get_snap_cycles(self, request_time, snap_namespace):
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="Cycles",
+            data=self.cycles,
+            timestamp=request_time
+        )
+        return metric
+
+    def _get_snap_weighted_cycles(self, request_time, snap_namespace):
         metric = snap.Metric(
             namespace=snap_namespace,
             version=1,
@@ -149,17 +167,6 @@ class ContainerInfo:
     def to_snap(self, request_time, user_id, hostname):
         metrics_to_be_returned = []
 
-        # namespace=[
-        #     snap.NamespaceElement(value="hyppo"),
-        #     snap.NamespaceElement(value="hyppo-monitor"),
-        #     snap.NamespaceElement(value=user_id),
-        #     snap.NamespaceElement(value=hostname),
-        #     snap.NamespaceElement(value="container"),
-        #     snap.NamespaceElement(value=self.container_id),
-        #     snap.NamespaceElement(value="ID")
-        # ]
-        # metrics_to_be_returned.append(self._get_snap_container_id(request_time, namespace))
-
         namespace=[
             snap.NamespaceElement(value="hyppo"),
             snap.NamespaceElement(value="hyppo-monitor"),
@@ -170,6 +177,17 @@ class ContainerInfo:
             snap.NamespaceElement(value="cycles")
         ]
         metrics_to_be_returned.append(self._get_snap_cycles(request_time, namespace))
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=str(self.container_id)),
+            snap.NamespaceElement(value="weighted_cycles")
+        ]
+        metrics_to_be_returned.append(self._get_snap_weighted_cycles(request_time, namespace))
 
         namespace=[
             snap.NamespaceElement(value="hyppo"),
@@ -224,6 +242,8 @@ class ContainerInfo:
                 bcolors.BLUE + "ID: " + bcolors.ENDC
                     + self.container_id,
                 bcolors.BLUE + "CYCLES: " + bcolors.ENDC
+                    + str(self.cycles),
+                bcolors.BLUE + "W_CYCLES: " + bcolors.ENDC
                     + str(self.weighted_cycles),
                 bcolors.BLUE + "INSTR RET: " + bcolors.ENDC
                     + str(self.instruction_retired),

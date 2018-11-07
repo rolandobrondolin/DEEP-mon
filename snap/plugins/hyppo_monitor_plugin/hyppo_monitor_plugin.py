@@ -27,10 +27,14 @@ class HyppoStreamCollector(snap.StreamCollector):
         self.customer_id = ""
 
         try:
-            with open('hyppo_monitor/config.yaml', 'r') as config_file:
+            with open('/hyppo-config/config.yaml', 'r') as config_file:
                 self.config = yaml.load(config_file)
-        except IOError:
-            LOG.error("Couldn't find a config file, current path is %s", os.getcwd())
+        except Exception:
+            try:
+                with open('hyppo_monitor/config.yaml', 'r') as config_file:
+                    self.config = yaml.load(config_file)
+            except Exception:
+                LOG.error("Couldn't find a config file, current path is %s", os.getcwd())
 
         try:
             self.output_format = self.config["output_format"]
@@ -64,7 +68,7 @@ class HyppoStreamCollector(snap.StreamCollector):
         sample_array = self.hyppo_monitor.get_sample()
         sample = sample_array[0]
         container_list = sample_array[1]
-        proc_dict = sample_array[2]
+        # proc_dict = sample_array[2]
 
         #open hostname file
         hostFile = open("/etc/hosthostname","r")
@@ -238,7 +242,7 @@ class HyppoStreamCollector(snap.StreamCollector):
             metrics.append(metric)
         #container related metrics
         #skipping container id: for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
-        for key in ("cycles", "instructions", "time_ns", "power", "cpu"):
+        for key in ("cycles", "weighted_cycles", "instructions", "time_ns", "power", "cpu"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),

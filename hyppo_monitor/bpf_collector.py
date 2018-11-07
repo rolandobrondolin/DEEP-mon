@@ -305,6 +305,8 @@ class BpfCollector:
 
         self.bpf_program.attach_tracepoint(tp="sched:sched_switch", \
             fn_name="trace_switch")
+        self.bpf_program.attach_tracepoint(tp="sched:sched_process_exit", \
+            fn_name="trace_exit")
         self.bpf_program.attach_perf_event(ev_type=PerfType.SOFTWARE,
                 ev_config=PerfSWConfig.CPU_CLOCK, fn_name="timed_trace",
                 sample_period=sample_period, sample_freq=sample_freq)
@@ -412,6 +414,7 @@ class BpfCollector:
 
             proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
+            proc_info.set_tgid(data.tgid)
             proc_info.set_comm(data.comm)
             add_proc = False
 
@@ -422,6 +425,7 @@ class BpfCollector:
                     socket_info = SocketProcessItem()
                     socket_info.set_weighted_cycles(\
                         data.weighted_cycles[multisocket_selector])
+                    socket_info.set_cycles(data.cycles[multisocket_selector])
                     socket_info.set_time_ns(data.time_ns[multisocket_selector])
                     socket_info.set_instruction_retired(\
                         data.instruction_retired[multisocket_selector])
@@ -436,11 +440,11 @@ class BpfCollector:
                     total_weighted_cycles, core_power))
                 proc_info.compute_cpu_usage_millis(float(total_execution_time), multiprocessing.cpu_count())
 
-
         for key, data in self.idles.items():
 
             proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
+            proc_info.set_tgid(-1 * (1 + int(key.value)))
             proc_info.set_comm(data.comm)
             add_proc = False
 
@@ -452,6 +456,7 @@ class BpfCollector:
                     socket_info = SocketProcessItem()
                     socket_info.set_weighted_cycles(\
                         data.weighted_cycles[multisocket_selector])
+                    socket_info.set_cycles(data.cycles[multisocket_selector])
                     socket_info.set_instruction_retired(\
                         data.instruction_retired[multisocket_selector])
                     socket_info.set_time_ns(data.time_ns[multisocket_selector])

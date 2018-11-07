@@ -1,4 +1,4 @@
 kube_config:    "~/.kube/config"
 window_mode:    "fixed"
 output_format:  "console"
-customer_id:    "test"
+customer_id:    "not_registered"
