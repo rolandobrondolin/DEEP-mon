@@ -7,10 +7,12 @@ class BpfPidStatus(ct.Structure):
     _fields_ = [("pid", ct.c_int),
                 ("tgid", ct.c_int),
                 ("comm", ct.c_char * TASK_COMM_LEN),
-                ("cycles", ct.c_ulonglong * 2 * socket_size),
                 ("weighted_cycles", ct.c_ulonglong * 2 * socket_size),
-                ("instruction_retired", ct.c_ulonglong * 2 * socket_size),
-                ("time_ns", ct.c_ulonglong * 2 * socket_size),
+                ("cycles", ct.c_ulonglong * 2),
+                ("instruction_retired", ct.c_ulonglong * 2),
+                ("cache_misses", ct.c_ulonglong * 2),
+                ("cache_refs", ct.c_ulonglong * 2),
+                ("time_ns", ct.c_ulonglong * 2),
                 ("bpf_selector", ct.c_int),
                 ("ts", ct.c_ulonglong * 2 * socket_size)]
 
@@ -19,55 +21,29 @@ class BpfPidStatus(ct.Structure):
 
 class SocketProcessItem:
 
-    def __init__(self, cycles = 0, weighted_cycles = 0, instruction_retired = 0, time_ns = 0, ts = 0):
-        self.instruction_retired = instruction_retired
-        self.cycles = cycles
+    def __init__(self, weighted_cycles = 0, ts = 0):
         self.weighted_cycles = weighted_cycles
-        self.time_ns = time_ns
         self.ts = ts
-
-    def set_cycles(self, cycles):
-        self.cycles = cycles
 
     def set_weighted_cycles(self, weighted_cycles):
         self.weighted_cycles = weighted_cycles
 
-    def set_instruction_retired(self, instruction_retired):
-        self.instruction_retired = instruction_retired
-
-    def set_time_ns(self, time_ns):
-        self.time_ns = time_ns
-
     def set_ts(self, ts):
         self.ts = ts
 
-    def get_cycles(self):
-        return self.cycles
-
     def get_weighted_cycles(self):
         return self.weighted_cycles
-
-    def get_instruction_retired(self):
-        return self.instruction_retired
-
-    def get_time_ns(self):
-        return self.time_ns
 
     def get_ts(self):
         return self.ts
 
     def reset(self):
         self.weighted_cycles = 0
-        self.instruction_retired = 0
-        self.time_ns = 0
         self.ts = 0
 
     def __str__(self):
         return "ts: " + str(self.ts) \
-            + " c:" + str(self.cycles) \
-            + " w:" + str(self.weighted_cycles) \
-            + " i:" + str(self.instruction_retired) \
-            + " t:" + str(self.time_ns)
+            + " w:" + str(self.weighted_cycles)
 
 class ProcessInfo:
 
@@ -80,6 +56,12 @@ class ProcessInfo:
         self.socket_data = []
         self.cgroup_id = ""
         self.container_id = ""
+
+        self.instruction_retired = 0
+        self.cycles = 0
+        self.cache_misses = 0
+        self.cache_refs = 0
+        self.time_ns = 0
 
         for i in range(0, num_sockets):
             self.socket_data.append(SocketProcessItem())
@@ -99,8 +81,23 @@ class ProcessInfo:
     def set_cpu_usage(self, cpu_usage):
         self.cpu_usage = float(cpu_usage)
 
+    def set_instruction_retired(self, instruction_retired):
+        self.instruction_retired = instruction_retired
+
+    def set_cycles(self, cycles):
+        self.cycles = cycles
+
+    def set_cache_misses(self, cache_misses):
+        self.cache_misses = cache_misses
+
+    def set_cache_refs(self, cache_refs):
+        self.cache_refs = cache_refs
+
+    def set_time_ns(self, time_ns):
+        self.time_ns = time_ns
+
     def compute_cpu_usage_millis(self, total_execution_time_millis, total_cores):
-        self.cpu_usage = float((self.get_aggregated_time_ns()/1000000) \
+        self.cpu_usage = float((self.time_ns/1000000) \
             / total_execution_time_millis * total_cores * 100) # percentage moved to other percentage
 
     def set_socket_data_array(self, socket_data_array):
@@ -109,8 +106,7 @@ class ProcessInfo:
     def set_socket_data(self, socket_index, socket_data):
         self.socket_data[socket_index] = socket_data
 
-    def set_raw_socket_data(self, socket_index, weighted_cycles, \
-        instruction_retired, time_ns, ts):
+    def set_raw_socket_data(self, socket_index, weighted_cycles, ts):
         self.socket_data[socket_index] = \
             SocketProcessItem(weighted_cycles, instruction_retired, time_ns, ts)
 
@@ -120,7 +116,11 @@ class ProcessInfo:
     def set_container_id(self, container_id):
         self.container_id = container_id
 
-    def reset_socket_data(self):
+    def reset_data(self):
+        self.instruction_retired = 0
+        self.cycles = 0
+        self.cache_misses = 0
+        self.time_ns = 0
         for item in self.socket_data:
             item.reset()
 
@@ -139,6 +139,21 @@ class ProcessInfo:
     def get_cpu_usage(self):
         return self.cpu_usage
 
+    def get_instruction_retired(self):
+        return self.instruction_retired
+
+    def get_cycles(self):
+        return self.cycles
+
+    def get_cache_misses(self):
+        return self.cache_misses
+
+    def get_cache_refs(self):
+        return self.cache_refs
+
+    def get_time_ns(self):
+        return self.time_ns
+
     def get_socket_data(self, socket_index = -1):
         if socket_index < 0:
             return self.socket_data
@@ -150,28 +165,10 @@ class ProcessInfo:
     def get_container_id(self):
         return self.container_id
 
-    def get_aggregated_cycles(self):
-        aggregated = 0
-        for item in self.socket_data:
-            aggregated = aggregated + item.get_cycles()
-        return aggregated
-
     def get_aggregated_weighted_cycles(self):
         aggregated = 0
         for item in self.socket_data:
             aggregated = aggregated + item.get_weighted_cycles()
-        return aggregated
-
-    def get_aggregated_instruction_retired(self):
-        aggregated = 0
-        for item in self.socket_data:
-            aggregated = aggregated + item.get_instruction_retired()
-        return aggregated
-
-    def get_aggregated_time_ns(self):
-        aggregated = 0
-        for item in self.socket_data:
-            aggregated = aggregated + item.get_time_ns()
         return aggregated
 
     def get_last_ts(self):
@@ -207,7 +204,7 @@ class ProcessInfo:
             ],
             version=1,
             description="Instruction retired",
-            data=self.get_aggregated_instruction_retired(),
+            data=self.get_instruction_retired(),
             timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
@@ -225,7 +222,7 @@ class ProcessInfo:
             ],
             version=1,
             description="Execution time",
-            data=self.get_aggregated_time_ns(),
+            data=self.get_time_ns(),
             timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
@@ -297,7 +294,43 @@ class ProcessInfo:
             ],
             version=1,
             description="cycles",
-            data=self.get_aggregated_cycles(),
+            data=self.get_cycles(),
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.container_id)),
+                snap.NamespaceElement(value=str(self.pid)),
+                snap.NamespaceElement(value="cache_misses")
+            ],
+            version=1,
+            description="LLC cache misses",
+            data=self.get_cache_misses(),
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement(value=str(self.container_id)),
+                snap.NamespaceElement(value=str(self.pid)),
+                snap.NamespaceElement(value="cache_refs")
+            ],
+            version=1,
+            description="LLC cache references",
+            data=self.get_cache_refs(),
             timestamp=request_time
         )
         metrics_to_be_returned.append(metric)

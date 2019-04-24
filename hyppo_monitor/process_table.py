@@ -22,7 +22,7 @@ class ProcTable:
             else:
                 proc_table_value.set_power(0)
                 proc_table_value.set_cpu_usage(0)
-                proc_table_value.reset_socket_data()
+                proc_table_value.reset_data()
 
         #remove evicted keys
         for k in evicted_keys:
@@ -35,6 +35,11 @@ class ProcTable:
                     # ok, update stuff
                     self.proc_table[key].set_power(value.get_power())
                     self.proc_table[key].set_cpu_usage(value.get_cpu_usage())
+                    self.proc_table[key].set_instruction_retired(value.get_instruction_retired())
+                    self.proc_table[key].set_cycles(value.get_cycles())
+                    self.proc_table[key].set_cache_misses(value.get_cache_misses())
+                    self.proc_table[key].set_cache_refs(value.get_cache_refs())
+                    self.proc_table[key].set_time_ns(value.get_time_ns())
                     self.proc_table[key].set_socket_data_array(\
                         value.get_socket_data())
 
@@ -101,23 +106,17 @@ class ProcTable:
         for key, value in self.proc_table.iteritems():
             if value.container_id != "":
                 if value.container_id not in container_dict:
-                    container_dict[value.container_id] = ContainerInfo(\
-                        value.container_id)
-                container_dict[value.container_id].add_cycles(\
-                    value.get_aggregated_cycles())
-                container_dict[value.container_id].add_weighted_cycles(\
-                    value.get_aggregated_weighted_cycles())
-                container_dict[value.container_id].add_instructions(\
-                    value.get_aggregated_instruction_retired())
-                container_dict[value.container_id].add_time_ns(\
-                    value.get_aggregated_time_ns())
-                container_dict[value.container_id].add_power(\
-                    value.get_power())
-                container_dict[value.container_id].add_cpu_usage(\
-                    value.get_cpu_usage())
+                    container_dict[value.container_id] = ContainerInfo(value.container_id)
+                container_dict[value.container_id].add_cycles(value.get_cycles())
+                container_dict[value.container_id].add_weighted_cycles(value.get_aggregated_weighted_cycles())
+                container_dict[value.container_id].add_instructions(value.get_instruction_retired())
+                container_dict[value.container_id].add_cache_misses(value.get_cache_misses())
+                container_dict[value.container_id].add_cache_refs(value.get_cache_refs())
+                container_dict[value.container_id].add_time_ns(value.get_time_ns())
+                container_dict[value.container_id].add_power(value.get_power())
+                container_dict[value.container_id].add_cpu_usage(value.get_cpu_usage())
                 container_dict[value.container_id].add_pid(value.get_pid())
-                container_dict[value.container_id].set_last_ts(\
-                    value.get_last_ts())
+                container_dict[value.container_id].set_last_ts(value.get_last_ts())
 
 
         return container_dict

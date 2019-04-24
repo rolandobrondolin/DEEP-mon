@@ -27,12 +27,14 @@ struct pid_status {
         int pid;                            /**< Process ID */
         int tgid;
         char comm[TASK_COMM_LEN];           /**< Process name */
-        u64 cycles[NUM_SLOTS];
         u64 weighted_cycles[NUM_SLOTS];     /**< Number of weighted cycles executed by the process */
-        u64 instruction_retired[NUM_SLOTS]; /**< Number of instructions executed by the process */
-        u64 time_ns[NUM_SLOTS];             /**< Execution time of the process (in ns) */
+        u64 cycles[SELECTOR_DIM];              /**< Number of unhalted core cycles executed by the process */
+        u64 instruction_retired[SELECTOR_DIM]; /**< Number of instructions executed by the process */
+        u64 cache_misses[SELECTOR_DIM];        /**< Number of Last Level Cache misses executed by the process */
+        u64 cache_refs[SELECTOR_DIM];        /**< Number of Last Level Cache references executed by the process */
+        u64 time_ns[SELECTOR_DIM];             /**< Execution time of the process (in ns) */
         unsigned int bpf_selector;          /**< Slot selector */
-        u64 ts[NUM_SLOTS];                  /**< Timestamp of the latest update */
+        u64 ts[SELECTOR_DIM];                  /**< Timestamp of the latest update */
 };
 
 /**
@@ -50,6 +52,8 @@ struct proc_topology {
         u64 cycles_core_delta_sibling;
         u64 cycles_thread;
         u64 instruction_thread;
+        u64 cache_misses;
+        u64 cache_refs;
         u64 ts;
         int running_pid;
 };
@@ -99,6 +103,8 @@ BPF_PERF_OUTPUT(err);
 BPF_PERF_ARRAY(cycles_core, NUM_CPUS);
 BPF_PERF_ARRAY(cycles_thread, NUM_CPUS);
 BPF_PERF_ARRAY(instr_thread, NUM_CPUS);
+BPF_PERF_ARRAY(cache_misses, NUM_CPUS);
+BPF_PERF_ARRAY(cache_refs, NUM_CPUS);
 BPF_HASH(processors, u64, struct proc_topology);
 BPF_HASH(pids, int, struct pid_status);
 BPF_HASH(idles, u64, struct pid_status);
@@ -143,6 +149,7 @@ BPF_ARRAY(global_timestamps, u64, SELECTOR_DIM);
 #define TIMESTEP_NOT_IN_PLACE -4
 #define CORRUPTED_TOPOLOGY_MAP -5
 #define WRONG_SIBLING_TOPOLOGY_MAP -6
+#define THREAD_MIGRATED_UNEXPECTEDLY -7
 
 
 static void send_error(struct sched_switch_args *ctx, int err_code) {
@@ -164,7 +171,8 @@ static void send_perf_error(struct bpf_perf_event_data *ctx, int err_code) {
 static inline int update_cycles_count(void *ctx,
         int old_pid, u32 bpf_selector, u32 step, u64 processor_id,
         u64 thread_cycles_sample, u64 core_cycles_sample,
-        u64 instruction_retired_thread, u64 ts) {
+        u64 instruction_retired_thread, u64 cache_misses_thread,
+        u64 cache_refs_thread, u64 ts) {
 
     int ret = 0;
 
@@ -192,6 +200,12 @@ static inline int update_cycles_count(void *ctx,
 
     if(ret != 0) {
         // no data for this thread, for now do not account data
+        return 0;
+    }
+
+    if (topology_info.running_pid != status_old.pid) {
+        // we have some issues
+        send_error(ctx, THREAD_MIGRATED_UNEXPECTEDLY);
         return 0;
     }
 
@@ -226,8 +240,8 @@ static inline int update_cycles_count(void *ctx,
     u64 last_ts_pid_in = 0;
     //trick the compiler with loop unrolling
     #pragma clang loop unroll(full)
-    for(int array_index = 0; array_index<NUM_SLOTS; array_index++) {
-            if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
+    for(int array_index = 0; array_index<SELECTOR_DIM; array_index++) {
+            if(array_index == status_old.bpf_selector) {
                     last_ts_pid_in = status_old.ts[array_index];
             }
     }
@@ -243,9 +257,17 @@ static inline int update_cycles_count(void *ctx,
             #pragma clang loop unroll(full)
             for(int array_index = 0; array_index<NUM_SLOTS; array_index++) {
                     if(array_index % SELECTOR_DIM == bpf_selector) {
-                            status_old.cycles[array_index] = 0;
                             status_old.weighted_cycles[array_index] = 0;
+                    }
+            }
+
+            #pragma clang loop unroll(full)
+            for(int array_index = 0; array_index < SELECTOR_DIM; array_index++) {
+                    if(array_index == bpf_selector) {
+                            status_old.cycles[array_index] = 0;
                             status_old.instruction_retired[array_index] = 0;
+                            status_old.cache_misses[array_index] = 0;
+                            status_old.cache_refs[array_index] = 0;
                             status_old.time_ns[array_index] = 0;
                     }
             }
@@ -255,51 +277,84 @@ static inline int update_cycles_count(void *ctx,
     /**
      * Start to account PCM values for the exiting pid
      */
-    u64 old_thread_cycles = thread_cycles_sample;
-    u64 cycles_core_delta_sibling = 0;
-    u64 old_time = ts;
-    u64 old_instruction_retired = instruction_retired_thread;
+    // u64 old_thread_cycles = thread_cycles_sample;
+    // u64 cycles_core_delta_sibling = 0;
+    // u64 old_time = ts;
+    // u64 old_instruction_retired = instruction_retired_thread;
+    // u64 old_cache_misses = cache_misses_thread;
+    // u64 old_cache_refs = cache_refs_thread;
+    // if (topology_info.ts > 0) {
+    //         old_time = topology_info.ts;
+    //         old_thread_cycles = topology_info.cycles_thread;
+    //         cycles_core_delta_sibling = topology_info.cycles_core_delta_sibling;
+    //         old_instruction_retired = topology_info.instruction_thread;
+    //         old_cache_misses = topology_info.cache_misses;
+    //         old_cache_refs = topology_info.cache_refs;
+    //         //update the last slice of concurrent execution inside two sibling hyperthreads
+    //         if (old_pid > 0 && sibling_info.running_pid > 0 && core_cycles_sample > topology_info.cycles_core) {
+    //                 cycles_core_delta_sibling += core_cycles_sample - topology_info.cycles_core;
+    //         }
+    // }
+
     if (topology_info.ts > 0) {
-            old_time = topology_info.ts;
-            old_thread_cycles = topology_info.cycles_thread;
-            cycles_core_delta_sibling = topology_info.cycles_core_delta_sibling;
-            old_instruction_retired = topology_info.instruction_thread;
-            if (old_pid > 0 && sibling_info.running_pid > 0 && core_cycles_sample > topology_info.cycles_core) {
-                    cycles_core_delta_sibling += core_cycles_sample - topology_info.cycles_core;
+            // update per process measurements (aka IR, cache misses, cycles not weighted)
+            #pragma clang loop unroll(full)
+            for(int array_index = 0; array_index<SELECTOR_DIM; array_index++) {
+                    if(array_index == status_old.bpf_selector){
+                            if (instruction_retired_thread >= topology_info.instruction_thread) {
+                                    status_old.instruction_retired[array_index] += instruction_retired_thread - topology_info.instruction_thread;
+                            } else {
+                                    send_error(ctx, old_pid);
+                            }
+                            if (cache_misses_thread >= topology_info.cache_misses) {
+                                    status_old.cache_misses[array_index] += cache_misses_thread - topology_info.cache_misses;
+                            } else {
+                                    send_error(ctx, old_pid);
+                            }
+                            if (cache_refs_thread >= topology_info.cache_refs) {
+                                    status_old.cache_refs[array_index] += cache_refs_thread - topology_info.cache_refs;
+                            } else {
+                                    send_error(ctx, old_pid);
+                            }
+                            if (thread_cycles_sample >= topology_info.cycles_thread){
+                                    status_old.cycles[array_index] += thread_cycles_sample - topology_info.cycles_thread;
+                            } else {
+                                    send_error(ctx, old_pid);
+                            }
+                            status_old.time_ns[array_index] += ts - topology_info.ts;
+                            status_old.ts[array_index] = ts;
+                    }
             }
     }
 
-    //trick the compiler with loop unrolling
-    // update measurements for our pid
-    #pragma clang loop unroll(full)
-    for(int array_index = 0; array_index<NUM_SLOTS; array_index++) {
-            if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
-                    //discard sample if cycles counter did overflow
-                    if (thread_cycles_sample > old_thread_cycles){
-                            u64 cycle1 = thread_cycles_sample - old_thread_cycles;
-                            u64 cycle_overlap = cycles_core_delta_sibling;
-                            u64 cycle_non_overlap = cycle1 > cycles_core_delta_sibling ? cycle1 - cycles_core_delta_sibling : 0;
-                            status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
-                            status_old.cycles[array_index] += cycle1;
-                    } else {
-                            send_error(ctx, old_pid);
-                    }
-                    if (instruction_retired_thread > old_instruction_retired) {
-                            status_old.instruction_retired[array_index] = instruction_retired_thread - old_instruction_retired;
-                    } else {
-                            send_error(ctx, old_pid);
-                    }
-                    status_old.time_ns[array_index] += ts - old_time;
-                    status_old.ts[array_index] = ts;
-                    if(old_pid == 0) {
-                            status_old.tgid = bpf_get_current_pid_tgid() >> 32;
-                            idles.update(&processor_id, &status_old);
-                    } else {
-                            status_old.tgid = bpf_get_current_pid_tgid() >> 32;
-                            pids.update(&old_pid, &status_old);
+    // trick the compiler with loop unrolling
+    // update weighted cycles for our pid
+    if (topology_info.ts > 0) {
+            #pragma clang loop unroll(full)
+            for(int array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                    if(array_index == status_old.bpf_selector + SELECTOR_DIM * topology_info.processor_id) {
+                            //discard sample if cycles counter did overflow
+                            if (thread_cycles_sample > topology_info.cycles_thread){
+                                    u64 cycle1 = thread_cycles_sample - topology_info.cycles_thread;
+                                    u64 cycle_overlap = topology_info.cycles_core_delta_sibling;
+                                    u64 cycle_non_overlap = cycle1 > topology_info.cycles_core_delta_sibling ? cycle1 - topology_info.cycles_core_delta_sibling : 0;
+                                    status_old.weighted_cycles[array_index] += cycle_non_overlap + cycle_overlap*HAPPY_FACTOR;
+                            } else {
+                                    send_error(ctx, old_pid);
+                            }
                     }
             }
     }
+
+    // update the pid status in our hashmap
+    if(old_pid == 0) {
+            status_old.tgid = bpf_get_current_pid_tgid() >> 32;
+            idles.update(&processor_id, &status_old);
+    } else {
+            status_old.tgid = bpf_get_current_pid_tgid() >> 32;
+            pids.update(&old_pid, &status_old);
+    }
+
     return 0;
 }
 
@@ -374,11 +429,13 @@ int trace_switch(struct sched_switch_args *ctx) {
         u64 thread_cycles_sample = cycles_thread.perf_read(processor_id);
         u64 core_cycles_sample = cycles_core.perf_read(processor_id);
         u64 instruction_retired_thread = instr_thread.perf_read(processor_id);
+        u64 cache_misses_thread = cache_misses.perf_read(processor_id);
+        u64 cache_refs_thread = cache_refs.perf_read(processor_id);
         u64 ts = bpf_ktime_get_ns();
         int current_pid = ctx->prev_pid;
 
         if (ret == 0) {
-                update_cycles_count(ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, ts);
+                update_cycles_count(ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, cache_misses_thread, cache_refs_thread, ts);
         }
 
         // Fetch more data about processor where the sched_switch happened
@@ -403,12 +460,18 @@ int trace_switch(struct sched_switch_args *ctx) {
         //If no status for PID, then create one, otherwise update selector
         if(ret) {
                 bpf_probe_read(&(status_new.comm), sizeof(status_new.comm), ctx->next_comm);
+
                 #pragma clang loop unroll(full)
                 for(array_index = 0; array_index<NUM_SLOTS; array_index++) {
+                        status_new.weighted_cycles[array_index] = 0;
+                }
+                #pragma clang loop unroll(full)
+                for(array_index = 0; array_index<SELECTOR_DIM; array_index++) {
                         status_new.ts[array_index] = ts;
                         status_new.cycles[array_index] = 0;
-                        status_new.weighted_cycles[array_index] = 0;
                         status_new.instruction_retired[array_index] = 0;
+                        status_new.cache_misses[array_index] = 0;
+                        status_new.cache_refs[array_index] = 0;
                         status_new.time_ns[array_index] = 0;
                 }
                 status_new.pid = new_pid;
@@ -425,6 +488,8 @@ int trace_switch(struct sched_switch_args *ctx) {
         topology_info.cycles_core_delta_sibling = 0;
         topology_info.cycles_core = core_cycles_sample;
         topology_info.instruction_thread = instruction_retired_thread;
+        topology_info.cache_misses = cache_misses_thread;
+        topology_info.cache_refs = cache_refs_thread;
         topology_info.ts = ts;
         processors.update(&processor_id, &topology_info);
 
@@ -555,6 +620,8 @@ int trace_exit(struct sched_process_exit_args *ctx) {
         topology_info.cycles_thread = cycles_thread.perf_read(processor_id);
         topology_info.cycles_core = cycles_core.perf_read(processor_id);
         topology_info.instruction_thread = instr_thread.perf_read(processor_id);
+        topology_info.cache_misses = cache_misses.perf_read(processor_id);
+        topology_info.cache_refs = cache_refs.perf_read(processor_id);
         topology_info.cycles_core_delta_sibling = 0;
         topology_info.ts = ts;
 
@@ -631,10 +698,12 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         u64 thread_cycles_sample = cycles_thread.perf_read(processor_id);
         u64 core_cycles_sample = cycles_core.perf_read(processor_id);
         u64 instruction_retired_thread = instr_thread.perf_read(processor_id);
+        u64 cache_misses_thread = cache_misses.perf_read(processor_id);
+        u64 cache_refs_thread = cache_refs.perf_read(processor_id);
         u64 ts = bpf_ktime_get_ns();
 
         if (ret == 0) {
-                update_cycles_count(perf_ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, ts);
+                update_cycles_count(perf_ctx, current_pid, bpf_selector, step, processor_id, thread_cycles_sample, core_cycles_sample, instruction_retired_thread, cache_misses_thread, cache_refs_thread, ts);
         }
 
 
@@ -653,6 +722,8 @@ int timed_trace(struct bpf_perf_event_data *perf_ctx) {
         topology_info.cycles_core_delta_sibling = 0;
         topology_info.cycles_core = core_cycles_sample;
         topology_info.instruction_thread = instruction_retired_thread;
+        topology_info.cache_misses = cache_misses_thread;
+        topology_info.cache_refs = cache_refs_thread;
         topology_info.ts = ts;
         processors.update(&processor_id, &topology_info);
 

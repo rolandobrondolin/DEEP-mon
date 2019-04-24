@@ -13,6 +13,8 @@ data:
     window_mode: "fixed"
     output_format: "console"
     customer_id: "test"
+    debug_mode: False
+    send_thread_data: False
 ---
 apiVersion: apps/v1
 kind: DaemonSet
