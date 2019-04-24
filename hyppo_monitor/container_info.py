@@ -23,6 +23,8 @@ class ContainerInfo:
         self.cycles = 0
         self.weighted_cycles = 0
         self.instruction_retired = 0
+        self.cache_misses = 0
+        self.cache_refs = 0
         self.time_ns = 0
         self.power = 0.0
         self.cpu_usage = 0.0
@@ -43,6 +45,12 @@ class ContainerInfo:
 
     def add_instructions(self, new_instructions):
         self.instruction_retired = self.instruction_retired + new_instructions
+
+    def add_cache_misses(self, new_cache_misses):
+        self.cache_misses = self.cache_misses + new_cache_misses
+
+    def add_cache_refs(self, new_cache_refs):
+        self.cache_refs = self.cache_refs + new_cache_refs
 
     def add_cpu_usage(self, cpu_usage):
         self.cpu_usage = self.cpu_usage + float(cpu_usage)
@@ -66,6 +74,12 @@ class ContainerInfo:
     def get_instruction_retired(self):
         return self.instruction_retired
 
+    def get_cache_misses(self):
+        return self.cache_misses
+
+    def get_cache_refs(self):
+        return self.cache_refs
+
     def get_time_ns(self):
         return self.time_ns
 
@@ -82,6 +96,10 @@ class ContainerInfo:
         return {'container_id': self.container_id,
                 'cycles': self.cycles,
                 'weighted_cycles': self.weighted_cycles,
+                'instruction_retired': self.instruction_retired,
+                'cache_misses': self.cache_misses,
+                'cache_refs': self.cache_refs,
+                'cycles': self.cycles,
                 'time_ns': self.time_ns,
                 'power': self.power,
                 'cpu_usage': self.cpu_usage,
@@ -129,6 +147,26 @@ class ContainerInfo:
             version=1,
             description="Thread instruction retired",
             data=self.instruction_retired,
+            timestamp=request_time
+        )
+        return metric
+
+    def _get_snap_cache_misses(self, request_time, snap_namespace):
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="LLC Cache misses",
+            data=self.cache_misses,
+            timestamp=request_time
+        )
+        return metric
+
+    def _get_snap_cache_refs(self, request_time, snap_namespace):
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="LLC Cache references",
+            data=self.cache_refs,
             timestamp=request_time
         )
         return metric
@@ -207,6 +245,28 @@ class ContainerInfo:
             snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
             snap.NamespaceElement(value=str(self.container_id)),
+            snap.NamespaceElement(value="cache_misses")
+        ]
+        metrics_to_be_returned.append(self._get_snap_cache_misses(request_time, namespace))
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=str(self.container_id)),
+            snap.NamespaceElement(value="cache_refs")
+        ]
+        metrics_to_be_returned.append(self._get_snap_cache_refs(request_time, namespace))
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=str(self.container_id)),
             snap.NamespaceElement(value="power")
         ]
         metrics_to_be_returned.append(self._get_snap_power(request_time, namespace))
@@ -237,7 +297,7 @@ class ContainerInfo:
 
 
     def __str__(self):
-        fmt = '{:<28} {:<32} {:<34} {:<34} {:<38} {:<30}'
+        fmt = '{:<28} {:<32} {:<34} {:<34} {:<34} {:<34} {:<38} {:<30}'
         output_line = fmt.format (
                 bcolors.BLUE + "ID: " + bcolors.ENDC
                     + self.container_id,
@@ -247,6 +307,10 @@ class ContainerInfo:
                     + str(self.weighted_cycles),
                 bcolors.BLUE + "INSTR RET: " + bcolors.ENDC
                     + str(self.instruction_retired),
+                bcolors.BLUE + "CACHE MISS: " + bcolors.ENDC
+                    + str(self.cache_misses),
+                bcolors.BLUE + "CACHE REFS: " + bcolors.ENDC
+                    +str(self.cache_refs),
                 bcolors.BLUE + "EXEC TIME (s): " + bcolors.ENDC
                     + '{:.5f}'.format(self.time_ns / 1000000000),
                 bcolors.GREEN + "TOTAL POWER (mW): " + bcolors.ENDC

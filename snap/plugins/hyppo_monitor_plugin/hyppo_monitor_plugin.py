@@ -25,6 +25,8 @@ class HyppoStreamCollector(snap.StreamCollector):
         self.output_format = ""
         self.window_mode = ""
         self.customer_id = ""
+        self.debug_mode = False
+        self.send_thread_data = False
 
         try:
             with open('/hyppo-config/config.yaml', 'r') as config_file:
@@ -40,12 +42,16 @@ class HyppoStreamCollector(snap.StreamCollector):
             self.output_format = self.config["output_format"]
             self.window_mode = self.config["window_mode"]
             self.customer_id = self.config["customer_id"]
+            self.debug_mode = self.config["debug_mode"]
+            self.send_thread_data = self.config["send_thread_data"]
         except KeyError as e:
             self.output_format = "console"
             self.window_mode = "fixed"
             self.customer_id = "not_registered"
+            self.debug_mode = False
+            self.send_thread_data = False
 
-        self.hyppo_monitor = MonitorMain(self.output_format, self.window_mode)
+        self.hyppo_monitor = MonitorMain(self.output_format, self.window_mode, self.debug_mode)
 
         if self.window_mode == "dynamic":
             self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
@@ -83,8 +89,9 @@ class HyppoStreamCollector(snap.StreamCollector):
             metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, hostname))
 
         #add threads from proc_table
-        #for key, value in proc_dict.iteritems():
-        #    metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, hostname))
+        if self.send_thread_data == True:
+            for key, value in proc_dict.iteritems():
+                metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, hostname))
 
         # put timestamp
         metric = snap.Metric(
@@ -223,7 +230,7 @@ class HyppoStreamCollector(snap.StreamCollector):
 
         #pid related metrics
         # skipping pid: for key in ("pid", "cycles", "instructions", "time_ns", "power", "cpu"):
-        for key in ("cycles", "instructions", "time_ns", "power", "cpu"):
+        for key in ("cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "cache_refs"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),
@@ -242,7 +249,7 @@ class HyppoStreamCollector(snap.StreamCollector):
             metrics.append(metric)
         #container related metrics
         #skipping container id: for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
-        for key in ("cycles", "weighted_cycles", "instructions", "time_ns", "power", "cpu"):
+        for key in ("cycles", "weighted_cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "cache_refs"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),
