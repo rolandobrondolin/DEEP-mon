@@ -1,3 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hyppo-monitor-settings
+  namespace: kube-system
+data:
+  # property-like keys
+  config-name: config.yaml
+
+  # file-like keys
+  config.yaml: |
+    kube_config: "~/.kube/config"
+    window_mode: "fixed"
+    output_format: "console"
+    customer_id: "test"
+    debug_mode: False
+    send_thread_data: False
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -42,6 +60,8 @@ spec:
         - name: hostname
           mountPath: /etc/hosthostname
           readOnly: true
+        - name: config-volume
+          mountPath: /hyppo-config
         securityContext:
           privileged: true
       terminationGracePeriodSeconds: 30
@@ -64,3 +84,9 @@ spec:
       - name: hostname
         hostPath:
           path: /etc/hostname
+      - name: config-volume
+        configMap:
+          name: hyppo-monitor-settings
+          items:
+          - key: config.yaml
+            path: config.yaml

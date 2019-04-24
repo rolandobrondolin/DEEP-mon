@@ -6,21 +6,21 @@
   "max-failures": 10,
   "workflow": {
     "collect": {
-      "config": {
-        "hyppo/hyppo_monitor": {
-          "user_id": "not_registered"
-        }
-      },
       "metrics": {
         "/hyppo/hyppo-monitor/*/*/ts": {},
         "/hyppo/hyppo-monitor/*/*/thread/*/*/cpu": {},
         "/hyppo/hyppo-monitor/*/*/thread/*/*/cycles": {},
         "/hyppo/hyppo-monitor/*/*/thread/*/*/instructions": {},
+        "/hyppo/hyppo-monitor/*/*/thread/*/*/cache_misses": {},
+        "/hyppo/hyppo-monitor/*/*/thread/*/*/cache_refs": {},
         "/hyppo/hyppo-monitor/*/*/thread/*/*/power": {},
         "/hyppo/hyppo-monitor/*/*/thread/*/*/time_ns": {},
         "/hyppo/hyppo-monitor/*/*/container/*/cpu": {},
         "/hyppo/hyppo-monitor/*/*/container/*/cycles": {},
+        "/hyppo/hyppo-monitor/*/*/container/*/weighted_cycles": {},
         "/hyppo/hyppo-monitor/*/*/container/*/instructions": {},
+        "/hyppo/hyppo-monitor/*/*/container/*/cache_misses": {},
+        "/hyppo/hyppo-monitor/*/*/container/*/cache_refs": {},
         "/hyppo/hyppo-monitor/*/*/container/*/power": {},
         "/hyppo/hyppo-monitor/*/*/container/*/time_ns": {},
         "/hyppo/hyppo-monitor/*/*/host/package_power": {},

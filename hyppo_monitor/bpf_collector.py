@@ -198,6 +198,15 @@ class BpfSample:
 class ErrorCode(ct.Structure):
     _fields_ = [("err", ct.c_int)]
 
+class BPFErrors:
+    error_dict = {-1: "BPF_PROCEED_WITH_DEBUG_MODE", \
+        -2: "BPF_SELECTOR_NOT_IN_PLACE", \
+        -3: "OLD_BPF_SELECTOR_NOT_IN_PLACE", \
+        -4: "TIMESTEP_NOT_IN_PLACE", \
+        -5: "CORRUPTED_TOPOLOGY_MAP", \
+        -6: "WRONG_SIBLING_TOPOLOGY_MAP", \
+        -7: "THREAD_MIGRATED_UNEXPECTEDLY"}
+
 
 class BpfCollector:
 
@@ -220,6 +229,7 @@ class BpfCollector:
         self.pids = self.bpf_program.get_table("pids")
         self.idles = self.bpf_program.get_table("idles")
         self.bpf_config = self.bpf_program.get_table("conf")
+        self.bpf_global_timestamps = self.bpf_program.get_table("global_timestamps")
         self.selector = 0
         self.SELECTOR_DIM = 2
         self.timeslice = 1000000000
@@ -234,10 +244,19 @@ class BpfCollector:
         self.bpf_program["cycles_core"].open_perf_event(4, int("73003c",16))
         self.bpf_program["cycles_thread"].open_perf_event(4, int("53003c",16))
         self.bpf_program["instr_thread"].open_perf_event(4, int("5300c0",16))
+        self.bpf_program["cache_misses"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CACHE_MISSES)
+        self.bpf_program["cache_refs"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CACHE_REFERENCES)
+
 
     def print_event(self, cpu, data, size):
         event = ct.cast(data, ct.POINTER(ErrorCode)).contents
-        print(str(cpu) + " " + str(event.err))
+        if event.err >= 0:
+            print("core: " + str(cpu) + " topology counters overflow or initialized with pid: " + str(event.err))
+        elif event.err < -1:
+            # exclude the BPF_PROCEED_WITH_DEBUG_MODE event, since it is used
+            # just to advance computation for the timed capture
+            print("core: " + str(cpu) + " " + str(BPFErrors.error_dict[event.err]))
+
 
     def start_capture(self, timeslice):
         for key, value in self.topology.get_new_bpf_topology().iteritems():
@@ -289,6 +308,8 @@ class BpfCollector:
 
         self.bpf_program.attach_tracepoint(tp="sched:sched_switch", \
             fn_name="trace_switch")
+        self.bpf_program.attach_tracepoint(tp="sched:sched_process_exit", \
+            fn_name="trace_exit")
         self.bpf_program.attach_perf_event(ev_type=PerfType.SOFTWARE,
                 ev_config=PerfSWConfig.CPU_CLOCK, fn_name="timed_trace",
                 sample_period=sample_period, sample_freq=sample_freq)
@@ -347,53 +368,32 @@ class BpfCollector:
 
         pid_dict = {}
 
-        # Set the maximum timestamp as the maximum sample timestamp among all
-        # running processes
-        for key, data in self.pids.items():
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # search max timestamp of the sample
-                if data.ts[multisocket_selector] > tsmax:
-                    tsmax = data.ts[multisocket_selector]
-
-        # Repeat the check of maximum timestamp using timestamps
-        # of the idle processes
-        for key, data in self.idles.items():
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # search max timestamp of the sample
-                if data.ts[multisocket_selector] > tsmax:
-                    tsmax = data.ts[multisocket_selector]
+        tsmax = self.bpf_global_timestamps[ct.c_int(read_selector)].value
 
         # Add the count of clock cycles for each active process to the total
         # number of clock cycles of the socket
         for key, data in self.pids.items():
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
+            if data.ts[read_selector] + self.timeslice > tsmax:
+                total_execution_time = total_execution_time + float(data.time_ns[read_selector])/1000000
+
+            for multisocket_selector in range(read_selector, total_slots_length, self.SELECTOR_DIM):
                 # Compute the number of total weighted cycles per socket
                 cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
-
-                if data.ts[multisocket_selector] + self.timeslice > tsmax:
-                    total_weighted_cycles[cycles_index] = \
-                        total_weighted_cycles[cycles_index] \
-                        + data.weighted_cycles[multisocket_selector]
-                    total_execution_time = total_execution_time \
-                        + float(data.time_ns[multisocket_selector])/1000000
+                if data.ts[read_selector] + self.timeslice > tsmax:
+                    total_weighted_cycles[cycles_index] = total_weighted_cycles[cycles_index] + data.weighted_cycles[multisocket_selector]
 
         # Add the count of clock cycles for each idle process to the total
         # number of clock cycles of the socket
         for key, data in self.idles.items():
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
+            if data.ts[read_selector] + self.timeslice > tsmax:
+                total_execution_time = total_execution_time + float(data.time_ns[read_selector])/1000000
+
+            for multisocket_selector in range(read_selector, total_slots_length, self.SELECTOR_DIM):
                 # Compute the number of total weighted cycles per socket
                 cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
-                if data.ts[multisocket_selector] + self.timeslice > tsmax:
-                    total_weighted_cycles[cycles_index] = \
-                        total_weighted_cycles[cycles_index] \
-                        + data.weighted_cycles[multisocket_selector]
+                if data.ts[read_selector] + self.timeslice > tsmax:
+                    total_weighted_cycles[cycles_index] = total_weighted_cycles[cycles_index] + data.weighted_cycles[multisocket_selector]
 
-                    total_execution_time = total_execution_time \
-                        + float(data.time_ns[multisocket_selector])/1000000
 
         # Compute package/core/dram power in mW from RAPL samples
         package_power = [package_diff[skt].power_milliw()
@@ -412,62 +412,58 @@ class BpfCollector:
 
             proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
+            proc_info.set_tgid(data.tgid)
             proc_info.set_comm(data.comm)
+            proc_info.set_cycles(data.cycles[read_selector])
+            proc_info.set_instruction_retired(data.instruction_retired[read_selector])
+            proc_info.set_cache_misses(data.cache_misses[read_selector])
+            proc_info.set_cache_refs(data.cache_refs[read_selector])
+            proc_info.set_time_ns(data.time_ns[read_selector])
             add_proc = False
 
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
+            for multisocket_selector in range(read_selector, total_slots_length, self.SELECTOR_DIM):
 
-                if data.ts[multisocket_selector] + self.timeslice > tsmax:
+                if data.ts[read_selector] + self.timeslice > tsmax:
                     socket_info = SocketProcessItem()
-                    socket_info.set_weighted_cycles(\
-                        data.weighted_cycles[multisocket_selector])
-                    socket_info.set_time_ns(data.time_ns[multisocket_selector])
-                    socket_info.set_instruction_retired(\
-                        data.instruction_retired[multisocket_selector])
-                    socket_info.set_ts(data.ts[multisocket_selector])
-                    proc_info.set_socket_data(\
-                        multisocket_selector/self.SELECTOR_DIM, socket_info)
-
+                    socket_info.set_weighted_cycles(data.weighted_cycles[multisocket_selector])
+                    socket_info.set_ts(data.ts[read_selector])
+                    proc_info.set_socket_data(multisocket_selector/self.SELECTOR_DIM, socket_info)
                     add_proc = True
+
             if add_proc:
                 pid_dict[data.pid] = proc_info
-                proc_info.set_power(self._get_pid_power(proc_info, \
-                    total_weighted_cycles, core_power))
+                proc_info.set_power(self._get_pid_power(proc_info, total_weighted_cycles, core_power))
                 proc_info.compute_cpu_usage_millis(float(total_execution_time), multiprocessing.cpu_count())
-
 
         for key, data in self.idles.items():
 
             proc_info = ProcessInfo(len(self.topology.get_sockets()))
             proc_info.set_pid(data.pid)
+            proc_info.set_tgid(-1 * (1 + int(key.value)))
             proc_info.set_comm(data.comm)
+            proc_info.set_cycles(data.cycles[read_selector])
+            proc_info.set_instruction_retired(data.instruction_retired[read_selector])
+            proc_info.set_cache_misses(data.cache_misses[read_selector])
+            proc_info.set_cache_refs(data.cache_refs[read_selector])
+            proc_info.set_time_ns(data.time_ns[read_selector])
             add_proc = False
 
-            for multisocket_selector in \
-                range(read_selector, total_slots_length, self.SELECTOR_DIM):
+            for multisocket_selector in range(read_selector, total_slots_length, self.SELECTOR_DIM):
 
-                if data.ts[multisocket_selector] + self.timeslice > tsmax:
+                if data.ts[read_selector] + self.timeslice > tsmax:
 
                     socket_info = SocketProcessItem()
-                    socket_info.set_weighted_cycles(\
-                        data.weighted_cycles[multisocket_selector])
-                    socket_info.set_instruction_retired(\
-                        data.instruction_retired[multisocket_selector])
-                    socket_info.set_time_ns(data.time_ns[multisocket_selector])
-                    socket_info.set_ts(data.ts[multisocket_selector])
-                    proc_info.set_socket_data(\
-                        multisocket_selector/self.SELECTOR_DIM, socket_info)
-
+                    socket_info.set_weighted_cycles(data.weighted_cycles[multisocket_selector])
+                    socket_info.set_ts(data.ts[read_selector])
+                    proc_info.set_socket_data(multisocket_selector/self.SELECTOR_DIM, socket_info)
                     add_proc = True
+
             if add_proc:
                 pid_dict[-1 * (1 + int(key.value))] = proc_info
-                proc_info.set_power(self._get_pid_power(proc_info, \
-                    total_weighted_cycles, core_power))
+                proc_info.set_power(self._get_pid_power(proc_info, total_weighted_cycles, core_power))
                 proc_info.compute_cpu_usage_millis(float(total_execution_time), multiprocessing.cpu_count())
 
-        return BpfSample(tsmax, total_execution_time, sched_switch_count, \
-            self.timeslice, total_power, pid_dict)
+        return BpfSample(tsmax, total_execution_time, sched_switch_count, self.timeslice, total_power, pid_dict)
 
     def _get_pid_power(self, pid, total_cycles, core_power):
 

@@ -3,6 +3,11 @@ import logging
 import os.path
 import snap_plugin.v1 as snap
 import time
+import yaml
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 from kubernetes import config, client, watch
 
@@ -21,21 +26,37 @@ class ContainerNamer(snap.Collector):
         #config.load_kube_config(kube_conf)
         config.load_incluster_config()
         self.v1 = client.CoreV1Api()
-        self.customer_id = "not_registered"
+
+        # Load config file with default values
+        self.config = {}
+        self.output_format = ""
+        self.window_mode = ""
+        self.customer_id = ""
+
+        try:
+            with open('/hyppo-config/config.yaml', 'r') as config_file:
+                self.config = yaml.load(config_file)
+        except Exception:
+            try:
+                with open('hyppo_monitor/config.yaml', 'r') as config_file:
+                    self.config = yaml.load(config_file)
+            except Exception:
+                LOG.error("Couldn't find a config file, current path is %s", os.getcwd())
+
+        try:
+            self.output_format = self.config["output_format"]
+            self.window_mode = self.config["window_mode"]
+            self.customer_id = self.config["customer_id"]
+        except KeyError as e:
+            self.output_format = "console"
+            self.window_mode = "fixed"
+            self.customer_id = "not_registered"
+
+
 
     def get_config_policy(self):
         LOG.debug("GetConfigPolicy called on ContainerNamer")
-        return snap.ConfigPolicy(
-            [
-                ("/hyppo/hyppo-monitor/container-namer"),
-                [
-                    (
-                        "customer_id",
-                        snap.StringRule(default="not_registered", required=True)
-                    )
-                ]
-            ]
-        )
+        return snap.ConfigPolicy()
 
     def collect(self, metrics):
         LOG.debug("Names collection called on ContainerNamer")

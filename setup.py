@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name='hyppo-monitor',
     version='0.1dev',
-    packages=['hyppo_monitor','hyppo_monitor.bpf','hyppo_monitor.k8s_client','hyppo_monitor.rapl'],
+    packages=['hyppo_monitor','hyppo_monitor.bpf','hyppo_monitor.rapl'],
     py_modules=['cli'],
     package_data={'hyppo_monitor.bpf': ['*.c']},
     include_package_data=True,

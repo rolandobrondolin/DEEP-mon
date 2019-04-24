@@ -19,14 +19,14 @@ except ImportError:
 
 class MonitorMain():
 
-    def __init__(self, output_format, window_mode):
+    def __init__(self, output_format, window_mode, debug_mode):
         self.output_format = output_format
         self.window_mode = window_mode
         # TODO: Don't hardcode the frequency
         self.frequency = 1
 
         self.topology = ProcTopology()
-        self.collector = BpfCollector(self.topology, False)
+        self.collector = BpfCollector(self.topology, debug_mode)
         self.sample_controller = SampleController(self.topology.get_hyperthread_count())
         self.process_table = ProcTable()
         self.rapl_monitor = rapl.RaplMonitor(self.topology)
@@ -62,7 +62,8 @@ class MonitorMain():
 
         while True:
 
-            time.sleep(time_to_sleep)
+            if time_to_sleep > 0:
+                time.sleep(time_to_sleep)
             start_time = time.time()
 
             sample_array = self.get_sample()

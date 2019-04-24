@@ -19,39 +19,49 @@ class HyppoStreamCollector(snap.StreamCollector):
 
     def __init__(self, name, description, **kwargs):
         super(HyppoStreamCollector, self).__init__(name, description, **kwargs)
-        self.user_id = "not_registered"
+
         # Load config file with default values
         self.config = {}
+        self.output_format = ""
+        self.window_mode = ""
+        self.customer_id = ""
+        self.debug_mode = False
+        self.send_thread_data = False
+
         try:
-            with open('hyppo_monitor/config.yaml', 'r') as config_file:
+            with open('/hyppo-config/config.yaml', 'r') as config_file:
                 self.config = yaml.load(config_file)
-        except IOError:
-            LOG.error("Couldn't find a config file, current path is %s", os.getcwd())
+        except Exception:
+            try:
+                with open('hyppo_monitor/config.yaml', 'r') as config_file:
+                    self.config = yaml.load(config_file)
+            except Exception:
+                LOG.error("Couldn't find a config file, current path is %s", os.getcwd())
 
-        self.hyppo_monitor = MonitorMain(self.config["output_format"], self.config["window_mode"])
+        try:
+            self.output_format = self.config["output_format"]
+            self.window_mode = self.config["window_mode"]
+            self.customer_id = self.config["customer_id"]
+            self.debug_mode = self.config["debug_mode"]
+            self.send_thread_data = self.config["send_thread_data"]
+        except KeyError as e:
+            self.output_format = "console"
+            self.window_mode = "fixed"
+            self.customer_id = "not_registered"
+            self.debug_mode = False
+            self.send_thread_data = False
 
-        if self.config["window_mode"] == "dynamic":
+        self.hyppo_monitor = MonitorMain(self.output_format, self.window_mode, self.debug_mode)
+
+        if self.window_mode == "dynamic":
             self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
         else:
             self.time_to_sleep = 1
 
+
     def get_config_policy(self):
         LOG.debug("GetConfigPolicy called on HyppoStreamCollector")
-        return snap.ConfigPolicy(
-            [
-                ("/hyppo/hyppo-monitor"),
-                [
-                    (
-                        "kube_config_path",
-                        snap.StringRule(default = "", required = False)
-                    ),
-                    (
-                        "user_id",
-                        snap.StringRule(default = "not_registered", required = True)
-                    )
-                ]
-            ]
-        )
+        return snap.ConfigPolicy()
 
     def stream(self, metrics):
         LOG.debug("Metrics collection called on HyppoStreamCollector")
@@ -64,7 +74,7 @@ class HyppoStreamCollector(snap.StreamCollector):
         sample_array = self.hyppo_monitor.get_sample()
         sample = sample_array[0]
         container_list = sample_array[1]
-        proc_dict = sample_array[2]
+        # proc_dict = sample_array[2]
 
         #open hostname file
         hostFile = open("/etc/hosthostname","r")
@@ -72,22 +82,23 @@ class HyppoStreamCollector(snap.StreamCollector):
         hostFile.close()
 
         #add general metrics
-        metrics_to_stream.extend(sample.to_snap(start_time, self.user_id, hostname))
+        metrics_to_stream.extend(sample.to_snap(start_time, self.customer_id, hostname))
 
         #here wrap up things to match snap format
         for key, value in container_list.iteritems():
-            metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
+            metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, hostname))
 
         #add threads from proc_table
-        #for key, value in proc_dict.iteritems():
-        #    metrics_to_stream.extend(value.to_snap(start_time, self.user_id, hostname))
+        if self.send_thread_data == True:
+            for key, value in proc_dict.iteritems():
+                metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, hostname))
 
         # put timestamp
         metric = snap.Metric(
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value=self.user_id),
+                snap.NamespaceElement(value=self.customer_id),
                 snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="ts"),
             ],
@@ -102,14 +113,14 @@ class HyppoStreamCollector(snap.StreamCollector):
             self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
                 - (time.time() - start_time)
         else:
-            self.time_to_sleep = 1
+            self.time_to_sleep = 1 - (time.time() - start_time)
 
         return metrics_to_stream
 
     def update_catalog(self, config):
         LOG.debug("update_catalog called on HyppoStreamCollector")
 
-        #self.user_id = config["user_id"]
+        #self.customer_id = config["customer_id"]
 
         metrics = []
         #general metrics
@@ -219,7 +230,7 @@ class HyppoStreamCollector(snap.StreamCollector):
 
         #pid related metrics
         # skipping pid: for key in ("pid", "cycles", "instructions", "time_ns", "power", "cpu"):
-        for key in ("cycles", "instructions", "time_ns", "power", "cpu"):
+        for key in ("cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "cache_refs"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),
@@ -238,7 +249,7 @@ class HyppoStreamCollector(snap.StreamCollector):
             metrics.append(metric)
         #container related metrics
         #skipping container id: for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
-        for key in ("cycles", "instructions", "time_ns", "power", "cpu"):
+        for key in ("cycles", "weighted_cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "cache_refs"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),
