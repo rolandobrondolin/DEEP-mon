@@ -31,10 +31,13 @@ class HyppoPublisher(snap.Publisher):
         for metric in metrics:
             data.append(json_format.MessageToDict(metric._pb, including_default_value_fields=True))
 
-
-        req = urllib2.Request("http://" + config["remote_collector"] + "/send_data")
-        req.add_header('Content-Type', 'application/json')
-        response = urllib2.urlopen(req, json.dumps(data))
+        try:
+            req = urllib2.Request("http://" + config["remote_collector"] + "/send_data")
+            req.add_header('Content-Type', 'application/json')
+            response = urllib2.urlopen(req, json.dumps(data))
+        except Exception:
+            import traceback
+            LOG.error(traceback.format_exc())
 
 
     def get_config_policy(self):
