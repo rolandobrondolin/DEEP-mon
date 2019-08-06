@@ -30,8 +30,7 @@ class MonitorMain():
         self.sample_controller = SampleController(self.topology.get_hyperthread_count())
         self.process_table = ProcTable()
         self.rapl_monitor = rapl.RaplMonitor(self.topology)
-
-        self._start_bpf_program(window_mode)
+        self.started = False
 
 
     def _start_bpf_program(self, window_mode):
@@ -44,6 +43,10 @@ class MonitorMain():
 
 
     def get_sample(self):
+        if not self.started:
+            self._start_bpf_program(self.window_mode)
+            self.started = True
+
         sample = self.collector.get_new_sample(self.sample_controller, self.rapl_monitor)
         # add stuff to cumulative process table
         self.process_table.add_process_from_sample(sample)

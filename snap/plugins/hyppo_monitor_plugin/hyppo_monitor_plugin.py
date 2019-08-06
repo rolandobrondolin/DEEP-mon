@@ -27,6 +27,7 @@ class HyppoStreamCollector(snap.StreamCollector):
         self.customer_id = ""
         self.debug_mode = False
         self.send_thread_data = False
+        self.hostname = ""
 
         try:
             with open('/hyppo-config/config.yaml', 'r') as config_file:
@@ -37,6 +38,11 @@ class HyppoStreamCollector(snap.StreamCollector):
                     self.config = yaml.load(config_file)
             except Exception:
                 LOG.error("Couldn't find a config file, current path is %s", os.getcwd())
+
+        #open hostname file
+        hostFile = open("/etc/hosthostname","r")
+        self.hostname = hostFile.read().rstrip().lower()
+        hostFile.close()
 
         try:
             self.output_format = self.config["output_format"]
@@ -76,22 +82,17 @@ class HyppoStreamCollector(snap.StreamCollector):
         container_list = sample_array[1]
         # proc_dict = sample_array[2]
 
-        #open hostname file
-        hostFile = open("/etc/hosthostname","r")
-        hostname = hostFile.read().rstrip().lower()
-        hostFile.close()
-
         #add general metrics
-        metrics_to_stream.extend(sample.to_snap(start_time, self.customer_id, hostname))
+        metrics_to_stream.extend(sample.to_snap(start_time, self.customer_id, self.hostname))
 
         #here wrap up things to match snap format
         for key, value in container_list.iteritems():
-            metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, hostname))
+            metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname))
 
         #add threads from proc_table
         if self.send_thread_data == True:
             for key, value in proc_dict.iteritems():
-                metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, hostname))
+                metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname))
 
         # put timestamp
         metric = snap.Metric(
@@ -99,7 +100,7 @@ class HyppoStreamCollector(snap.StreamCollector):
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
                 snap.NamespaceElement(value=self.customer_id),
-                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value=self.hostname),
                 snap.NamespaceElement(value="ts"),
             ],
             version=1,
