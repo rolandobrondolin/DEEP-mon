@@ -61,6 +61,7 @@ class ContainerNamer(snap.Collector):
     def collect(self, metrics):
         LOG.debug("Names collection called on ContainerNamer")
         metrics_to_stream = []
+        ts = time.time()
 
         for pod in self.v1.list_pod_for_all_namespaces(watch=False).items:
             for container in pod.spec.containers:
@@ -88,10 +89,30 @@ class ContainerNamer(snap.Collector):
                         tags={"mtype": "gauge"},
                         description="Name of the container",
                         data=container_id,
-                        timestamp=time.time()
+                        timestamp=ts
                     )
                     metrics_to_stream.append(metric)
-        time.sleep(1)
+            
+            if pod.status.pod_ip != None:
+                metric = snap.Metric(
+                    namespace=[
+                        snap.NamespaceElement(value="hyppo"),
+                        snap.NamespaceElement(value="hyppo-container-namer"),
+                        snap.NamespaceElement(value="pod-ip"),
+                        snap.NamespaceElement(value=self.customer_id),
+                        snap.NamespaceElement(value=pod.metadata.namespace),
+                        snap.NamespaceElement(value=pod.spec.node_name),
+                        snap.NamespaceElement(value=pod.metadata.name),
+                        snap.NamespaceElement(value="ip")
+                    ],
+                    version=1,
+                    tags={"mtype": "gauge"},
+                    description="pod ip address",
+                    data=pod.status.pod_ip,
+                    timestamp=ts
+                )
+                metrics_to_stream.append(metric)
+        # time.sleep(1)
 
         return metrics_to_stream
 
@@ -114,6 +135,23 @@ class ContainerNamer(snap.Collector):
             version=1,
             tags={"mtype": "gauge"},
             description="Container ID",
+        )
+        metrics.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-container-namer"),
+                snap.NamespaceElement(value="pod-ip"),
+                snap.NamespaceElement.dynamic_namespace_element(name="customer_id", description="Customer ID"),
+                snap.NamespaceElement.dynamic_namespace_element(name="namespace", description="Kubernetes Namespace"),
+                snap.NamespaceElement.dynamic_namespace_element(name="node_name", description="Kubernetes Node Name"),
+                snap.NamespaceElement.dynamic_namespace_element(name="pod_name", description="Kubernetes Pod Name"),
+                snap.NamespaceElement(value="ip"),
+                      ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="pod ip address",
         )
         metrics.append(metric)
 
