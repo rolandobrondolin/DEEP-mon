@@ -30,8 +30,8 @@ build-standalone: ## Build a standalone image, without snap and backend integrat
 
 build-kube: ## Build DEEPmon and push it to GitLab Registry
 	sudo docker login registry.gitlab.com
-	sudo docker build -t registry.gitlab.com/projecthyppo/monitor .
-	sudo docker push registry.gitlab.com/projecthyppo/monitor
+	sudo docker build -t registry.gitlab.com/projecthyppo/monitor:ipdps .
+	sudo docker push registry.gitlab.com/projecthyppo/monitor:ipdps
 
 run-kube: ## Run DEEPmon in Kubernetes as a DaemonSet
 	kubectl apply -f hyppo-monitor-daemonset.yaml
