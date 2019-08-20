@@ -197,7 +197,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
     }
 
-    if(state == TCP_CLOSE || state == TCP_FIN_WAIT2 || state == TCP_LAST_ACK) {
+    if(state == TCP_CLOSE || state == TCP_FIN_WAIT2 || state == TCP_FIN_WAIT1 || state == TCP_LAST_ACK || state == TCP_TIME_WAIT || state == TCP_CLOSE_WAIT || state == TCP_CLOSING) {
       // socket closed, clean things
       struct ipv4_key_t connection_key = {.saddr = saddr, .lport = lport, .daddr = daddr, .dport = dport};
       struct connection_data_t connection_data;
@@ -348,7 +348,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
     }
 
-    if(state == TCP_CLOSE || state == TCP_FIN_WAIT2 || state == TCP_LAST_ACK) {
+    if(state == TCP_CLOSE || state == TCP_FIN_WAIT2 || state == TCP_FIN_WAIT1 || state == TCP_LAST_ACK || state == TCP_TIME_WAIT || state == TCP_CLOSE_WAIT || state == TCP_CLOSING) {
       // socket closed, clean things
       struct ipv6_key_t connection_key = {.saddr = saddr, .lport = lport, .daddr = daddr, .dport = dport};
       struct connection_data_t connection_data;
@@ -460,12 +460,16 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
     //check if I am a server or a client
     struct ipv4_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-    struct endpoint_data_t endpoint_data = {.n_connections = 1, .status = STATUS_UNKNOWN};
+    struct endpoint_data_t endpoint_data;
 
     ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv4_endpoints.lookup(&endpoint_key));
     if(ret != 0) {
+      // skip detection in case of unknown endpoint for now
+      return 0;
       //create endpoint if not in table
-      ipv4_endpoints.update(&endpoint_key, &endpoint_data);
+      // endpoint_data.status = STATUS_UNKNOWN;
+      // endpoint_data.n_connections = 1;
+      // ipv4_endpoints.update(&endpoint_key, &endpoint_data);
     }
 
     // create connection tuple
@@ -631,12 +635,16 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
     //check if I am a server or a client
     struct ipv6_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-    struct endpoint_data_t endpoint_data = {.n_connections = 1, .status = STATUS_UNKNOWN};
+    struct endpoint_data_t endpoint_data;
 
     ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv6_endpoints.lookup(&endpoint_key));
     if(ret != 0) {
+      // skip detection in case of unknown endpoint for now
+      return 0;
       //create endpoint if not in table
-      ipv6_endpoints.update(&endpoint_key, &endpoint_data);
+      // endpoint_data.status = STATUS_UNKNOWN;
+      // endpoint_data.n_connections = 1;
+      // ipv6_endpoints.update(&endpoint_key, &endpoint_data);
     }
 
     // create connection tuple
@@ -848,12 +856,16 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
     //check if I am a server or a client
     struct ipv4_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-    struct endpoint_data_t endpoint_data = {.n_connections = 1, .status = STATUS_UNKNOWN};
+    struct endpoint_data_t endpoint_data;
 
     ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv4_endpoints.lookup(&endpoint_key));
     if(ret != 0) {
+      // skip detection in case of unknown endpoint for now
+      return 0;
       //create endpoint if not in table
-      ipv4_endpoints.update(&endpoint_key, &endpoint_data);
+      // endpoint_data.status = STATUS_UNKNOWN;
+      // endpoint_data.n_connections = 1;
+      // ipv4_endpoints.update(&endpoint_key, &endpoint_data);
     }
 
 
@@ -879,7 +891,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data.http_payload[0] != '\0') {
-              struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = dport};
+              struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = 0};
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
 
               struct summary_data_t summary_data;
@@ -891,11 +903,11 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               }
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+              safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data.byte_rx;
               summary_data.byte_tx += connection_data.byte_tx;
-              summary_data.status = STATUS_CLIENT;
+              summary_data.status = STATUS_SERVER;
               ipv4_http_summary.update(&http_key, &summary_data);
 
             } else {
@@ -1019,12 +1031,16 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
     //check if I am a server or a client
     struct ipv6_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-    struct endpoint_data_t endpoint_data = {.n_connections = 1, .status = STATUS_UNKNOWN};
+    struct endpoint_data_t endpoint_data;
 
     ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv6_endpoints.lookup(&endpoint_key));
     if(ret != 0) {
+      // skip detection in case of unknown endpoint for now
+      return 0;
       //create endpoint if not in table
-      ipv6_endpoints.update(&endpoint_key, &endpoint_data);
+      // endpoint_data.status = STATUS_UNKNOWN;
+      // endpoint_data.n_connections = 1;
+      // ipv6_endpoints.update(&endpoint_key, &endpoint_data);
     }
 
 
@@ -1049,7 +1065,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data.http_payload[0] != '\0') {
-              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = dport};
+              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = 0};
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
 
               struct summary_data_t summary_data;
@@ -1061,11 +1077,11 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               }
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+              safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data.byte_rx;
               summary_data.byte_tx += connection_data.byte_tx;
-              summary_data.status = STATUS_CLIENT;
+              summary_data.status = STATUS_SERVER;
               ipv6_http_summary.update(&http_key, &summary_data);
 
             } else {

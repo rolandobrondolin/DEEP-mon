@@ -62,17 +62,18 @@ while not exiting:
     #     key = get_ipv4_session_key(k)
     #     print(str(key) + "   " + str(v.transaction_state) + "  " + str(v.transaction_flow) + " " + str(v.byte_tx) + " " + str(v.byte_rx) \
     #         + " " + str(v.first_ts_in) + " " + str(v.last_ts_in) + " " + str(v.first_ts_out) + " " + str(v.last_ts_out) + " " + str(v.http_payload))
-    # for k, v in ipv4_summary.items():
-    #     key = get_ipv4_session_key(k)
-    #     status = "unknown"
-    #     if v.status == 1:
-    #         status = "server"
-    #     elif v.status == -1:
-    #         status = "client"
-    #     print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
-    #     print(str(list(v.latency)))
-    # print()
-    #
+    for k, v in ipv4_summary.items():
+        key = get_ipv4_session_key(k)
+        status = "unknown"
+        if v.status == 1:
+            status = "server"
+        elif v.status == -1:
+            status = "client"
+            #continue
+        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
+        print(str(list(v.latency)))
+    print()
+
     # for k, v in ipv6_endpoints.items():
     #     key = get_ipv6_endpoint_key(k)
     #     print(str(key) + "   " + str(v.status) + "    " + str(v.n_connections))
@@ -100,19 +101,21 @@ while not exiting:
             status = "server"
         elif v.status == -1:
             status = "client"
+            #continue
         print(str(k.http_payload) + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
         print(str(list(v.latency)))
 
-    for k, v in ipv6_http_summary.items():
-        key = get_ipv6_session_key(k)
-        status = "unknown"
-        if v.status == 1:
-            status = "server"
-        elif v.status == -1:
-            status = "client"
-        print(str(k.http_payload) + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
-        print(str(list(v.latency)))
-    print()
+    # for k, v in ipv6_http_summary.items():
+    #     key = get_ipv6_session_key(k)
+    #     status = "unknown"
+    #     if v.status == 1:
+    #         status = "server"
+    #     elif v.status == -1:
+    #         status = "client"
+    #         continue
+    #     print(str(k.http_payload) + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
+    #     print(str(list(v.latency)))
+    # print()
 
     # # IPv4: build dict of all seen keys
     # ipv4_throughput = defaultdict(lambda: [0, 0])
