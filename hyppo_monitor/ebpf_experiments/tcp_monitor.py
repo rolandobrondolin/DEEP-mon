@@ -6,6 +6,12 @@ from struct import pack
 from time import sleep, strftime
 from subprocess import call
 from collections import namedtuple, defaultdict
+import ctypes as ct
+
+class BpfEndpointTuple(ct.Structure):
+    _fields_ = [("addr", ct.c_uint),
+                ("port", ct.c_ushort),
+                ("pad", ct.c_ushort)]
 
 
 TCPSessionKey = namedtuple('TCPSession', ['laddr', 'lport', 'daddr', 'dport'])
@@ -43,6 +49,9 @@ ipv6_summary = ebpf_tcp_monitor["ipv6_summary"]
 ipv4_http_summary = ebpf_tcp_monitor["ipv4_http_summary"]
 ipv6_http_summary = ebpf_tcp_monitor["ipv6_http_summary"]
 
+rewritten_rules_in = ebpf_tcp_monitor["rewritten_rules_in"]
+rewritten_rules_out = ebpf_tcp_monitor["rewritten_rules_out"]
+
 i = 0
 exiting = False
 while not exiting:
@@ -69,9 +78,11 @@ while not exiting:
             status = "server"
         elif v.status == -1:
             status = "client"
+        elif v.status == 0:
+            status = "############# bypass #############"
             #continue
-        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
-        print(str(list(v.latency)))
+        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) + " " + str(list(v.latency)))
+        # print(str(list(v.latency)))
     print()
 
     # for k, v in ipv6_endpoints.items():
@@ -92,8 +103,9 @@ while not exiting:
     #     print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
     #     print(str(list(v.latency)))
 
+    paths = {}
 
-
+    print("##### Transaction summary IPv4 #####")
     for k, v in ipv4_http_summary.items():
         key = get_ipv4_session_key(k)
         status = "unknown"
@@ -101,21 +113,44 @@ while not exiting:
             status = "server"
         elif v.status == -1:
             status = "client"
+        elif v.status == 0:
+            status = "############# bypass #############"
             #continue
-        print(str(k.http_payload) + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
-        print(str(list(v.latency)))
+        print(str(k.http_payload).splitlines()[0] + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) + " " + str(list(v.latency)))
 
-    # for k, v in ipv6_http_summary.items():
-    #     key = get_ipv6_session_key(k)
-    #     status = "unknown"
-    #     if v.status == 1:
-    #         status = "server"
-    #     elif v.status == -1:
-    #         status = "client"
-    #         continue
-    #     print(str(k.http_payload) + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
-    #     print(str(list(v.latency)))
-    # print()
+
+        #print(str(list(v.latency)))
+    print("##### Transaction summary IPv6 #####")
+    for k, v in ipv6_http_summary.items():
+        key = get_ipv6_session_key(k)
+        status = "unknown"
+        if v.status == 1:
+            status = "server"
+        elif v.status == -1:
+            status = "client"
+            #continue
+        print(str(k.http_payload).splitlines()[0] + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) + " " + str(list(v.latency)))
+        #print(str(list(v.latency)))
+    print()
+
+
+    #check on links
+
+    for k, v in rewritten_rules_in.items():
+        key = get_ipv4_endpoint_key(k)
+        value = get_ipv4_endpoint_key(v)
+        print(str(key) + "    " + str(value) + " " + str(k.addr) + " " + str(k.port) + " " + str(k.pad))
+    print()
+
+    for k, v in rewritten_rules_out.items():
+        key = get_ipv4_endpoint_key(k)
+        value = get_ipv4_endpoint_key(v)
+        print(str(key) + "    " + str(value))
+    print()
+
+    # print("##### Mappings IPv4 #####")
+    # for item in paths:
+    #     print(item)
 
     # # IPv4: build dict of all seen keys
     # ipv4_throughput = defaultdict(lambda: [0, 0])

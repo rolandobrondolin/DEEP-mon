@@ -5,9 +5,11 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/skbuff.h>
+#include <linux/netfilter.h>
+#include <net/netfilter/nf_tables.h>
 
-#define LATENCY_SAMPLES 10
-#define PAYLOAD_LEN 32
+#define LATENCY_SAMPLES 13
+#define PAYLOAD_LEN 48
 
 #define STATUS_CLIENT -1
 #define STATUS_SERVER 1
@@ -20,6 +22,11 @@
 #define T_STATUS_OFF 0
 
 #define PAD_VALUE 0
+
+
+#define HTTP_CLIENT_PORT_MASKING
+#define KILL_CONNECTION_DATA
+
 
 //struct used to detect if a connection endpoint is server or client
 //should be added to the hash ds, and removed on tcp state == closed
@@ -120,6 +127,22 @@ BPF_HASH(ipv6_http_summary, struct ipv6_http_key_t, struct summary_data_t);
 BPF_HASH(set_state_cache, struct sock *, struct endpoint_data_t);
 BPF_HASH(recv_cache, u32, struct currsock_t);
 
+struct iptables_data_t {
+  u32 saddr;
+  u32 daddr;
+  u16 lport;
+  u16 dport;
+  u32 pad;
+  struct sk_buff *skb;
+};
+
+BPF_HASH(iptables_rewrite_cache_in, u64, struct iptables_data_t);
+BPF_HASH(iptables_rewrite_cache_out, u64, struct iptables_data_t);
+BPF_HASH(rewritten_rules_in, struct ipv4_endpoint_key_t, struct ipv4_endpoint_key_t);
+BPF_HASH(rewritten_rules_out, struct ipv4_endpoint_key_t, struct ipv4_endpoint_key_t);
+
+
+
 
 static void safe_array_write(u32 idx, u64* array, u64 value) {
   #pragma clang loop unroll(full)
@@ -197,7 +220,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
     }
 
-    if(state == TCP_CLOSE || state == TCP_FIN_WAIT2 || state == TCP_FIN_WAIT1 || state == TCP_LAST_ACK || state == TCP_TIME_WAIT || state == TCP_CLOSE_WAIT || state == TCP_CLOSING) {
+    if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
       // socket closed, clean things
       struct ipv4_key_t connection_key = {.saddr = saddr, .lport = lport, .daddr = daddr, .dport = dport};
       struct connection_data_t connection_data;
@@ -215,17 +238,18 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
             && ((endpoint_data.status == STATUS_SERVER && connection_data.transaction_flow == T_OUTGOING)
               || (endpoint_data.status == STATUS_CLIENT && connection_data.transaction_flow == T_INCOMING))) {
 
-
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data.http_payload[0] != '\0') {
-
+#ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = 0};
               if(endpoint_data.status == STATUS_SERVER) {
                 http_key.lport = lport;
               } else if (endpoint_data.status == STATUS_CLIENT){
                 http_key.dport = dport;
               }
-
+#else
+              struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
+#endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
 
               struct summary_data_t summary_data;
@@ -251,6 +275,54 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               summary_data.byte_tx += connection_data.byte_tx;
               ipv4_http_summary.update(&http_key, &summary_data);
 
+              //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+#ifdef HTTP_CLIENT_PORT_MASKING
+                if(endpoint_data.status == STATUS_SERVER) {
+                  http_key.lport = nat_data->port;
+                  http_key.dport = endpoint_key.port;
+                } else if (endpoint_data.status == STATUS_CLIENT){
+                  http_key.dport = 0;
+                  http_key.lport = 0;
+                }
+#else
+                http_key.lport = nat_data->port;
+                http_key.dport = endpoint_key.port;
+#endif
+                http_key.saddr = nat_data->addr;
+                http_key.daddr = endpoint_key.addr;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_http_summary.update(&http_key, &summary_data);
+              }
+
+              endpoint_key.addr = connection_key.daddr;
+              endpoint_key.port = connection_key.dport;
+
+              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+#ifdef HTTP_CLIENT_PORT_MASKING
+                if(endpoint_data.status == STATUS_SERVER) {
+                  http_key.lport = 0;
+                  http_key.dport = 0;
+                } else if (endpoint_data.status == STATUS_CLIENT){
+                  http_key.dport = nat_data->port;
+                  http_key.lport = endpoint_key.port;
+                }
+#else
+                http_key.lport = endpoint_key.port;
+                http_key.dport = nat_data->port;
+#endif
+                http_key.saddr = endpoint_key.addr;
+                http_key.daddr = nat_data->addr;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_http_summary.update(&http_key, &summary_data);
+              }
+
+              //remember to restore endpoint key!!!
+              endpoint_key.addr = connection_key.saddr;
+              endpoint_key.port = connection_key.lport;
+
             } else {
 
               struct summary_data_t summary_data = {};
@@ -275,15 +347,49 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               summary_data.byte_rx += connection_data.byte_rx;
               summary_data.byte_tx += connection_data.byte_tx;
               ipv4_summary.update(&connection_key, &summary_data);
+
+              //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                connection_key.lport = nat_data->port;
+                connection_key.dport = endpoint_key.port;
+                connection_key.saddr = nat_data->addr;
+                connection_key.daddr = endpoint_key.addr;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_summary.update(&connection_key, &summary_data);
+              }
+
+              endpoint_key.addr = daddr;
+              endpoint_key.port = dport;
+
+              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                connection_key.lport = endpoint_key.port;
+                connection_key.dport = nat_data->port;
+                connection_key.saddr = endpoint_key.addr;
+                connection_key.daddr = nat_data->addr;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_summary.update(&connection_key, &summary_data);
+              }
+
+              //remember to restore endpoint and connection key!!!
+              endpoint_key.addr = saddr;
+              endpoint_key.port = lport;
+              connection_key.lport = lport;
+              connection_key.dport = dport;
+              connection_key.saddr = saddr;
+              connection_key.daddr = daddr;
             }
           }
         }
 
+#ifdef KILL_CONNECTION_DATA
         ipv4_connections.delete(&connection_key);
 
         if(endpoint_data.status == STATUS_CLIENT /*|| (endpoint_data.status == STATUS_UNKNOWN && endpoint_data.n_connections <= 1))*/) {
           ipv4_endpoints.delete(&endpoint_key);
         }
+#endif
       }
 
     }
@@ -348,7 +454,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
     }
 
-    if(state == TCP_CLOSE || state == TCP_FIN_WAIT2 || state == TCP_FIN_WAIT1 || state == TCP_LAST_ACK || state == TCP_TIME_WAIT || state == TCP_CLOSE_WAIT || state == TCP_CLOSING) {
+    if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
       // socket closed, clean things
       struct ipv6_key_t connection_key = {.saddr = saddr, .lport = lport, .daddr = daddr, .dport = dport};
       struct connection_data_t connection_data;
@@ -367,14 +473,16 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               || (endpoint_data.status == STATUS_CLIENT && connection_data.transaction_flow == T_INCOMING))) {
 
             if(connection_data.http_payload[0] != '\0') {
-
+#ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = 0};
               if(endpoint_data.status == STATUS_SERVER) {
                 http_key.lport = lport;
               } else if (endpoint_data.status == STATUS_CLIENT){
                 http_key.dport = dport;
               }
-
+#else
+              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
+#endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
 
               struct summary_data_t summary_data;
@@ -427,12 +535,13 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
             }
           }
         }
-
+#ifdef KILL_CONNECTION_DATA
         ipv6_connections.delete(&connection_key);
 
         if(endpoint_data.status == STATUS_CLIENT /*|| (endpoint_data.status == STATUS_UNKNOWN && endpoint_data.n_connections <= 1))*/) {
           ipv6_endpoints.delete(&endpoint_key);
         }
+#endif
       }
 
     }
@@ -514,8 +623,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data.http_payload[0] != '\0') {
-
+#ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = dport};
+#else
+              struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
+#endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
 
               struct summary_data_t summary_data;
@@ -534,6 +646,39 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.status = STATUS_CLIENT;
               ipv4_http_summary.update(&http_key, &summary_data);
 
+              //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                http_key.saddr = nat_data->addr;
+#ifndef HTTP_CLIENT_PORT_MASKING
+                http_key.lport = nat_data->port;
+                http_key.dport = endpoint_key.port;
+#else
+                http_key.lport = 0;
+                http_key.dport = 0;
+#endif
+                http_key.daddr = endpoint_key.addr;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_http_summary.update(&http_key, &summary_data);
+              }
+
+              endpoint_key.addr = connection_key.daddr;
+              endpoint_key.port = connection_key.dport;
+
+              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                http_key.saddr = endpoint_key.addr;
+                http_key.lport = endpoint_key.port;
+                http_key.daddr = nat_data->addr;
+                http_key.dport = nat_data->port;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_http_summary.update(&http_key, &summary_data);
+              }
+
+              //remember to restore endpoint key!!!
+              endpoint_key.addr = connection_key.saddr;
+              endpoint_key.port = connection_key.lport;
+
             } else {
               struct summary_data_t summary_data;
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
@@ -550,6 +695,38 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.byte_tx += connection_data.byte_tx;
               summary_data.status = STATUS_CLIENT;
               ipv4_summary.update(&connection_key, &summary_data);
+
+              //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                connection_key.saddr = nat_data->addr;
+                connection_key.lport = nat_data->port;
+                connection_key.dport = endpoint_key.port;
+                connection_key.daddr = endpoint_key.addr;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_summary.update(&connection_key, &summary_data);
+              }
+
+              endpoint_key.addr = daddr;
+              endpoint_key.port = dport;
+
+              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                connection_key.saddr = endpoint_key.addr;
+                connection_key.lport = endpoint_key.port;
+                connection_key.daddr = nat_data->addr;
+                connection_key.dport = nat_data->port;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_summary.update(&connection_key, &summary_data);
+              }
+
+              //remember to restore endpoint and connection key!!!
+              endpoint_key.addr = saddr;
+              endpoint_key.port = lport;
+              connection_key.saddr = saddr;
+              connection_key.lport = lport;
+              connection_key.daddr = daddr;
+              connection_key.dport = dport;
             }
 
             //clean connection_data
@@ -595,8 +772,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
       }
 
       // ok, now read content of the message and see if it is an http request
-      struct iov_iter iter;
-      bpf_probe_read(&iter, sizeof(iter), &msg->msg_iter);
+      struct iov_iter iter = msg->msg_iter;
+      //bpf_probe_read(&iter, sizeof(iter), &msg->msg_iter);
       struct iovec data_to_be_read;
       bpf_probe_read(&data_to_be_read, sizeof(data_to_be_read), iter.iov);
 
@@ -689,8 +866,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data.http_payload[0] != '\0') {
-
+#ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = dport};
+#else
+              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
+#endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
 
               struct summary_data_t summary_data;
@@ -770,8 +950,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
       }
 
       // ok, now read content of the message and see if it is an http request
-      struct iov_iter iter;
-      bpf_probe_read(&iter, sizeof(iter), &msg->msg_iter);
+      struct iov_iter iter = msg->msg_iter;
+      //bpf_probe_read(&iter, sizeof(iter), &msg->msg_iter);
       struct iovec data_to_be_read;
       bpf_probe_read(&data_to_be_read, sizeof(data_to_be_read), iter.iov);
 
@@ -891,7 +1071,11 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data.http_payload[0] != '\0') {
+#ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = 0};
+#else
+              struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
+#endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
 
               struct summary_data_t summary_data;
@@ -910,6 +1094,39 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               summary_data.status = STATUS_SERVER;
               ipv4_http_summary.update(&http_key, &summary_data);
 
+              //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                http_key.saddr = nat_data->addr;
+                http_key.lport = nat_data->port;
+                http_key.daddr = endpoint_key.addr;
+                http_key.dport = endpoint_key.port;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_http_summary.update(&http_key, &summary_data);
+              }
+
+              endpoint_key.addr = connection_key.daddr;
+              endpoint_key.port = connection_key.dport;
+
+              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                http_key.saddr = endpoint_key.addr;
+                http_key.daddr = nat_data->addr;
+#ifndef HTTP_CLIENT_PORT_MASKING
+                http_key.dport = nat_data->port;
+                http_key.lport = endpoint_key.port;
+#else
+                http_key.dport = 0;
+                http_key.lport = 0;
+#endif
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_http_summary.update(&http_key, &summary_data);
+              }
+
+              //remember to restore endpoint key!!!
+              endpoint_key.addr = connection_key.saddr;
+              endpoint_key.port = connection_key.lport;
+
             } else {
               struct summary_data_t summary_data = {};
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
@@ -925,6 +1142,38 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               summary_data.byte_tx += connection_data.byte_tx;
               summary_data.status = STATUS_SERVER;
               ipv4_summary.update(&connection_key, &summary_data);
+
+              //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                connection_key.saddr = nat_data->addr;
+                connection_key.lport = nat_data->port;
+                connection_key.daddr = endpoint_key.addr;
+                connection_key.dport = endpoint_key.port;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_summary.update(&connection_key, &summary_data);
+              }
+
+              endpoint_key.addr = connection_key.daddr;
+              endpoint_key.port = connection_key.dport;
+
+              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              if(nat_data != NULL) {
+                connection_key.saddr = endpoint_key.addr;
+                connection_key.daddr = nat_data->addr;
+                connection_key.dport = nat_data->port;
+                connection_key.lport = endpoint_key.port;
+                summary_data.status = STATUS_UNKNOWN;
+                ipv4_summary.update(&connection_key, &summary_data);
+              }
+
+              //remember to restore endpoint and connection key!!!
+              endpoint_key.addr = saddr;
+              endpoint_key.port = lport;
+              connection_key.saddr = saddr;
+              connection_key.daddr = daddr;
+              connection_key.dport = dport;
+              connection_key.lport = lport;
             }
 
             //clean connection_data
@@ -1065,7 +1314,11 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data.http_payload[0] != '\0') {
+#ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = 0};
+#else
+              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = 0};
+#endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
 
               struct summary_data_t summary_data;
@@ -1196,6 +1449,225 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 }
 
 
+
+// int kprobe__ip_route_me_harder(struct pt_regs *ctx, struct net *net, struct sk_buff *skb, unsigned int addr_type) {
+//
+//   struct sk_buff skb_imported;
+//   bpf_probe_read(&skb_imported, sizeof(skb_imported), skb);
+//
+//   u16 lport;
+//   u16 dport;
+//   u32 saddr;
+//   u32 daddr;
+//
+//   struct iphdr *ip_header = (struct iphdr *)skb_network_header(&skb_imported);
+//   struct iphdr ip_header_local;
+//   bpf_probe_read(&ip_header_local, sizeof(ip_header_local), ip_header);
+//
+//   if (ip_header_local.protocol == 6) {
+//     struct tcphdr *tcp_header = (struct tcphdr *)skb_transport_header(&skb_imported);
+//     struct tcphdr tcp_header_local;
+//     bpf_probe_read(&tcp_header_local, sizeof(tcp_header_local), tcp_header);
+//
+//     lport = (u16)ntohs(tcp_header_local.source);
+//     dport = (u16)ntohs(tcp_header_local.dest);
+//
+//   } else {
+//     return 0;
+//   }
+//
+//   saddr = ip_header_local.saddr;
+//   daddr = ip_header_local.daddr;
+//
+//   struct ipv4_endpoint_key_t key = {.addr = saddr, .port = lport};
+//   struct ipv4_endpoint_key_t value = {.addr = daddr, .port = dport};
+//
+//   endpoint_rewritten.update(&key, &value);
+//
+//   return 0;
+// }
+
+int kprobe__ip_rcv(struct pt_regs *ctx, struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *orig_dev){
+
+  u64 pid = bpf_get_current_pid_tgid();
+
+  struct sk_buff skb_imported;
+  bpf_probe_read(&skb_imported, sizeof(skb_imported), skb);
+
+  struct iptables_data_t cache_data = {.skb = skb};
+
+  struct iphdr *ip_header = (struct iphdr *)skb_network_header(&skb_imported);
+  struct iphdr ip_header_local;
+  bpf_probe_read(&ip_header_local, sizeof(ip_header_local), ip_header);
+
+  if (ip_header_local.protocol == 6) {
+    struct tcphdr *tcp_header = (struct tcphdr *)skb_transport_header(&skb_imported);
+    struct tcphdr tcp_header_local;
+    bpf_probe_read(&tcp_header_local, sizeof(tcp_header_local), tcp_header);
+
+    cache_data.lport = (u16)ntohs(tcp_header_local.source);
+    cache_data.dport = (u16)ntohs(tcp_header_local.dest);
+
+    if(cache_data.lport == 0 || cache_data.dport == 0) {
+      // skip not yet established connections
+      return 0;
+    }
+
+    cache_data.saddr = ip_header_local.saddr;
+    cache_data.daddr = ip_header_local.daddr;
+
+    iptables_rewrite_cache_in.update(&pid, &cache_data);
+  }
+
+  return 0;
+
+}
+
+int kretprobe__ip_rcv(struct pt_regs *ctx){
+  int return_value = PT_REGS_RC(ctx);
+  u64 pid = bpf_get_current_pid_tgid();
+
+  struct iptables_data_t * cache_data;
+  cache_data = iptables_rewrite_cache_in.lookup(&pid);
+
+  if(return_value == NET_RX_SUCCESS && cache_data != NULL) {
+    struct sk_buff skb_imported;
+    bpf_probe_read(&skb_imported, sizeof(skb_imported), cache_data->skb);
+
+    struct iphdr *ip_header = (struct iphdr *)skb_network_header(&skb_imported);
+    struct iphdr ip_header_local;
+    bpf_probe_read(&ip_header_local, sizeof(ip_header_local), ip_header);
+
+    u32 src_ip = ip_header_local.saddr;
+    u32 dest_ip = ip_header_local.daddr;
+
+    u16 src_port = 0;
+    u16 dest_port = 0;
+    if (ip_header_local.protocol == 6) {
+      struct tcphdr *tcp_header;
+      tcp_header = (struct tcphdr *)skb_transport_header(&skb_imported);
+      struct tcphdr tcp_header_local;
+      bpf_probe_read(&tcp_header_local, sizeof(tcp_header_local), tcp_header);
+
+      src_port = (u16)ntohs(tcp_header_local.source);
+      dest_port = (u16)ntohs(tcp_header_local.dest);
+
+      if(src_port == 0 || dest_port == 0) {
+        // skip not yet established connections
+        return 0;
+      }
+
+      // insert translated addresses into rewritten endpoints
+      if(cache_data->saddr != src_ip || cache_data->lport != src_port){
+        struct ipv4_endpoint_key_t key = {.addr = src_ip, .port = src_port};
+        struct ipv4_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
+        rewritten_rules_in.update(&key, &value);
+
+      }
+
+      if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
+        struct ipv4_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
+        struct ipv4_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
+        rewritten_rules_in.update(&key, &value);
+
+      }
+    }
+
+    iptables_rewrite_cache_in.delete(&pid);
+  }
+  return 0;
+}
+
+int kprobe__ip_output(struct pt_regs *ctx, struct net *net, struct sock *sk, struct sk_buff *skb){
+  u64 pid = bpf_get_current_pid_tgid();
+
+  struct sk_buff skb_imported;
+  bpf_probe_read(&skb_imported, sizeof(skb_imported), skb);
+
+  struct iptables_data_t cache_data = {.skb = skb};
+
+  struct iphdr *ip_header = (struct iphdr *)skb_network_header(&skb_imported);
+  struct iphdr ip_header_local;
+  bpf_probe_read(&ip_header_local, sizeof(ip_header_local), ip_header);
+
+  if (ip_header_local.protocol == 6) {
+    struct tcphdr *tcp_header = (struct tcphdr *)skb_transport_header(&skb_imported);
+    struct tcphdr tcp_header_local;
+    bpf_probe_read(&tcp_header_local, sizeof(tcp_header_local), tcp_header);
+
+    cache_data.lport = (u16)ntohs(tcp_header_local.source);
+    cache_data.dport = (u16)ntohs(tcp_header_local.dest);
+
+    if(cache_data.lport == 0 || cache_data.dport == 0) {
+      // skip not yet established connections
+      return 0;
+    }
+
+    cache_data.saddr = ip_header_local.saddr;
+    cache_data.daddr = ip_header_local.daddr;
+
+    iptables_rewrite_cache_out.update(&pid, &cache_data);
+  }
+
+  return 0;
+}
+
+
+
+int kretprobe__ip_output(struct pt_regs *ctx){
+  int return_value = PT_REGS_RC(ctx);
+  u64 pid = bpf_get_current_pid_tgid();
+
+  struct iptables_data_t * cache_data;
+  cache_data = iptables_rewrite_cache_out.lookup(&pid);
+
+  if(return_value == NET_RX_SUCCESS && cache_data != NULL) {
+    struct sk_buff skb_imported;
+    bpf_probe_read(&skb_imported, sizeof(skb_imported), cache_data->skb);
+
+    struct iphdr *ip_header = (struct iphdr *)skb_network_header(&skb_imported);
+    struct iphdr ip_header_local;
+    bpf_probe_read(&ip_header_local, sizeof(ip_header_local), ip_header);
+
+    u32 src_ip = ip_header_local.saddr;
+    u32 dest_ip = ip_header_local.daddr;
+
+    u16 src_port = 0;
+    u16 dest_port = 0;
+    if (ip_header_local.protocol == 6) {
+      struct tcphdr *tcp_header;
+      tcp_header = (struct tcphdr *)skb_transport_header(&skb_imported);
+      struct tcphdr tcp_header_local;
+      bpf_probe_read(&tcp_header_local, sizeof(tcp_header_local), tcp_header);
+
+      src_port = (u16)ntohs(tcp_header_local.source);
+      dest_port = (u16)ntohs(tcp_header_local.dest);
+
+      if(src_port == 0 || dest_port == 0) {
+        // skip not yet established connections
+        return 0;
+      }
+
+      // insert translated addresses into rewritten endpoints
+      if(cache_data->saddr != src_ip || cache_data->lport != src_port){
+        struct ipv4_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
+        struct ipv4_endpoint_key_t key = {.addr = src_ip, .port = src_port};
+        rewritten_rules_out.update(&key, &value);
+
+      }
+
+      if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
+        struct ipv4_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
+        struct ipv4_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
+        rewritten_rules_out.update(&key, &value);
+
+      }
+    }
+
+    iptables_rewrite_cache_out.delete(&pid);
+  }
+  return 0;
+}
 
 //
 // /*
