@@ -52,6 +52,9 @@ ipv6_http_summary = ebpf_tcp_monitor["ipv6_http_summary"]
 rewritten_rules_in = ebpf_tcp_monitor["rewritten_rules_in"]
 rewritten_rules_out = ebpf_tcp_monitor["rewritten_rules_out"]
 
+rewritten_rules_in_6 = ebpf_tcp_monitor["rewritten_rules_in_6"]
+rewritten_rules_out_6 = ebpf_tcp_monitor["rewritten_rules_out_6"]
+
 i = 0
 exiting = False
 while not exiting:
@@ -145,6 +148,19 @@ while not exiting:
     for k, v in rewritten_rules_out.items():
         key = get_ipv4_endpoint_key(k)
         value = get_ipv4_endpoint_key(v)
+        print(str(key) + "    " + str(value))
+    print()
+
+
+    for k, v in rewritten_rules_in_6.items():
+        key = get_ipv6_endpoint_key(k)
+        value = get_ipv6_endpoint_key(v)
+        print(str(key) + "    " + str(value))
+    print()
+
+    for k, v in rewritten_rules_out_6.items():
+        key = get_ipv6_endpoint_key(k)
+        value = get_ipv6_endpoint_key(v)
         print(str(key) + "    " + str(value))
     print()
 
