@@ -66,14 +66,15 @@ while not exiting:
     call("clear")
 
     # print endpoints
-    # for k, v in ipv4_endpoints.items():
-    #     key = get_ipv4_endpoint_key(k)
-    #     print(str(key) + "   " + str(v.status) + "    " + str(v.n_connections))
-    # print()
+    for k, v in ipv4_endpoints.items():
+        key = get_ipv4_endpoint_key(k)
+        print(str(key) + "   " + str(v.status) + "    " + str(v.n_connections))
+    print()
     # for k, v in ipv4_connections.items():
     #     key = get_ipv4_session_key(k)
     #     print(str(key) + "   " + str(v.transaction_state) + "  " + str(v.transaction_flow) + " " + str(v.byte_tx) + " " + str(v.byte_rx) \
     #         + " " + str(v.first_ts_in) + " " + str(v.last_ts_in) + " " + str(v.first_ts_out) + " " + str(v.last_ts_out) + " " + str(v.http_payload))
+    print("##### Transaction summary IPv4 - TCP #####")
     for k, v in ipv4_summary.items():
         key = get_ipv4_session_key(k)
         status = "unknown"
@@ -96,19 +97,22 @@ while not exiting:
     #     key = get_ipv6_session_key(k)
     #     print(str(key) + "   " + str(v.transaction_state) + "  " + str(v.transaction_flow) + " " + str(v.byte_tx) + " " + str(v.byte_rx) \
     #         + " " + str(v.first_ts_in) + " " + str(v.last_ts_in) + " " + str(v.first_ts_out) + " " + str(v.last_ts_out) + " " + str(v.http_payload))
-    # for k, v in ipv6_summary.items():
-    #     key = get_ipv6_session_key(k)
-    #     status = "unknown"
-    #     if v.status == 1:
-    #         status = "server"
-    #     elif v.status == -1:
-    #         status = "client"
-    #     print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx))
-    #     print(str(list(v.latency)))
+    print("##### Transaction summary IPv6 - TCP #####")
+    for k, v in ipv6_summary.items():
+        key = get_ipv6_session_key(k)
+        status = "unknown"
+        if v.status == 1:
+            status = "server"
+        elif v.status == -1:
+            status = "client"
+        elif v.status == 0:
+            status = "############# bypass #############"
+        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) + " " + str(list(v.latency)))
+        # print(str(list(v.latency)))
 
     paths = {}
 
-    print("##### Transaction summary IPv4 #####")
+    print("##### Transaction summary IPv4 - HTTP #####")
     for k, v in ipv4_http_summary.items():
         key = get_ipv4_session_key(k)
         status = "unknown"
@@ -123,7 +127,7 @@ while not exiting:
 
 
         #print(str(list(v.latency)))
-    print("##### Transaction summary IPv6 #####")
+    print("##### Transaction summary IPv6 - HTTP #####")
     for k, v in ipv6_http_summary.items():
         key = get_ipv6_session_key(k)
         status = "unknown"
@@ -138,31 +142,30 @@ while not exiting:
 
 
     #check on links
-
-    for k, v in rewritten_rules_in.items():
-        key = get_ipv4_endpoint_key(k)
-        value = get_ipv4_endpoint_key(v)
-        print(str(key) + "    " + str(value) + " " + str(k.addr) + " " + str(k.port) + " " + str(k.pad))
-    print()
-
-    for k, v in rewritten_rules_out.items():
-        key = get_ipv4_endpoint_key(k)
-        value = get_ipv4_endpoint_key(v)
-        print(str(key) + "    " + str(value))
-    print()
-
-
-    for k, v in rewritten_rules_in_6.items():
-        key = get_ipv6_endpoint_key(k)
-        value = get_ipv6_endpoint_key(v)
-        print(str(key) + "    " + str(value))
-    print()
-
-    for k, v in rewritten_rules_out_6.items():
-        key = get_ipv6_endpoint_key(k)
-        value = get_ipv6_endpoint_key(v)
-        print(str(key) + "    " + str(value))
-    print()
+    # for k, v in rewritten_rules_in.items():
+    #     key = get_ipv4_endpoint_key(k)
+    #     value = get_ipv4_endpoint_key(v)
+    #     print(str(key) + "    " + str(value) + " " + str(k.addr) + " " + str(k.port) + " " + str(k.pad))
+    # print()
+    #
+    # for k, v in rewritten_rules_out.items():
+    #     key = get_ipv4_endpoint_key(k)
+    #     value = get_ipv4_endpoint_key(v)
+    #     print(str(key) + "    " + str(value))
+    # print()
+    #
+    #
+    # for k, v in rewritten_rules_in_6.items():
+    #     key = get_ipv6_endpoint_key(k)
+    #     value = get_ipv6_endpoint_key(v)
+    #     print(str(key) + "    " + str(value))
+    # print()
+    #
+    # for k, v in rewritten_rules_out_6.items():
+    #     key = get_ipv6_endpoint_key(k)
+    #     value = get_ipv6_endpoint_key(v)
+    #     print(str(key) + "    " + str(value))
+    # print()
 
     # print("##### Mappings IPv4 #####")
     # for item in paths:

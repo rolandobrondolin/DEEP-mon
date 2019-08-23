@@ -321,6 +321,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 http_key.daddr = endpoint_key.addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_http_summary.update(&http_key, &summary_data);
+                rewritten_rules_in.delete(&endpoint_key);
               }
 
               endpoint_key.addr = connection_key.daddr;
@@ -344,6 +345,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 http_key.daddr = nat_data->addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_http_summary.update(&http_key, &summary_data);
+                rewritten_rules_out.delete(&endpoint_key);
               }
 
               //remember to restore endpoint key!!!
@@ -387,6 +389,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 connection_key.daddr = endpoint_key.addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_summary.update(&connection_key, &summary_data);
+                rewritten_rules_in.delete(&endpoint_key);
               }
 
               endpoint_key.addr = daddr;
@@ -400,6 +403,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 connection_key.daddr = nat_data->addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_summary.update(&connection_key, &summary_data);
+                rewritten_rules_out.delete(&endpoint_key);
               }
 
               //remember to restore endpoint and connection key!!!
@@ -561,6 +565,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 http_key.daddr = endpoint_key.addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_http_summary.update(&http_key, &summary_data);
+                rewritten_rules_in_6.delete(&endpoint_key);
               }
 
               endpoint_key.addr = connection_key.daddr;
@@ -584,6 +589,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 http_key.daddr = nat_data->addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_http_summary.update(&http_key, &summary_data);
+                rewritten_rules_out_6.delete(&endpoint_key);
               }
 
               //remember to restore endpoint key!!!
@@ -627,6 +633,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 connection_key.daddr = endpoint_key.addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_summary.update(&connection_key, &summary_data);
+                rewritten_rules_in_6.delete(&endpoint_key);
               }
 
               endpoint_key.addr = daddr;
@@ -640,6 +647,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 connection_key.daddr = nat_data->addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_summary.update(&connection_key, &summary_data);
+                rewritten_rules_out_6.delete(&endpoint_key);
               }
 
               //remember to restore endpoint and connection key!!!
@@ -872,7 +880,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
           } else if (connection_data.transaction_flow == T_OUTGOING) {
             connection_data.byte_tx += size;
-            connection_data.last_ts_in = ts;
+            connection_data.last_ts_out = ts;
             connection_data.transaction_flow = T_OUTGOING;
             ipv4_connections.update(&connection_key, &connection_data);
           } else {
@@ -1122,7 +1130,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
           } else if (connection_data.transaction_flow == T_OUTGOING) {
             connection_data.byte_tx += size;
-            connection_data.last_ts_in = ts;
+            connection_data.last_ts_out = ts;
             connection_data.transaction_flow = T_OUTGOING;
             ipv6_connections.update(&connection_key, &connection_data);
           } else {
@@ -1729,6 +1737,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
     }
   }
 
+  recv_cache.delete(&pid);
   return 0;
 }
 
@@ -1810,12 +1819,12 @@ int kretprobe__ip_rcv(struct pt_regs *ctx){
       }
 
       // insert translated addresses into rewritten endpoints
-      if(cache_data->saddr != src_ip || cache_data->lport != src_port){
-        struct ipv4_endpoint_key_t key = {.addr = src_ip, .port = src_port};
-        struct ipv4_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
-        rewritten_rules_in.update(&key, &value);
-
-      }
+      // if(cache_data->saddr != src_ip || cache_data->lport != src_port){
+      //   struct ipv4_endpoint_key_t key = {.addr = src_ip, .port = src_port};
+      //   struct ipv4_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
+      //   rewritten_rules_in.update(&key, &value);
+      //
+      // }
 
       if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
         struct ipv4_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
@@ -1912,12 +1921,12 @@ int kretprobe__ip_output(struct pt_regs *ctx){
 
       }
 
-      if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
-        struct ipv4_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
-        struct ipv4_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
-        rewritten_rules_out.update(&key, &value);
-
-      }
+      // if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
+      //   struct ipv4_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
+      //   struct ipv4_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
+      //   rewritten_rules_out.update(&key, &value);
+      //
+      // }
     }
 
     iptables_rewrite_cache_out.delete(&pid);
@@ -2002,11 +2011,11 @@ int kretprobe__ipv6_rcv(struct pt_regs *ctx){
       }
 
       // insert translated addresses into rewritten endpoints
-      if(cache_data->saddr != src_ip || cache_data->lport != src_port){
-        struct ipv6_endpoint_key_t key = {.addr = src_ip, .port = src_port};
-        struct ipv6_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
-        rewritten_rules_in_6.update(&key, &value);
-      }
+      // if(cache_data->saddr != src_ip || cache_data->lport != src_port){
+      //   struct ipv6_endpoint_key_t key = {.addr = src_ip, .port = src_port};
+      //   struct ipv6_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
+      //   rewritten_rules_in_6.update(&key, &value);
+      // }
 
       if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
         struct ipv6_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
@@ -2104,11 +2113,11 @@ int kretprobe__ip6_output(struct pt_regs *ctx) {
 
       }
 
-      if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
-        struct ipv6_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
-        struct ipv6_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
-        rewritten_rules_out_6.update(&key, &value);
-      }
+      // if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
+      //   struct ipv6_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
+      //   struct ipv6_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
+      //   rewritten_rules_out_6.update(&key, &value);
+      // }
     }
 
     iptables6_rewrite_cache_out.delete(&pid);
