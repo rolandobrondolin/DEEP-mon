@@ -737,12 +737,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
             // we do not know the flow status, keep it unknown till further info
             connection_data.transaction_flow = T_UNKNOWN;
           }
+          connection_data.byte_tx += size;
         } else {
           // the transaction is off, maybe we are just seeing the end of an
           // untracked transaction, wait for further data
           connection_data.transaction_state = T_STATUS_OFF;
         }
-        connection_data.byte_tx += size;
         ipv4_connections.update(&connection_key, &connection_data);
 
       } else if (endpoint_data.status == STATUS_CLIENT) {
@@ -987,12 +987,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
             // we do not know the flow status, keep it unknown till further info
             connection_data.transaction_flow = T_UNKNOWN;
           }
+          connection_data.byte_tx += size;
         } else {
           // the transaction is off, maybe we are just seeing the end of an
           // untracked transaction, wait for further data
           connection_data.transaction_state = T_STATUS_OFF;
         }
-        connection_data.byte_tx += size;
         ipv6_connections.update(&connection_key, &connection_data);
 
       } else if (endpoint_data.status == STATUS_CLIENT) {
@@ -1449,12 +1449,12 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
             // we do not know the flow status, keep it unknown till further info
             connection_data.transaction_flow = T_UNKNOWN;
           }
+          connection_data.byte_rx += copied;
         } else {
           // the transaction is off, maybe we are just seeing the end of an
           // untracked transaction, wait for further data
           connection_data.transaction_state = T_STATUS_OFF;
         }
-        connection_data.byte_rx += copied;
         ipv4_connections.update(&connection_key, &connection_data);
 
       } else {
@@ -1697,12 +1697,12 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
             // we do not know the flow status, keep it unknown till further info
             connection_data.transaction_flow = T_UNKNOWN;
           }
+          connection_data.byte_rx += copied;
         } else {
           // the transaction is off, maybe we are just seeing the end of an
           // untracked transaction, wait for further data
           connection_data.transaction_state = T_STATUS_OFF;
         }
-        connection_data.byte_rx += copied;
         ipv6_connections.update(&connection_key, &connection_data);
 
       } else {
