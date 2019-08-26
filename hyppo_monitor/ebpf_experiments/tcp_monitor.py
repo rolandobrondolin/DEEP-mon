@@ -67,10 +67,10 @@ while not exiting:
     call("clear")
 
     # print endpoints
-    for k, v in ipv4_endpoints.items():
-        key = get_ipv4_endpoint_key(k)
-        print(str(key) + "   " + str(v.status) + "    " + str(v.n_connections))
-    print()
+    # for k, v in ipv4_endpoints.items():
+    #     key = get_ipv4_endpoint_key(k)
+    #     print(str(key) + "   " + str(v.status) + "    " + str(v.n_connections))
+    # print()
     # for k, v in ipv4_connections.items():
     #     key = get_ipv4_session_key(k)
     #     print(str(key) + "   " + str(v.transaction_state) + "  " + str(v.transaction_flow) + " " + str(v.byte_tx) + " " + str(v.byte_rx) \
@@ -110,8 +110,8 @@ while not exiting:
             status = "############# bypass #############"
         print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) + " " + str(list(v.latency)))
         # print(str(list(v.latency)))
+    print()
 
-    paths = {}
 
     print("##### Transaction summary IPv4 - HTTP #####")
     for k, v in ipv4_http_summary.items():
@@ -137,6 +137,8 @@ while not exiting:
         #        + " " + str(list(v.latency)))
                 + "         " + str(mean) + " " + str(p90) + " " + str(p99) + " " + str(p99_9) + " " + str(p99_99))
     #ipv4_http_summary.clear()
+    print()
+
         #print(str(list(v.latency)))
     print("##### Transaction summary IPv6 - HTTP #####")
     for k, v in ipv6_http_summary.items():
