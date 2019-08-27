@@ -1002,7 +1002,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 #ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv6_http_key_t http_key = {.saddr = connection_key.saddr, .daddr = connection_key.daddr, .lport = 0, .dport = dport};
 #else
-              struct ipv6_http_key_t http_key = {.saddr = connection_key.saddr, .daddr = onnection_key.daddr, .lport = lport, .dport = dport};
+              struct ipv6_http_key_t http_key = {.saddr = connection_key.saddr, .daddr = connection_key.daddr, .lport = lport, .dport = dport};
 #endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
