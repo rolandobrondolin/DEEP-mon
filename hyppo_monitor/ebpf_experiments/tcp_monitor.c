@@ -9,7 +9,7 @@
 #include <linux/netfilter.h>
 #include <net/netfilter/nf_tables.h>
 
-#define LATENCY_SAMPLES 13
+#define LATENCY_SAMPLES 30
 #define PAYLOAD_LEN 48
 
 #define STATUS_CLIENT -1
@@ -21,8 +21,6 @@
 #define T_UNKNOWN 2
 #define T_STATUS_ON 1
 #define T_STATUS_OFF 0
-
-#define PAD_VALUE 0
 
 
 #define HTTP_CLIENT_PORT_MASKING
@@ -127,7 +125,7 @@ BPF_HASH(ipv6_http_summary, struct ipv6_http_key_t, struct summary_data_t);
 
 
 BPF_HASH(set_state_cache, struct sock *, struct endpoint_data_t);
-BPF_HASH(recv_cache, u32, struct currsock_t);
+BPF_HASH(recv_cache, u64, struct currsock_t);
 
 struct iptables_data_t {
   u32 saddr;
@@ -247,34 +245,32 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
     if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
       // socket closed, clean things
       struct ipv4_key_t connection_key = {.saddr = saddr, .lport = lport, .daddr = daddr, .dport = dport};
-      struct connection_data_t connection_data;
+      struct connection_data_t * connection_data = ipv4_connections.lookup(&connection_key);
       //update the last pending transaction before leaving
-      ret = bpf_probe_read(&connection_data, sizeof(connection_data), ipv4_connections.lookup(&connection_key));
 
-      if(ret == 0) {
+      if(connection_data != NULL) {
         struct ipv4_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-        struct endpoint_data_t endpoint_data;
-        ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv4_endpoints.lookup(&endpoint_key));
+        struct endpoint_data_t * endpoint_data = ipv4_endpoints.lookup(&endpoint_key);
 
-        if(ret == 0) {
+        if(endpoint_data != NULL) {
 
-          if(connection_data.transaction_state == T_STATUS_ON
-            && ((endpoint_data.status == STATUS_SERVER && connection_data.transaction_flow == T_OUTGOING)
-              || (endpoint_data.status == STATUS_CLIENT && connection_data.transaction_flow == T_INCOMING))) {
+          if(connection_data->transaction_state == T_STATUS_ON
+            && ((endpoint_data->status == STATUS_SERVER && connection_data->transaction_flow == T_OUTGOING)
+              || (endpoint_data->status == STATUS_CLIENT && connection_data->transaction_flow == T_INCOMING))) {
 
             //if we are dealing with http, use the appropriate hashmap
-            if(connection_data.http_payload[0] != '\0') {
+            if(connection_data->http_payload[0] != '\0') {
 #ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = 0};
-              if(endpoint_data.status == STATUS_SERVER) {
+              if(endpoint_data->status == STATUS_SERVER) {
                 http_key.lport = lport;
-              } else if (endpoint_data.status == STATUS_CLIENT){
+              } else if (endpoint_data->status == STATUS_CLIENT){
                 http_key.dport = dport;
               }
 #else
               struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
 #endif
-              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
+              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
               struct summary_data_t summary_data;
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
@@ -285,18 +281,18 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               }
 
               // check status and flow correctness
-              if(endpoint_data.status == STATUS_SERVER) {
+              if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
-                safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
+                safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
                 summary_data.status = STATUS_SERVER;
-              } else if (endpoint_data.status == STATUS_CLIENT){
+              } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
-                safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+                safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
                 summary_data.status = STATUS_CLIENT;
               }
               summary_data.transaction_count+= 1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               ipv4_http_summary.update(&http_key, &summary_data);
 
 #ifdef BYPASS
@@ -306,10 +302,10 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
               if(nat_data != NULL) {
 #ifdef HTTP_CLIENT_PORT_MASKING
-                if(endpoint_data.status == STATUS_SERVER) {
+                if(endpoint_data->status == STATUS_SERVER) {
                   http_key.lport = nat_data->port;
                   http_key.dport = endpoint_key.port;
-                } else if (endpoint_data.status == STATUS_CLIENT){
+                } else if (endpoint_data->status == STATUS_CLIENT){
                   http_key.dport = 0;
                   http_key.lport = 0;
                 }
@@ -330,10 +326,10 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               nat_data = rewritten_rules_out.lookup(&endpoint_key);
               if(nat_data != NULL) {
 #ifdef HTTP_CLIENT_PORT_MASKING
-                if(endpoint_data.status == STATUS_SERVER) {
+                if(endpoint_data->status == STATUS_SERVER) {
                   http_key.lport = 0;
                   http_key.dport = 0;
-                } else if (endpoint_data.status == STATUS_CLIENT){
+                } else if (endpoint_data->status == STATUS_CLIENT){
                   http_key.dport = nat_data->port;
                   http_key.lport = endpoint_key.port;
                 }
@@ -363,18 +359,18 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               // check status and flow correctness
-              if(endpoint_data.status == STATUS_SERVER) {
+              if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
-                safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
+                safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
                 summary_data.status = STATUS_SERVER;
-              } else if (endpoint_data.status == STATUS_CLIENT){
+              } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
-                safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+                safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
                 summary_data.status = STATUS_CLIENT;
               }
               summary_data.transaction_count+= 1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               ipv4_summary.update(&connection_key, &summary_data);
 
 #ifdef BYPASS
@@ -416,26 +412,20 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 #endif //BYPASS
             }
           }
+#ifdef KILL_CONNECTION_DATA
+          if(endpoint_data->status == STATUS_CLIENT /*|| (endpoint_data.status == STATUS_UNKNOWN && endpoint_data.n_connections <= 1))*/) {
+            ipv4_endpoints.delete(&endpoint_key);
+          }
+#endif
         }
-
 #ifdef KILL_CONNECTION_DATA
         ipv4_connections.delete(&connection_key);
-
-        if(endpoint_data.status == STATUS_CLIENT /*|| (endpoint_data.status == STATUS_UNKNOWN && endpoint_data.n_connections <= 1))*/) {
-          ipv4_endpoints.delete(&endpoint_key);
-        }
 #endif
       }
 
     }
 
   } else if (family == AF_INET6) {
-
-    unsigned __int128 saddr;
-    unsigned __int128 daddr;
-
-    bpf_probe_read(&saddr, sizeof(saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
-    bpf_probe_read(&daddr, sizeof(daddr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
 
     if(state == TCP_SYN_SENT) {
 
@@ -446,7 +436,9 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
     if(state == TCP_ESTABLISHED) {
       // connection established, retrieve the sk and populate correctly the endpoint hashtable
-      struct ipv6_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
+      struct ipv6_endpoint_key_t endpoint_key = {.port = lport};
+      bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+
       struct endpoint_data_t endpoint_value;
       //check first if I am a client
       ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), set_state_cache.lookup(&sk));
@@ -472,7 +464,9 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
         ipv6_endpoints.update(&endpoint_key, &endpoint_value);
 
         // connection established, populate connection hashmap (this happens 2 times if connection between local processes)
-        struct ipv6_key_t connection_key = {.saddr = saddr, .lport = lport, .daddr = daddr, .dport = dport};
+        struct ipv6_key_t connection_key = {.lport = lport, .dport = dport};
+        bpf_probe_read(&connection_key.saddr, sizeof(connection_key.saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+        bpf_probe_read(&connection_key.daddr, sizeof(connection_key.daddr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
 
         struct connection_data_t connection_data = {};
         connection_data.byte_rx = 0;
@@ -490,35 +484,37 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
     }
 
     if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
+
       // socket closed, clean things
-      struct ipv6_key_t connection_key = {.saddr = saddr, .lport = lport, .daddr = daddr, .dport = dport};
-      struct connection_data_t connection_data;
+      struct ipv6_key_t connection_key = {.lport = lport, .dport = dport};
+      bpf_probe_read(&connection_key.saddr, sizeof(connection_key.saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+      bpf_probe_read(&connection_key.daddr, sizeof(connection_key.daddr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
+
+      struct connection_data_t * connection_data = ipv6_connections.lookup(&connection_key);
       //update the last pending transaction before leaving
-      ret = bpf_probe_read(&connection_data, sizeof(connection_data), ipv6_connections.lookup(&connection_key));
 
-      if(ret == 0) {
-        struct ipv6_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-        struct endpoint_data_t endpoint_data;
-        ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv6_endpoints.lookup(&endpoint_key));
+      if(connection_data != NULL) {
+        struct ipv6_endpoint_key_t endpoint_key = {.addr = connection_key.saddr, .port = lport};
+        struct endpoint_data_t * endpoint_data = ipv6_endpoints.lookup(&endpoint_key);
 
-        if(ret == 0) {
+        if(endpoint_data != NULL) {
 
-          if(connection_data.transaction_state == T_STATUS_ON
-            && ((endpoint_data.status == STATUS_SERVER && connection_data.transaction_flow == T_OUTGOING)
-              || (endpoint_data.status == STATUS_CLIENT && connection_data.transaction_flow == T_INCOMING))) {
+          if(connection_data->transaction_state == T_STATUS_ON
+            && ((endpoint_data->status == STATUS_SERVER && connection_data->transaction_flow == T_OUTGOING)
+              || (endpoint_data->status == STATUS_CLIENT && connection_data->transaction_flow == T_INCOMING))) {
 
-            if(connection_data.http_payload[0] != '\0') {
+            if(connection_data->http_payload[0] != '\0') {
 #ifdef HTTP_CLIENT_PORT_MASKING
-              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = 0};
-              if(endpoint_data.status == STATUS_SERVER) {
+              struct ipv6_http_key_t http_key = {.saddr = connection_key.saddr, .daddr = connection_key.daddr, .lport = 0, .dport = 0};
+              if(endpoint_data->status == STATUS_SERVER) {
                 http_key.lport = lport;
-              } else if (endpoint_data.status == STATUS_CLIENT){
+              } else if (endpoint_data->status == STATUS_CLIENT){
                 http_key.dport = dport;
               }
 #else
-              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
+              struct ipv6_http_key_t http_key = {.saddr = connection_key.saddr, .daddr = connection_key.daddr, .lport = lport, .dport = dport};
 #endif
-              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
+              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
               struct summary_data_t summary_data;
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
@@ -529,18 +525,18 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               }
 
               // check status and flow correctness
-              if(endpoint_data.status == STATUS_SERVER) {
+              if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
-                safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
+                safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
                 summary_data.status = STATUS_SERVER;
-              } else if (endpoint_data.status == STATUS_CLIENT){
+              } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
-                safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+                safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
                 summary_data.status = STATUS_CLIENT;
               }
               summary_data.transaction_count+= 1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               ipv6_http_summary.update(&http_key, &summary_data);
 
 #ifdef BYPASS
@@ -550,10 +546,10 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               struct ipv6_endpoint_key_t* nat_data = rewritten_rules_in_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
 #ifdef HTTP_CLIENT_PORT_MASKING
-                if(endpoint_data.status == STATUS_SERVER) {
+                if(endpoint_data->status == STATUS_SERVER) {
                   http_key.lport = nat_data->port;
                   http_key.dport = endpoint_key.port;
-                } else if (endpoint_data.status == STATUS_CLIENT){
+                } else if (endpoint_data->status == STATUS_CLIENT){
                   http_key.dport = 0;
                   http_key.lport = 0;
                 }
@@ -574,10 +570,10 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               nat_data = rewritten_rules_out_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
 #ifdef HTTP_CLIENT_PORT_MASKING
-                if(endpoint_data.status == STATUS_SERVER) {
+                if(endpoint_data->status == STATUS_SERVER) {
                   http_key.lport = 0;
                   http_key.dport = 0;
-                } else if (endpoint_data.status == STATUS_CLIENT){
+                } else if (endpoint_data->status == STATUS_CLIENT){
                   http_key.dport = nat_data->port;
                   http_key.lport = endpoint_key.port;
                 }
@@ -607,18 +603,18 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               // check status and flow correctness
-              if(endpoint_data.status == STATUS_SERVER) {
+              if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
-                safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
+                safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
                 summary_data.status = STATUS_SERVER;
-              } else if (endpoint_data.status == STATUS_CLIENT){
+              } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (total time for server)
-                safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+                safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
                 summary_data.status = STATUS_CLIENT;
               }
               summary_data.transaction_count+= 1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               ipv6_summary.update(&connection_key, &summary_data);
 
 #ifdef BYPASS
@@ -636,7 +632,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 rewritten_rules_in_6.delete(&endpoint_key);
               }
 
-              endpoint_key.addr = daddr;
+              bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
               endpoint_key.port = dport;
 
               nat_data = rewritten_rules_out_6.lookup(&endpoint_key);
@@ -651,22 +647,23 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               }
 
               //remember to restore endpoint and connection key!!!
-              endpoint_key.addr = saddr;
+              bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
               endpoint_key.port = lport;
               connection_key.lport = lport;
               connection_key.dport = dport;
-              connection_key.saddr = saddr;
-              connection_key.daddr = daddr;
+              bpf_probe_read(&connection_key.saddr, sizeof(connection_key.saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+              bpf_probe_read(&connection_key.daddr, sizeof(connection_key.daddr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
 #endif //BYPASS
             }
           }
+#ifdef KILL_CONNECTION_DATA
+          if(endpoint_data->status == STATUS_CLIENT /*|| (endpoint_data.status == STATUS_UNKNOWN && endpoint_data.n_connections <= 1))*/) {
+            ipv6_endpoints.delete(&endpoint_key);
+          }
+#endif
         }
 #ifdef KILL_CONNECTION_DATA
         ipv6_connections.delete(&connection_key);
-
-        if(endpoint_data.status == STATUS_CLIENT /*|| (endpoint_data.status == STATUS_UNKNOWN && endpoint_data.n_connections <= 1))*/) {
-          ipv6_endpoints.delete(&endpoint_key);
-        }
 #endif
       }
 
@@ -686,7 +683,6 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
 int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg, size_t size) {
   u64 ts = bpf_ktime_get_ns();
-  int ret;
 
   u16 lport = sk->__sk_common.skc_num;
   u16 dport = sk->__sk_common.skc_dport;
@@ -700,10 +696,9 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
     //check if I am a server or a client
     struct ipv4_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-    struct endpoint_data_t endpoint_data;
+    struct endpoint_data_t * endpoint_data = ipv4_endpoints.lookup(&endpoint_key);
 
-    ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv4_endpoints.lookup(&endpoint_key));
-    if(ret != 0) {
+    if(endpoint_data == NULL) {
       // skip detection in case of unknown endpoint for now
       return 0;
       //create endpoint if not in table
@@ -715,54 +710,53 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
     // create connection tuple
     struct ipv4_key_t connection_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
 
-    struct connection_data_t connection_data;
-    ret = bpf_probe_read(&connection_data, sizeof(connection_data), ipv4_connections.lookup(&connection_key));
+    struct connection_data_t * connection_data;
+    connection_data = ipv4_connections.lookup(&connection_key);
     // it should always be not null, but we need to check
-    if(ret == 0) {
+    if(connection_data != NULL) {
 
-      if(endpoint_data.status == STATUS_SERVER) {
+      if(endpoint_data->status == STATUS_SERVER) {
         // I am the server and I am sending data
         // Either this is the first transfer back, or it is another transfer back
-        if(connection_data.transaction_state == T_STATUS_ON) {
-          if(connection_data.transaction_flow == T_INCOMING) {
+        if(connection_data->transaction_state == T_STATUS_ON) {
+          if(connection_data->transaction_flow == T_INCOMING) {
             //this is the first outgoing message
-            connection_data.first_ts_out = ts;
-            connection_data.last_ts_out = ts;
-            connection_data.transaction_flow = T_OUTGOING;
-          } else if (connection_data.transaction_flow == T_OUTGOING) {
+            connection_data->first_ts_out = ts;
+            connection_data->last_ts_out = ts;
+            connection_data->transaction_flow = T_OUTGOING;
+          } else if (connection_data->transaction_flow == T_OUTGOING) {
             // this is another outgoing message
-            connection_data.last_ts_out = ts;
-            connection_data.transaction_flow = T_OUTGOING;
+            connection_data->last_ts_out = ts;
+            connection_data->transaction_flow = T_OUTGOING;
           } else {
             // we do not know the flow status, keep it unknown till further info
-            connection_data.transaction_flow = T_UNKNOWN;
+            connection_data->transaction_flow = T_UNKNOWN;
           }
-          connection_data.byte_tx += size;
+          connection_data->byte_tx += size;
         } else {
           // the transaction is off, maybe we are just seeing the end of an
           // untracked transaction, wait for further data
-          connection_data.transaction_state = T_STATUS_OFF;
+          connection_data->transaction_state = T_STATUS_OFF;
         }
-        ipv4_connections.update(&connection_key, &connection_data);
 
-      } else if (endpoint_data.status == STATUS_CLIENT) {
+      } else if (endpoint_data->status == STATUS_CLIENT) {
         //count transaction client side
-        if(connection_data.transaction_state == T_STATUS_ON) {
-          if(connection_data.transaction_flow == T_INCOMING) {
+        if(connection_data->transaction_state == T_STATUS_ON) {
+          if(connection_data->transaction_flow == T_INCOMING) {
             // if we are a client sending data, then we are building a new transaction
             // commit the data and restart the thing again
 
             //if we are dealing with http, use the appropriate hashmap
-            if(connection_data.http_payload[0] != '\0') {
+            if(connection_data->http_payload[0] != '\0') {
 #ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = dport};
 #else
               struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
 #endif
-              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
+              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
               struct summary_data_t summary_data;
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
 
               u32 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
@@ -770,10 +764,10 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               }
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+              safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
               summary_data.transaction_count+=1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
               ipv4_http_summary.update(&http_key, &summary_data);
 
@@ -815,7 +809,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 #endif //BYPASS
             } else {
               struct summary_data_t summary_data;
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
 
               u32 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
@@ -823,10 +817,10 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               }
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+              safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
               summary_data.transaction_count+=1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
               ipv4_summary.update(&connection_key, &summary_data);
 
@@ -868,38 +862,35 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
             }
 
             //clean connection_data
-            connection_data.byte_rx = 0;
-            connection_data.byte_tx = size;
-            connection_data.first_ts_in = 0;
-            connection_data.last_ts_in = 0;
-            connection_data.first_ts_out = ts;
-            connection_data.last_ts_out = ts;
-            connection_data.transaction_flow = T_OUTGOING;
-            connection_data.transaction_state = T_STATUS_ON;
-            ipv4_connections.update(&connection_key, &connection_data);
+            connection_data->byte_rx = 0;
+            connection_data->byte_tx = size;
+            connection_data->first_ts_in = 0;
+            connection_data->last_ts_in = 0;
+            connection_data->first_ts_out = ts;
+            connection_data->last_ts_out = ts;
+            connection_data->transaction_flow = T_OUTGOING;
+            connection_data->transaction_state = T_STATUS_ON;
 
-          } else if (connection_data.transaction_flow == T_OUTGOING) {
-            connection_data.byte_tx += size;
-            connection_data.last_ts_out = ts;
-            connection_data.transaction_flow = T_OUTGOING;
-            ipv4_connections.update(&connection_key, &connection_data);
+          } else if (connection_data->transaction_flow == T_OUTGOING) {
+            connection_data->byte_tx += size;
+            connection_data->last_ts_out = ts;
+            connection_data->transaction_flow = T_OUTGOING;
           } else {
             // we do not know the flow status, keep it unknown till further info
-            connection_data.transaction_flow = T_UNKNOWN;
+            connection_data->transaction_flow = T_UNKNOWN;
           }
 
         } else {
           // transaction is off, but we have as client an outgoing message
           // set transaction as on!
-          connection_data.byte_rx = 0;
-          connection_data.byte_tx = size;
-          connection_data.first_ts_in = 0;
-          connection_data.last_ts_in = 0;
-          connection_data.first_ts_out = ts;
-          connection_data.last_ts_out = ts;
-          connection_data.transaction_flow = T_OUTGOING;
-          connection_data.transaction_state = T_STATUS_ON;
-          ipv4_connections.update(&connection_key, &connection_data);
+          connection_data->byte_rx = 0;
+          connection_data->byte_tx = size;
+          connection_data->first_ts_in = 0;
+          connection_data->last_ts_in = 0;
+          connection_data->first_ts_out = ts;
+          connection_data->last_ts_out = ts;
+          connection_data->transaction_flow = T_OUTGOING;
+          connection_data->transaction_state = T_STATUS_ON;
         }
 
       } else {
@@ -926,8 +917,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
           ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D'))) {
 
             // here we are! retrieve the connection and upload the String
-            bpf_probe_read(connection_data.http_payload, sizeof(connection_data.http_payload), data_to_be_read.iov_base);
-            ipv4_connections.update(&connection_key, &connection_data);
+            bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
         }
       }
     }
@@ -942,18 +932,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
     // //ipv6_send_bytes.increment(ipv6_key, 1);
 
 
-    unsigned __int128 saddr;
-    unsigned __int128 daddr;
-
-    bpf_probe_read(&saddr, sizeof(saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
-    bpf_probe_read(&daddr, sizeof(daddr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
-
     //check if I am a server or a client
-    struct ipv6_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-    struct endpoint_data_t endpoint_data;
+    struct ipv6_endpoint_key_t endpoint_key = {.port = lport};
+    bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+    struct endpoint_data_t * endpoint_data = ipv6_endpoints.lookup(&endpoint_key);
 
-    ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv6_endpoints.lookup(&endpoint_key));
-    if(ret != 0) {
+    if(endpoint_data == NULL) {
       // skip detection in case of unknown endpoint for now
       return 0;
       //create endpoint if not in table
@@ -963,56 +947,57 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
     }
 
     // create connection tuple
-    struct ipv6_key_t connection_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
 
-    struct connection_data_t connection_data;
-    ret = bpf_probe_read(&connection_data, sizeof(connection_data), ipv6_connections.lookup(&connection_key));
+    struct ipv6_key_t connection_key = {.lport = lport, .dport = dport};
+    bpf_probe_read(&connection_key.saddr, sizeof(connection_key.saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+    bpf_probe_read(&connection_key.daddr, sizeof(connection_key.daddr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
+
+    struct connection_data_t * connection_data = ipv6_connections.lookup(&connection_key);
     // it should always be not null, but we need to check
-    if(ret == 0) {
+    if(connection_data != NULL) {
 
-      if(endpoint_data.status == STATUS_SERVER) {
+      if(endpoint_data->status == STATUS_SERVER) {
         // I am the server and I am sending data
         // Either this is the first transfer back, or it is another transfer back
-        if(connection_data.transaction_state == T_STATUS_ON) {
-          if(connection_data.transaction_flow == T_INCOMING) {
+        if(connection_data->transaction_state == T_STATUS_ON) {
+          if(connection_data->transaction_flow == T_INCOMING) {
             //this is the first outgoing message
-            connection_data.first_ts_out = ts;
-            connection_data.last_ts_out = ts;
-            connection_data.transaction_flow = T_OUTGOING;
-          } else if (connection_data.transaction_flow == T_OUTGOING) {
+            connection_data->first_ts_out = ts;
+            connection_data->last_ts_out = ts;
+            connection_data->transaction_flow = T_OUTGOING;
+          } else if (connection_data->transaction_flow == T_OUTGOING) {
             // this is another outgoing message
-            connection_data.last_ts_out = ts;
-            connection_data.transaction_flow = T_OUTGOING;
+            connection_data->last_ts_out = ts;
+            connection_data->transaction_flow = T_OUTGOING;
           } else {
             // we do not know the flow status, keep it unknown till further info
-            connection_data.transaction_flow = T_UNKNOWN;
+            connection_data->transaction_flow = T_UNKNOWN;
           }
-          connection_data.byte_tx += size;
+          connection_data->byte_tx += size;
         } else {
           // the transaction is off, maybe we are just seeing the end of an
           // untracked transaction, wait for further data
-          connection_data.transaction_state = T_STATUS_OFF;
+          connection_data->transaction_state = T_STATUS_OFF;
         }
-        ipv6_connections.update(&connection_key, &connection_data);
 
-      } else if (endpoint_data.status == STATUS_CLIENT) {
+      } else if (endpoint_data->status == STATUS_CLIENT) {
         //count transaction client side
-        if(connection_data.transaction_state == T_STATUS_ON) {
-          if(connection_data.transaction_flow == T_INCOMING) {
+        if(connection_data->transaction_state == T_STATUS_ON) {
+          if(connection_data->transaction_flow == T_INCOMING) {
             // if we are a client sending data, then we are building a new transaction
             // commit the data and restart the thing again
 
             //if we are dealing with http, use the appropriate hashmap
-            if(connection_data.http_payload[0] != '\0') {
+            if(connection_data->http_payload[0] != '\0') {
 #ifdef HTTP_CLIENT_PORT_MASKING
-              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = 0, .dport = dport};
+              struct ipv6_http_key_t http_key = {.saddr = connection_key.saddr, .daddr = connection_key.daddr, .lport = 0, .dport = dport};
 #else
-              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
+              struct ipv6_http_key_t http_key = {.saddr = connection_key.saddr, .daddr = onnection_key.daddr, .lport = lport, .dport = dport};
 #endif
-              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
+              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
               struct summary_data_t summary_data;
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
 
               u32 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
@@ -1020,10 +1005,10 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               }
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+              safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
               summary_data.transaction_count+=1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
               ipv6_http_summary.update(&http_key, &summary_data);
 
@@ -1065,7 +1050,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 #endif //BYPASS
             } else {
               struct summary_data_t summary_data;
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
 
               u32 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
@@ -1073,10 +1058,10 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               }
 
               //measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data.last_ts_in - connection_data.first_ts_out);
+              safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
               summary_data.transaction_count+=1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
               ipv6_summary.update(&connection_key, &summary_data);
 
@@ -1094,7 +1079,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 ipv6_summary.update(&connection_key, &summary_data);
               }
 
-              endpoint_key.addr = daddr;
+              bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
               endpoint_key.port = dport;
 
               nat_data = rewritten_rules_out_6.lookup(&endpoint_key);
@@ -1108,48 +1093,45 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               }
 
               //remember to restore endpoint and connection key!!!
-              endpoint_key.addr = saddr;
+              bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
               endpoint_key.port = lport;
-              connection_key.saddr = saddr;
+              bpf_probe_read(&connection_key.saddr, sizeof(connection_key.saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
               connection_key.lport = lport;
-              connection_key.daddr = daddr;
+              bpf_probe_read(&connection_key.daddr, sizeof(connection_key.daddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
               connection_key.dport = dport;
 #endif //BYPASS
             }
 
             //clean connection_data
-            connection_data.byte_rx = 0;
-            connection_data.byte_tx = size;
-            connection_data.first_ts_in = 0;
-            connection_data.last_ts_in = 0;
-            connection_data.first_ts_out = ts;
-            connection_data.last_ts_out = ts;
-            connection_data.transaction_flow = T_OUTGOING;
-            connection_data.transaction_state = T_STATUS_ON;
-            ipv6_connections.update(&connection_key, &connection_data);
+            connection_data->byte_rx = 0;
+            connection_data->byte_tx = size;
+            connection_data->first_ts_in = 0;
+            connection_data->last_ts_in = 0;
+            connection_data->first_ts_out = ts;
+            connection_data->last_ts_out = ts;
+            connection_data->transaction_flow = T_OUTGOING;
+            connection_data->transaction_state = T_STATUS_ON;
 
-          } else if (connection_data.transaction_flow == T_OUTGOING) {
-            connection_data.byte_tx += size;
-            connection_data.last_ts_out = ts;
-            connection_data.transaction_flow = T_OUTGOING;
-            ipv6_connections.update(&connection_key, &connection_data);
+          } else if (connection_data->transaction_flow == T_OUTGOING) {
+            connection_data->byte_tx += size;
+            connection_data->last_ts_out = ts;
+            connection_data->transaction_flow = T_OUTGOING;
           } else {
             // we do not know the flow status, keep it unknown till further info
-            connection_data.transaction_flow = T_UNKNOWN;
+            connection_data->transaction_flow = T_UNKNOWN;
           }
 
         } else {
           // transaction is off, but we have as client an outgoing message
           // set transaction as on!
-          connection_data.byte_rx = 0;
-          connection_data.byte_tx = size;
-          connection_data.first_ts_in = 0;
-          connection_data.last_ts_in = 0;
-          connection_data.first_ts_out = ts;
-          connection_data.last_ts_out = ts;
-          connection_data.transaction_flow = T_OUTGOING;
-          connection_data.transaction_state = T_STATUS_ON;
-          ipv6_connections.update(&connection_key, &connection_data);
+          connection_data->byte_rx = 0;
+          connection_data->byte_tx = size;
+          connection_data->first_ts_in = 0;
+          connection_data->last_ts_in = 0;
+          connection_data->first_ts_out = ts;
+          connection_data->last_ts_out = ts;
+          connection_data->transaction_flow = T_OUTGOING;
+          connection_data->transaction_state = T_STATUS_ON;
         }
 
       } else {
@@ -1176,8 +1158,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
           ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D'))) {
 
             // here we are! retrieve the connection and upload the String
-            bpf_probe_read(connection_data.http_payload, sizeof(connection_data.http_payload), data_to_be_read.iov_base);
-            ipv6_connections.update(&connection_key, &connection_data);
+            bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
         }
       }
     }
@@ -1197,7 +1178,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
 int kprobe__tcp_recvmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len) {
 
-  u32 pid = bpf_get_current_pid_tgid();
+  u64 pid = bpf_get_current_pid_tgid();
 
   struct currsock_t cache_data = {.msg = msg};
   cache_data.lport = sk->__sk_common.skc_num;
@@ -1220,15 +1201,13 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 }
 
 int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
-
-  u64 ts = bpf_ktime_get_ns();
-  int ret;
-
-  int copied = PT_REGS_RC(ctx);
-  u32 pid = bpf_get_current_pid_tgid();
-
+  u64 ts = bpf_get_current_pid_tgid();
   struct currsock_t * cache_data;
-  cache_data = recv_cache.lookup(&pid);
+  cache_data = recv_cache.lookup(&ts);
+
+  //recycle ts
+  ts = bpf_ktime_get_ns();
+  int copied = PT_REGS_RC(ctx);
 
   // lost information
   if(cache_data == NULL) {
@@ -1237,9 +1216,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
   u16 lport = cache_data->lport;
   u16 dport = cache_data->dport;
-
   u16 family = cache_data->family;
-  u64 *val, zero = 0;
 
   if (copied <= 0){
     return 0;
@@ -1251,10 +1228,9 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
     //check if I am a server or a client
     struct ipv4_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-    struct endpoint_data_t endpoint_data;
+    struct endpoint_data_t * endpoint_data = ipv4_endpoints.lookup(&endpoint_key);
 
-    ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv4_endpoints.lookup(&endpoint_key));
-    if(ret != 0) {
+    if(endpoint_data == NULL) {
       // skip detection in case of unknown endpoint for now
       return 0;
       //create endpoint if not in table
@@ -1267,34 +1243,33 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
     // create connection tuple
     struct ipv4_key_t connection_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
 
-    struct connection_data_t connection_data;
-    ret = bpf_probe_read(&connection_data, sizeof(connection_data), ipv4_connections.lookup(&connection_key));
+    struct connection_data_t * connection_data = ipv4_connections.lookup(&connection_key);
 
     // it should always be not null, but we need to check
-    if(ret == 0) {
+    if(connection_data != NULL) {
 
-      if(endpoint_data.status == STATUS_SERVER) {
+      if(endpoint_data->status == STATUS_SERVER) {
 
         // I am the server and I am receiving data
         // Either this is the beginning of a transaction,
         // or it is another transfer to the server
 
-        if(connection_data.transaction_state == T_STATUS_ON) {
-          if(connection_data.transaction_flow == T_OUTGOING) {
+        if(connection_data->transaction_state == T_STATUS_ON) {
+          if(connection_data->transaction_flow == T_OUTGOING) {
             // this is the first incoming message
             // close the old transaction and start the new one
 
             //if we are dealing with http, use the appropriate hashmap
-            if(connection_data.http_payload[0] != '\0') {
+            if(connection_data->http_payload[0] != '\0') {
 #ifdef HTTP_CLIENT_PORT_MASKING
               struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = 0};
 #else
               struct ipv4_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
 #endif
-              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
+              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
               struct summary_data_t summary_data;
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
 
               u32 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
@@ -1302,10 +1277,10 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               }
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
+              safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
               summary_data.transaction_count+=1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
               ipv4_http_summary.update(&http_key, &summary_data);
 
@@ -1347,17 +1322,17 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 #endif //BYPASS
             } else {
               struct summary_data_t summary_data = {};
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
 
               u32 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
                 idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               //measuring just response time for server
-              safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
+              safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
               summary_data.transaction_count+=1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
               ipv4_summary.update(&connection_key, &summary_data);
 
@@ -1399,64 +1374,59 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
             }
 
             //clean connection_data
-            connection_data.byte_rx = copied;
-            connection_data.byte_tx = 0;
-            connection_data.first_ts_in = ts;
-            connection_data.last_ts_in = ts;
-            connection_data.first_ts_out = 0;
-            connection_data.last_ts_out = 0;
-            connection_data.transaction_flow = T_INCOMING;
-            connection_data.transaction_state = T_STATUS_ON;
-            ipv4_connections.update(&connection_key, &connection_data);
-          } else if (connection_data.transaction_flow == T_INCOMING) {
+            connection_data->byte_rx = copied;
+            connection_data->byte_tx = 0;
+            connection_data->first_ts_in = ts;
+            connection_data->last_ts_in = ts;
+            connection_data->first_ts_out = 0;
+            connection_data->last_ts_out = 0;
+            connection_data->transaction_flow = T_INCOMING;
+            connection_data->transaction_state = T_STATUS_ON;
+          } else if (connection_data->transaction_flow == T_INCOMING) {
             // this is another incoming message
-            connection_data.last_ts_in = ts;
-            connection_data.byte_rx += copied;
-            connection_data.transaction_flow = T_INCOMING;
-            ipv4_connections.update(&connection_key, &connection_data);
+            connection_data->last_ts_in = ts;
+            connection_data->byte_rx += copied;
+            connection_data->transaction_flow = T_INCOMING;
           } else {
             // we do not know the flow status, keep it unknown till further info
-            connection_data.transaction_flow = T_UNKNOWN;
+            connection_data->transaction_flow = T_UNKNOWN;
           }
         } else {
           // the transaction is off, but this is the first incoming packet of
           // a new transaction, set it up!
-          connection_data.byte_rx = copied;
-          connection_data.byte_tx = 0;
-          connection_data.first_ts_in = ts;
-          connection_data.last_ts_in = ts;
-          connection_data.first_ts_out = 0;
-          connection_data.last_ts_out = 0;
-          connection_data.transaction_flow = T_INCOMING;
-          connection_data.transaction_state = T_STATUS_ON;
-          ipv4_connections.update(&connection_key, &connection_data);
+          connection_data->byte_rx = copied;
+          connection_data->byte_tx = 0;
+          connection_data->first_ts_in = ts;
+          connection_data->last_ts_in = ts;
+          connection_data->first_ts_out = 0;
+          connection_data->last_ts_out = 0;
+          connection_data->transaction_flow = T_INCOMING;
+          connection_data->transaction_state = T_STATUS_ON;
         }
 
-      } else if (endpoint_data.status == STATUS_CLIENT) {
+      } else if (endpoint_data->status == STATUS_CLIENT) {
         // I am the client and I am receiving data
         // Either this is the first receive back, or it is another receive back
-        if(connection_data.transaction_state == T_STATUS_ON) {
-          if(connection_data.transaction_flow == T_INCOMING) {
+        if(connection_data->transaction_state == T_STATUS_ON) {
+          if(connection_data->transaction_flow == T_INCOMING) {
             //this is another incoming message
-            connection_data.last_ts_in = ts;
-            connection_data.transaction_flow = T_INCOMING;
-          } else if (connection_data.transaction_flow == T_OUTGOING) {
+            connection_data->last_ts_in = ts;
+            connection_data->transaction_flow = T_INCOMING;
+          } else if (connection_data->transaction_flow == T_OUTGOING) {
             // this is the first incoming message
-            connection_data.first_ts_in = ts;
-            connection_data.last_ts_in = ts;
-            connection_data.transaction_flow = T_INCOMING;
+            connection_data->first_ts_in = ts;
+            connection_data->last_ts_in = ts;
+            connection_data->transaction_flow = T_INCOMING;
           } else {
             // we do not know the flow status, keep it unknown till further info
-            connection_data.transaction_flow = T_UNKNOWN;
+            connection_data->transaction_flow = T_UNKNOWN;
           }
-          connection_data.byte_rx += copied;
+          connection_data->byte_rx += copied;
         } else {
           // the transaction is off, maybe we are just seeing the end of an
           // untracked transaction, wait for further data
-          connection_data.transaction_state = T_STATUS_OFF;
+          connection_data->transaction_state = T_STATUS_OFF;
         }
-        ipv4_connections.update(&connection_key, &connection_data);
-
       } else {
         // if the status is unknown, we should wait to be sure it is a server
         // if it is a client, at the next connection of the same type we will
@@ -1482,8 +1452,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
           ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D'))) {
 
             // here we are! retrieve the connection and upload the String
-            bpf_probe_read(connection_data.http_payload, sizeof(connection_data.http_payload), data_to_be_read.iov_base);
-            ipv4_connections.update(&connection_key, &connection_data);
+            bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
         }
       }
     }
@@ -1497,15 +1466,12 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
     // ipv6_key.dport = ntohs(dport);
     // //ipv6_recv_bytes.increment(ipv6_key, 1);
 
-    unsigned __int128 saddr = cache_data->saddr6;
-    unsigned __int128 daddr = cache_data->daddr6;
 
     //check if I am a server or a client
-    struct ipv6_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
-    struct endpoint_data_t endpoint_data;
+    struct ipv6_endpoint_key_t endpoint_key = {.addr = cache_data->saddr6, .port = lport};
+    struct endpoint_data_t * endpoint_data = ipv6_endpoints.lookup(&endpoint_key);
 
-    ret = bpf_probe_read(&endpoint_data, sizeof(endpoint_data), ipv6_endpoints.lookup(&endpoint_key));
-    if(ret != 0) {
+    if(endpoint_data == NULL) {
       // skip detection in case of unknown endpoint for now
       return 0;
       //create endpoint if not in table
@@ -1516,35 +1482,34 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
 
     // create connection tuple
-    struct ipv6_key_t connection_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = dport};
+    struct ipv6_key_t connection_key = {.saddr = cache_data->saddr6, .daddr = cache_data->daddr6, .lport = lport, .dport = dport};
 
-    struct connection_data_t connection_data;
-    ret = bpf_probe_read(&connection_data, sizeof(connection_data), ipv6_connections.lookup(&connection_key));
+    struct connection_data_t * connection_data = ipv6_connections.lookup(&connection_key);
 
     // it should always be not null, but we need to check
-    if(ret == 0) {
-      if(endpoint_data.status == STATUS_SERVER) {
+    if(connection_data != NULL) {
+      if(endpoint_data->status == STATUS_SERVER) {
 
         // I am the server and I am receiving data
         // Either this is the beginning of a transaction,
         // or it is another transfer to the server
 
-        if(connection_data.transaction_state == T_STATUS_ON) {
-          if(connection_data.transaction_flow == T_OUTGOING) {
+        if(connection_data->transaction_state == T_STATUS_ON) {
+          if(connection_data->transaction_flow == T_OUTGOING) {
             // this is the first incoming message
             // close the old transaction and start the new one
 
             //if we are dealing with http, use the appropriate hashmap
-            if(connection_data.http_payload[0] != '\0') {
+            if(connection_data->http_payload[0] != '\0') {
 #ifdef HTTP_CLIENT_PORT_MASKING
-              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = 0};
+              struct ipv6_http_key_t http_key = {.saddr = cache_data->saddr6, .daddr = cache_data->daddr6, .lport = lport, .dport = 0};
 #else
-              struct ipv6_http_key_t http_key = {.saddr = saddr, .daddr = daddr, .lport = lport, .dport = 0};
+              struct ipv6_http_key_t http_key = {.saddr = cache_data->saddr6, .daddr = cache_data->daddr6, .lport = lport, .dport = 0};
 #endif
-              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data.http_payload));
+              bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
               struct summary_data_t summary_data;
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
 
               u32 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
@@ -1552,10 +1517,10 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               }
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
+              safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
               summary_data.transaction_count+=1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
               ipv6_http_summary.update(&http_key, &summary_data);
 
@@ -1595,17 +1560,17 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 #endif //BYPASS
             } else {
               struct summary_data_t summary_data = {};
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
 
               u32 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
                 idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               //measuring just response time for server transaction
-              safe_array_write(idx, summary_data.latency, connection_data.first_ts_out - connection_data.last_ts_in);
+              safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
               summary_data.transaction_count+=1;
-              summary_data.byte_rx += connection_data.byte_rx;
-              summary_data.byte_tx += connection_data.byte_tx;
+              summary_data.byte_rx += connection_data->byte_rx;
+              summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
               ipv6_summary.update(&connection_key, &summary_data);
 
@@ -1637,73 +1602,69 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               }
 
               //remember to restore endpoint and connection key!!!
-              endpoint_key.addr = saddr;
+              endpoint_key.addr = cache_data->saddr6;
               endpoint_key.port = lport;
-              connection_key.saddr = saddr;
-              connection_key.daddr = daddr;
+              connection_key.saddr = cache_data->saddr6;
+              connection_key.daddr = cache_data->daddr6;
               connection_key.dport = dport;
               connection_key.lport = lport;
 #endif //BYPASS
             }
             //clean connection_data
-            connection_data.byte_rx = copied;
-            connection_data.byte_tx = 0;
-            connection_data.first_ts_in = ts;
-            connection_data.last_ts_in = ts;
-            connection_data.first_ts_out = 0;
-            connection_data.last_ts_out = 0;
-            connection_data.transaction_flow = T_INCOMING;
-            connection_data.transaction_state = T_STATUS_ON;
-            ipv6_connections.update(&connection_key, &connection_data);
-          } else if (connection_data.transaction_flow == T_INCOMING) {
+            connection_data->byte_rx = copied;
+            connection_data->byte_tx = 0;
+            connection_data->first_ts_in = ts;
+            connection_data->last_ts_in = ts;
+            connection_data->first_ts_out = 0;
+            connection_data->last_ts_out = 0;
+            connection_data->transaction_flow = T_INCOMING;
+            connection_data->transaction_state = T_STATUS_ON;
+          } else if (connection_data->transaction_flow == T_INCOMING) {
             // this is another incoming message
-            connection_data.last_ts_in = ts;
-            connection_data.byte_rx += copied;
-            connection_data.transaction_flow = T_INCOMING;
-            ipv6_connections.update(&connection_key, &connection_data);
+            connection_data->last_ts_in = ts;
+            connection_data->byte_rx += copied;
+            connection_data->transaction_flow = T_INCOMING;
           } else {
             // we do not know the flow status, keep it unknown till further info
-            connection_data.transaction_flow = T_UNKNOWN;
+            connection_data->transaction_flow = T_UNKNOWN;
           }
         } else {
           // the transaction is off, but this is the first incoming packet of
           // a new transaction, set it up!
-          connection_data.byte_rx = copied;
-          connection_data.byte_tx = 0;
-          connection_data.first_ts_in = ts;
-          connection_data.last_ts_in = ts;
-          connection_data.first_ts_out = 0;
-          connection_data.last_ts_out = 0;
-          connection_data.transaction_flow = T_INCOMING;
-          connection_data.transaction_state = T_STATUS_ON;
-          ipv6_connections.update(&connection_key, &connection_data);
+          connection_data->byte_rx = copied;
+          connection_data->byte_tx = 0;
+          connection_data->first_ts_in = ts;
+          connection_data->last_ts_in = ts;
+          connection_data->first_ts_out = 0;
+          connection_data->last_ts_out = 0;
+          connection_data->transaction_flow = T_INCOMING;
+          connection_data->transaction_state = T_STATUS_ON;
         }
 
-      } else if (endpoint_data.status == STATUS_CLIENT) {
+      } else if (endpoint_data->status == STATUS_CLIENT) {
         // I am the client and I am receiving data
         // Either this is the first receive back, or it is another receive back
 
-        if(connection_data.transaction_state == T_STATUS_ON) {
-          if(connection_data.transaction_flow == T_INCOMING) {
+        if(connection_data->transaction_state == T_STATUS_ON) {
+          if(connection_data->transaction_flow == T_INCOMING) {
             //this is another incoming message
-            connection_data.last_ts_in = ts;
-            connection_data.transaction_flow = T_INCOMING;
-          } else if (connection_data.transaction_flow == T_OUTGOING) {
+            connection_data->last_ts_in = ts;
+            connection_data->transaction_flow = T_INCOMING;
+          } else if (connection_data->transaction_flow == T_OUTGOING) {
             // this is the first incoming message
-            connection_data.first_ts_in = ts;
-            connection_data.last_ts_in = ts;
-            connection_data.transaction_flow = T_INCOMING;
+            connection_data->first_ts_in = ts;
+            connection_data->last_ts_in = ts;
+            connection_data->transaction_flow = T_INCOMING;
           } else {
             // we do not know the flow status, keep it unknown till further info
-            connection_data.transaction_flow = T_UNKNOWN;
+            connection_data->transaction_flow = T_UNKNOWN;
           }
-          connection_data.byte_rx += copied;
+          connection_data->byte_rx += copied;
         } else {
           // the transaction is off, maybe we are just seeing the end of an
           // untracked transaction, wait for further data
-          connection_data.transaction_state = T_STATUS_OFF;
+          connection_data->transaction_state = T_STATUS_OFF;
         }
-        ipv6_connections.update(&connection_key, &connection_data);
 
       } else {
         // if the status is unknown, we should wait to be sure it is a server
@@ -1730,14 +1691,14 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
           ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D'))) {
 
             // here we are! retrieve the connection and upload the String
-            bpf_probe_read(connection_data.http_payload, sizeof(connection_data.http_payload), data_to_be_read.iov_base);
-            ipv6_connections.update(&connection_key, &connection_data);
+            bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
         }
       }
     }
   }
 
-  recv_cache.delete(&pid);
+  ts = bpf_get_current_pid_tgid();
+  recv_cache.delete(&ts);
   return 0;
 }
 

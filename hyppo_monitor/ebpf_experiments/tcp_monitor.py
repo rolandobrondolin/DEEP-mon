@@ -148,8 +148,22 @@ while not exiting:
             status = "server"
         elif v.status == -1:
             status = "client"
+        elif v.status == 0:
+            status = "############# bypass #############"
             #continue
-        print(str(k.http_payload).splitlines()[0] + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) + " " + str(list(v.latency)))
+
+        lat = list(v.latency)
+        lat = [float(i) / 1000000 for i in lat]
+        mean    = np.percentile(lat, 50)
+        p90     = np.percentile(lat, 90)
+        p99     = np.percentile(lat, 99)
+        p99_9   = np.percentile(lat, 99.9)
+        p99_99  = np.percentile(lat, 99.99)
+
+        print(str(k.http_payload).splitlines()[0] + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
+        #        + " " + str(list(v.latency)))
+                + "         " + str(mean) + " " + str(p90) + " " + str(p99) + " " + str(p99_9) + " " + str(p99_99))
+
         #print(str(list(v.latency)))
     print()
 
