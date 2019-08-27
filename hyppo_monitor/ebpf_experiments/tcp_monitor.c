@@ -46,7 +46,7 @@ struct ipv6_endpoint_key_t {
 
 struct endpoint_data_t {
   int16_t status; // -1 -> client, 0 -> unkknown, 1 -> server;
-  u32 n_connections; // count how many connections before socket close, if > 1 then server
+  int open_transactions; // count how many transactions are in flight
 };
 
 struct ipv4_key_t {
@@ -193,7 +193,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
     if(state == TCP_SYN_SENT) {
 
-      struct endpoint_data_t endpoint_value = {.status = STATUS_CLIENT, .n_connections = 0};
+      struct endpoint_data_t endpoint_value = {.status = STATUS_CLIENT, .open_transactions = 0};
       // I am a client trying to establish a connection
       set_state_cache.update(&sk, &endpoint_value);
     }
@@ -213,16 +213,12 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
         if(ret != 0) {
           // I was a server never seen before
           endpoint_value.status = STATUS_SERVER;
-          endpoint_value.n_connections = 0;
+          endpoint_value.open_transactions = 0;
           ret = 0;
         }
       }
 
       if(ret == 0) {
-        endpoint_value.n_connections++;
-        if(endpoint_value.n_connections > 1) {
-          endpoint_value.status = STATUS_SERVER;
-        }
         ipv4_endpoints.update(&endpoint_key, &endpoint_value);
 
         // connection established, populate connection hashmap (this happens 2 times if connection between local processes)
@@ -413,8 +409,9 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 #endif //BYPASS
             }
           }
+//          endpoint_data->open_transactions = endpoint_data->open_transactions - 1;
 #ifdef KILL_CONNECTION_DATA
-          if(endpoint_data->status == STATUS_CLIENT /*|| (endpoint_data.status == STATUS_UNKNOWN && endpoint_data.n_connections <= 1))*/) {
+          if(endpoint_data->status == STATUS_CLIENT) {
             ipv4_endpoints.delete(&endpoint_key);
           }
 #endif
@@ -430,7 +427,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
     if(state == TCP_SYN_SENT) {
 
-      struct endpoint_data_t endpoint_value = {.status = STATUS_CLIENT, .n_connections = 0};
+      struct endpoint_data_t endpoint_value = {.status = STATUS_CLIENT, .open_transactions = 0};
       // I am a client trying to establish a connection
       set_state_cache.update(&sk, &endpoint_value);
     }
@@ -452,16 +449,12 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
         if(ret != 0) {
           // I was a server never seen before
           endpoint_value.status = STATUS_SERVER;
-          endpoint_value.n_connections = 0;
+          endpoint_value.open_transactions = 0;
           ret = 0;
         }
       }
 
       if(ret == 0) {
-        endpoint_value.n_connections++;
-        if(endpoint_value.n_connections > 1) {
-          endpoint_value.status = STATUS_SERVER;
-        }
         ipv6_endpoints.update(&endpoint_key, &endpoint_value);
 
         // connection established, populate connection hashmap (this happens 2 times if connection between local processes)
@@ -657,8 +650,9 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 #endif //BYPASS
             }
           }
+//          endpoint_data->open_transactions = endpoint_data->open_transactions - 1;
 #ifdef KILL_CONNECTION_DATA
-          if(endpoint_data->status == STATUS_CLIENT /*|| (endpoint_data.status == STATUS_UNKNOWN && endpoint_data.n_connections <= 1))*/) {
+          if(endpoint_data->status == STATUS_CLIENT) {
             ipv6_endpoints.delete(&endpoint_key);
           }
 #endif
@@ -743,6 +737,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
           if(connection_data->transaction_flow == T_INCOMING) {
             // if we are a client sending data, then we are building a new transaction
             // commit the data and restart the thing again
+
+//            endpoint_data->open_transactions = endpoint_data->open_transactions - 1;
 
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data->http_payload[0] != '\0') {
@@ -869,6 +865,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
             connection_data->transaction_flow = T_OUTGOING;
             connection_data->transaction_state = T_STATUS_ON;
 
+//            endpoint_data->open_transactions++;
+
           } else if (connection_data->transaction_flow == T_OUTGOING) {
             connection_data->byte_tx += size;
             connection_data->last_ts_out = ts;
@@ -889,6 +887,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
           connection_data->last_ts_out = ts;
           connection_data->transaction_flow = T_OUTGOING;
           connection_data->transaction_state = T_STATUS_ON;
+
+//          endpoint_data->open_transactions++;
         }
 
       } else {
@@ -994,6 +994,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
           if(connection_data->transaction_flow == T_INCOMING) {
             // if we are a client sending data, then we are building a new transaction
             // commit the data and restart the thing again
+
+//            endpoint_data->open_transactions--;
 
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data->http_payload[0] != '\0') {
@@ -1120,6 +1122,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
             connection_data->transaction_flow = T_OUTGOING;
             connection_data->transaction_state = T_STATUS_ON;
 
+//            endpoint_data->open_transactions++;
+
           } else if (connection_data->transaction_flow == T_OUTGOING) {
             connection_data->byte_tx += size;
             connection_data->last_ts_out = ts;
@@ -1140,6 +1144,8 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
           connection_data->last_ts_out = ts;
           connection_data->transaction_flow = T_OUTGOING;
           connection_data->transaction_state = T_STATUS_ON;
+
+//          endpoint_data->open_transactions++;
         }
 
       } else {
@@ -1277,6 +1283,8 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
             // this is the first incoming message
             // close the old transaction and start the new one
 
+//            endpoint_data->open_transactions--;
+
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data->http_payload[0] != '\0') {
 #ifdef HTTP_CLIENT_PORT_MASKING
@@ -1400,6 +1408,9 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
             connection_data->last_ts_out = 0;
             connection_data->transaction_flow = T_INCOMING;
             connection_data->transaction_state = T_STATUS_ON;
+
+//            endpoint_data->open_transactions++;
+
           } else if (connection_data->transaction_flow == T_INCOMING) {
             // this is another incoming message
             connection_data->last_ts_in = ts;
@@ -1420,6 +1431,8 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
           connection_data->last_ts_out = 0;
           connection_data->transaction_flow = T_INCOMING;
           connection_data->transaction_state = T_STATUS_ON;
+
+//          endpoint_data->open_transactions++;
         }
 
       } else if (endpoint_data->status == STATUS_CLIENT) {
@@ -1526,6 +1539,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
           if(connection_data->transaction_flow == T_OUTGOING) {
             // this is the first incoming message
             // close the old transaction and start the new one
+//            endpoint_data->open_transactions--;
 
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data->http_payload[0] != '\0') {
@@ -1647,6 +1661,9 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
             connection_data->last_ts_out = 0;
             connection_data->transaction_flow = T_INCOMING;
             connection_data->transaction_state = T_STATUS_ON;
+
+//            endpoint_data->open_transactions++;
+
           } else if (connection_data->transaction_flow == T_INCOMING) {
             // this is another incoming message
             connection_data->last_ts_in = ts;
@@ -1667,6 +1684,8 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
           connection_data->last_ts_out = 0;
           connection_data->transaction_flow = T_INCOMING;
           connection_data->transaction_state = T_STATUS_ON;
+
+//          endpoint_data->open_transactions++;
         }
 
       } else if (endpoint_data->status == STATUS_CLIENT) {

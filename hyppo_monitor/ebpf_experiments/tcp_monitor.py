@@ -69,7 +69,8 @@ while not exiting:
     # print endpoints
     # for k, v in ipv4_endpoints.items():
     #     key = get_ipv4_endpoint_key(k)
-    #     print(str(key) + "   " + str(v.status) + "    " + str(v.n_connections))
+    #     if v.status == 1:
+    #         print(str(key) + "   " + str(v.status) + "    " + str(v.open_transactions))
     # print()
     # for k, v in ipv4_connections.items():
     #     key = get_ipv4_session_key(k)
@@ -86,13 +87,24 @@ while not exiting:
         elif v.status == 0:
             status = "############# bypass #############"
             #continue
-        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) + " " + str(list(v.latency)))
+        lat = list(v.latency)
+        lat = [float(i) / 1000000 for i in lat]
+        mean    = np.percentile(lat, 50)
+        p90     = np.percentile(lat, 90)
+        p99     = np.percentile(lat, 99)
+        p99_9   = np.percentile(lat, 99.9)
+        p99_99  = np.percentile(lat, 99.99)
+
+        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
+                # + " " + str(list(v.latency)))
+                + "         " + str(mean) + " " + str(p90) + " " + str(p99) + " " + str(p99_9) + " " + str(p99_99))
         # print(str(list(v.latency)))
     print()
 
     # for k, v in ipv6_endpoints.items():
     #     key = get_ipv6_endpoint_key(k)
-    #     print(str(key) + "   " + str(v.status) + "    " + str(v.n_connections))
+    #     if v.status == 1:
+    #     print(str(key) + "   " + str(v.status) + "    " + str(v.open_transactions))
     # print()
     # for k, v in ipv6_connections.items():
     #     key = get_ipv6_session_key(k)
@@ -108,7 +120,18 @@ while not exiting:
             status = "client"
         elif v.status == 0:
             status = "############# bypass #############"
-        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) + " " + str(list(v.latency)))
+
+        lat = list(v.latency)
+        lat = [float(i) / 1000000 for i in lat]
+        mean    = np.percentile(lat, 50)
+        p90     = np.percentile(lat, 90)
+        p99     = np.percentile(lat, 99)
+        p99_9   = np.percentile(lat, 99.9)
+        p99_99  = np.percentile(lat, 99.99)
+
+        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
+                # + " " + str(list(v.latency)))
+                + "         " + str(mean) + " " + str(p90) + " " + str(p99) + " " + str(p99_9) + " " + str(p99_99))
         # print(str(list(v.latency)))
     print()
 
