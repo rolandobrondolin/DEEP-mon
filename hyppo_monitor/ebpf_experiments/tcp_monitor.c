@@ -10,7 +10,7 @@
 #include <net/netfilter/nf_tables.h>
 
 #define LATENCY_SAMPLES 30
-#define PAYLOAD_LEN 48
+#define PAYLOAD_LEN 60
 
 #define STATUS_CLIENT -1
 #define STATUS_SERVER 1
@@ -88,8 +88,9 @@ struct ipv4_http_key_t {
 struct ipv6_http_key_t {
   unsigned __int128 saddr;
   unsigned __int128 daddr;
-  u64 a;
-  u32 b;
+  // remove padding to support 60 bytes of http_payload
+  // u64 a;
+  // u32 b;
   u16 lport;
   u16 dport;
   char http_payload[PAYLOAD_LEN];
