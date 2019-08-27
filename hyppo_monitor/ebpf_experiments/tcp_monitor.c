@@ -667,11 +667,8 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
         ipv6_connections.delete(&connection_key);
 #endif
       }
-
     }
-
-   }
-
+  }
   return 0;
 }
 
@@ -917,8 +914,18 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
           ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) ||
           ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D'))) {
 
-            // here we are! retrieve the connection and upload the String
-            bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
+          // here we are! retrieve the connection and upload the String
+          bpf_probe_read_str(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
+
+          u8 clear = 0;
+          #pragma clang loop unroll(full)
+          for(int array_index = 0; array_index<PAYLOAD_LEN; array_index++) {
+            if(connection_data->http_payload[array_index] == '?' || connection_data->http_payload[array_index] == '\r' || clear == 1) {
+              connection_data->http_payload[array_index] = '\0';
+              clear = 1;
+            }
+          }
+
         }
       }
     }
@@ -1158,8 +1165,18 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
           ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) ||
           ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D'))) {
 
-            // here we are! retrieve the connection and upload the String
-            bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
+          // here we are! retrieve the connection and upload the String
+          bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
+
+          u8 clear = 0;
+          #pragma clang loop unroll(full)
+          for(int array_index = 0; array_index<PAYLOAD_LEN; array_index++) {
+            if(connection_data->http_payload[array_index] == '?' || connection_data->http_payload[array_index] == '\r' || clear == 1) {
+              connection_data->http_payload[array_index] = '\0';
+              clear = 1;
+            }
+          }
+
         }
       }
     }
@@ -1452,8 +1469,18 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
           ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) ||
           ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D'))) {
 
-            // here we are! retrieve the connection and upload the String
-            bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
+          // here we are! retrieve the connection and upload the String
+          bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
+
+          u8 clear = 0;
+          #pragma clang loop unroll(full)
+          for(int array_index = 0; array_index<PAYLOAD_LEN; array_index++) {
+            if(connection_data->http_payload[array_index] == '?' || connection_data->http_payload[array_index] == '\r' || clear == 1) {
+              connection_data->http_payload[array_index] = '\0';
+              clear = 1;
+            }
+          }
+
         }
       }
     }
@@ -1691,8 +1718,18 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
           ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E')) ||
           ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D'))) {
 
-            // here we are! retrieve the connection and upload the String
-            bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
+          // here we are! retrieve the connection and upload the String
+          bpf_probe_read(connection_data->http_payload, sizeof(connection_data->http_payload), data_to_be_read.iov_base);
+
+          u8 clear = 0;
+          #pragma clang loop unroll(full)
+          for(int array_index = 0; array_index<PAYLOAD_LEN; array_index++) {
+            if(connection_data->http_payload[array_index] == '?' || connection_data->http_payload[array_index] == '\r' || clear == 1) {
+              connection_data->http_payload[array_index] = '\0';
+              clear = 1;
+            }
+          }
+
         }
       }
     }
