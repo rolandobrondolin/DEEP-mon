@@ -26,6 +26,7 @@
 #define HTTP_CLIENT_PORT_MASKING
 #define KILL_CONNECTION_DATA
 #define BYPASS
+#define REVERSE_BYPASS
 
 
 //struct used to detect if a connection endpoint is server or client
@@ -1836,13 +1837,15 @@ int kretprobe__ip_rcv(struct pt_regs *ctx){
         return 0;
       }
 
+#ifdef REVERSE_BYPASS
       // insert translated addresses into rewritten endpoints
-      // if(cache_data->saddr != src_ip || cache_data->lport != src_port){
-      //   struct ipv4_endpoint_key_t key = {.addr = src_ip, .port = src_port};
-      //   struct ipv4_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
-      //   rewritten_rules_in.update(&key, &value);
-      //
-      // }
+      if(cache_data->saddr != src_ip || cache_data->lport != src_port){
+        struct ipv4_endpoint_key_t key = {.addr = cache_data->saddr, .port = cache_data->lport};
+        struct ipv4_endpoint_key_t value = {.addr = src_ip, .port = src_port};
+        rewritten_rules_in.update(&key, &value);
+
+      }
+#endif
 
       if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
         struct ipv4_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
@@ -1939,12 +1942,14 @@ int kretprobe__ip_output(struct pt_regs *ctx){
 
       }
 
-      // if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
-      //   struct ipv4_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
-      //   struct ipv4_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
-      //   rewritten_rules_out.update(&key, &value);
-      //
-      // }
+#ifdef REVERSE_BYPASS
+      if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
+        struct ipv4_endpoint_key_t value = {.addr = dest_ip, .port = dest_port};
+        struct ipv4_endpoint_key_t key = {.addr = cache_data->daddr, .port = cache_data->dport};
+        rewritten_rules_out.update(&key, &value);
+
+      }
+#endif
     }
 
     iptables_rewrite_cache_out.delete(&pid);
@@ -2028,12 +2033,14 @@ int kretprobe__ipv6_rcv(struct pt_regs *ctx){
         return 0;
       }
 
+#ifdef REVERSE_BYPASS
       // insert translated addresses into rewritten endpoints
-      // if(cache_data->saddr != src_ip || cache_data->lport != src_port){
-      //   struct ipv6_endpoint_key_t key = {.addr = src_ip, .port = src_port};
-      //   struct ipv6_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
-      //   rewritten_rules_in_6.update(&key, &value);
-      // }
+      if(cache_data->saddr != src_ip || cache_data->lport != src_port){
+        struct ipv6_endpoint_key_t key = {.addr = src_ip, .port = src_port};
+        struct ipv6_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
+        rewritten_rules_out_6.update(&key, &value);
+      }
+#endif
 
       if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
         struct ipv6_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
@@ -2131,12 +2138,14 @@ int kretprobe__ip6_output(struct pt_regs *ctx) {
 
       }
 
-      // if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
-      //   struct ipv6_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
-      //   struct ipv6_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
-      //   rewritten_rules_out_6.update(&key, &value);
-      // }
+#ifdef REVERSE_BYPASS
+      if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
+        struct ipv6_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
+        struct ipv6_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
+        rewritten_rules_in_6.update(&key, &value);
+      }
     }
+#endif
 
     iptables6_rewrite_cache_out.delete(&pid);
   }

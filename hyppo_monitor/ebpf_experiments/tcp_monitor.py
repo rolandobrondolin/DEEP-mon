@@ -69,8 +69,7 @@ while not exiting:
     # print endpoints
     # for k, v in ipv4_endpoints.items():
     #     key = get_ipv4_endpoint_key(k)
-    #     if v.status == 1:
-    #         print(str(key) + "   " + str(v.status) + "    " + str(v.open_transactions))
+    #     print(str(key) + "   " + str(v.status) + "    " + str(v.open_transactions))
     # print()
     # for k, v in ipv4_connections.items():
     #     key = get_ipv4_session_key(k)
@@ -195,7 +194,7 @@ while not exiting:
     # for k, v in rewritten_rules_in.items():
     #     key = get_ipv4_endpoint_key(k)
     #     value = get_ipv4_endpoint_key(v)
-    #     print(str(key) + "    " + str(value) + " " + str(k.addr) + " " + str(k.port) + " " + str(k.pad))
+    #     print(str(key) + "    " + str(value))
     # print()
     #
     # for k, v in rewritten_rules_out.items():
