@@ -50,11 +50,9 @@ ipv6_summary = ebpf_tcp_monitor["ipv6_summary"]
 ipv4_http_summary = ebpf_tcp_monitor["ipv4_http_summary"]
 ipv6_http_summary = ebpf_tcp_monitor["ipv6_http_summary"]
 
-rewritten_rules_in = ebpf_tcp_monitor["rewritten_rules_in"]
-rewritten_rules_out = ebpf_tcp_monitor["rewritten_rules_out"]
+rewritten_rules = ebpf_tcp_monitor["rewritten_rules"]
 
-rewritten_rules_in_6 = ebpf_tcp_monitor["rewritten_rules_in_6"]
-rewritten_rules_out_6 = ebpf_tcp_monitor["rewritten_rules_out_6"]
+rewritten_rules_6 = ebpf_tcp_monitor["rewritten_rules_6"]
 
 i = 0
 exiting = False
@@ -191,30 +189,18 @@ while not exiting:
 
 
     #check on links
-    # for k, v in rewritten_rules_in.items():
-    #     key = get_ipv4_endpoint_key(k)
-    #     value = get_ipv4_endpoint_key(v)
-    #     print(str(key) + "    " + str(value))
-    # print()
-    #
-    # for k, v in rewritten_rules_out.items():
-    #     key = get_ipv4_endpoint_key(k)
-    #     value = get_ipv4_endpoint_key(v)
-    #     print(str(key) + "    " + str(value))
-    # print()
-    #
-    #
-    # for k, v in rewritten_rules_in_6.items():
-    #     key = get_ipv6_endpoint_key(k)
-    #     value = get_ipv6_endpoint_key(v)
-    #     print(str(key) + "    " + str(value))
-    # print()
-    #
-    # for k, v in rewritten_rules_out_6.items():
-    #     key = get_ipv6_endpoint_key(k)
-    #     value = get_ipv6_endpoint_key(v)
-    #     print(str(key) + "    " + str(value))
-    # print()
+    for k, v in rewritten_rules.items():
+        key = get_ipv4_endpoint_key(k)
+        value = get_ipv4_endpoint_key(v)
+        print(str(key) + "    " + str(value))
+    print()
+
+
+    for k, v in rewritten_rules_6.items():
+        key = get_ipv6_endpoint_key(k)
+        value = get_ipv6_endpoint_key(v)
+        print(str(key) + "    " + str(value))
+    print()
 
     # print("##### Mappings IPv4 #####")
     # for item in paths:

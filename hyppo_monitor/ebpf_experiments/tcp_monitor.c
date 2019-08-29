@@ -140,8 +140,7 @@ struct iptables_data_t {
 
 BPF_HASH(iptables_rewrite_cache_in, u64, struct iptables_data_t);
 BPF_HASH(iptables_rewrite_cache_out, u64, struct iptables_data_t);
-BPF_HASH(rewritten_rules_in, struct ipv4_endpoint_key_t, struct ipv4_endpoint_key_t);
-BPF_HASH(rewritten_rules_out, struct ipv4_endpoint_key_t, struct ipv4_endpoint_key_t);
+BPF_HASH(rewritten_rules, struct ipv4_endpoint_key_t, struct ipv4_endpoint_key_t);
 
 struct iptables6_data_t {
   unsigned __int128 saddr;
@@ -155,8 +154,7 @@ struct iptables6_data_t {
 
 BPF_HASH(iptables6_rewrite_cache_in, u64, struct iptables6_data_t);
 BPF_HASH(iptables6_rewrite_cache_out, u64, struct iptables6_data_t);
-BPF_HASH(rewritten_rules_in_6, struct ipv6_endpoint_key_t, struct ipv6_endpoint_key_t);
-BPF_HASH(rewritten_rules_out_6, struct ipv6_endpoint_key_t, struct ipv6_endpoint_key_t);
+BPF_HASH(rewritten_rules_6, struct ipv6_endpoint_key_t, struct ipv6_endpoint_key_t);
 
 
 
@@ -297,49 +295,62 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
-#ifdef HTTP_CLIENT_PORT_MASKING
                 if(endpoint_data->status == STATUS_SERVER) {
+                  http_key.saddr = nat_data->addr;
                   http_key.lport = nat_data->port;
+                  http_key.daddr = endpoint_key.addr;
                   http_key.dport = endpoint_key.port;
-                } else if (endpoint_data->status == STATUS_CLIENT){
-                  http_key.dport = 0;
+
+                } else if (endpoint_data->status == STATUS_CLIENT) {
+#ifdef HTTP_CLIENT_PORT_MASKING
+                  http_key.saddr = endpoint_key.addr;
                   http_key.lport = 0;
-                }
+                  http_key.daddr = nat_data->addr;
+                  http_key.dport = 0;
 #else
-                http_key.lport = nat_data->port;
-                http_key.dport = endpoint_key.port;
+                  http_key.saddr = endpoint_key.addr;
+                  http_key.lport = endpoint_key.port;
+                  http_key.daddr = nat_data->addr;
+                  http_key.dport = nat_data->port;
 #endif
-                http_key.saddr = nat_data->addr;
-                http_key.daddr = endpoint_key.addr;
+                }
+
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_http_summary.update(&http_key, &summary_data);
-                rewritten_rules_in.delete(&endpoint_key);
+                rewritten_rules.delete(&endpoint_key);
               }
 
               endpoint_key.addr = connection_key.daddr;
               endpoint_key.port = connection_key.dport;
 
-              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
-#ifdef HTTP_CLIENT_PORT_MASKING
+                // reverse w.r.t. previous checks because if the endpoint is a
+                // server, then we are looking at the client side
                 if(endpoint_data->status == STATUS_SERVER) {
+#ifdef HTTP_CLIENT_PORT_MASKING
+                  http_key.saddr = endpoint_key.addr;
                   http_key.lport = 0;
+                  http_key.daddr = nat_data->addr;
                   http_key.dport = 0;
-                } else if (endpoint_data->status == STATUS_CLIENT){
-                  http_key.dport = nat_data->port;
-                  http_key.lport = endpoint_key.port;
-                }
 #else
-                http_key.lport = endpoint_key.port;
-                http_key.dport = nat_data->port;
+                  http_key.saddr = endpoint_key.addr;
+                  http_key.lport = endpoint_key.port;
+                  http_key.daddr = nat_data->addr;
+                  http_key.dport = nat_data->port;
 #endif
-                http_key.saddr = endpoint_key.addr;
-                http_key.daddr = nat_data->addr;
+                } else if (endpoint_data->status == STATUS_CLIENT) {
+                  http_key.saddr = nat_data->addr;
+                  http_key.lport = nat_data->port;
+                  http_key.daddr = endpoint_key.addr;
+                  http_key.dport = endpoint_key.port;
+                }
+
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_http_summary.update(&http_key, &summary_data);
-                rewritten_rules_out.delete(&endpoint_key);
+                rewritten_rules.delete(&endpoint_key);
               }
 
               //remember to restore endpoint key!!!
@@ -375,29 +386,50 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                connection_key.lport = nat_data->port;
-                connection_key.dport = endpoint_key.port;
-                connection_key.saddr = nat_data->addr;
-                connection_key.daddr = endpoint_key.addr;
+
+                if(endpoint_data->status == STATUS_SERVER) {
+                  connection_key.saddr = nat_data->addr;
+                  connection_key.lport = nat_data->port;
+                  connection_key.daddr = endpoint_key.addr;
+                  connection_key.dport = endpoint_key.port;
+
+                } else if (endpoint_data->status == STATUS_CLIENT) {
+                  connection_key.saddr = endpoint_key.addr;
+                  connection_key.lport = endpoint_key.port;
+                  connection_key.daddr = nat_data->addr;
+                  connection_key.dport = nat_data->port;
+                }
+
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_summary.update(&connection_key, &summary_data);
-                rewritten_rules_in.delete(&endpoint_key);
+                rewritten_rules.delete(&endpoint_key);
               }
 
               endpoint_key.addr = daddr;
               endpoint_key.port = dport;
 
-              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                connection_key.lport = endpoint_key.port;
-                connection_key.dport = nat_data->port;
-                connection_key.saddr = endpoint_key.addr;
-                connection_key.daddr = nat_data->addr;
+                // reverse w.r.t. previous checks because if the endpoint is a
+                // server, then we are looking at the client side
+                if(endpoint_data->status == STATUS_SERVER) {
+                  connection_key.saddr = endpoint_key.addr;
+                  connection_key.lport = endpoint_key.port;
+                  connection_key.daddr = nat_data->addr;
+                  connection_key.dport = nat_data->port;
+
+                } else if (endpoint_data->status == STATUS_CLIENT) {
+                  connection_key.saddr = nat_data->addr;
+                  connection_key.lport = nat_data->port;
+                  connection_key.daddr = endpoint_key.addr;
+                  connection_key.dport = endpoint_key.port;
+                }
+
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_summary.update(&connection_key, &summary_data);
-                rewritten_rules_out.delete(&endpoint_key);
+                rewritten_rules.delete(&endpoint_key);
               }
 
               //remember to restore endpoint and connection key!!!
@@ -538,49 +570,64 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_in_6.lookup(&endpoint_key);
+              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
-#ifdef HTTP_CLIENT_PORT_MASKING
+
                 if(endpoint_data->status == STATUS_SERVER) {
+                  http_key.saddr = nat_data->addr;
                   http_key.lport = nat_data->port;
+                  http_key.daddr = endpoint_key.addr;
                   http_key.dport = endpoint_key.port;
-                } else if (endpoint_data->status == STATUS_CLIENT){
-                  http_key.dport = 0;
+
+                } else if (endpoint_data->status == STATUS_CLIENT) {
+#ifdef HTTP_CLIENT_PORT_MASKING
+                  http_key.saddr = endpoint_key.addr;
                   http_key.lport = 0;
-                }
+                  http_key.daddr = nat_data->addr;
+                  http_key.dport = 0;
 #else
-                http_key.lport = nat_data->port;
-                http_key.dport = endpoint_key.port;
+                  http_key.saddr = endpoint_key.addr;
+                  http_key.lport = endpoint_key.port;
+                  http_key.daddr = nat_data->addr;
+                  http_key.dport = nat_data->port;
 #endif
-                http_key.saddr = nat_data->addr;
-                http_key.daddr = endpoint_key.addr;
+                }
+
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_http_summary.update(&http_key, &summary_data);
-                rewritten_rules_in_6.delete(&endpoint_key);
+                rewritten_rules_6.delete(&endpoint_key);
               }
 
               endpoint_key.addr = connection_key.daddr;
               endpoint_key.port = connection_key.dport;
 
-              nat_data = rewritten_rules_out_6.lookup(&endpoint_key);
+              nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
-#ifdef HTTP_CLIENT_PORT_MASKING
+                // reverse w.r.t. previous checks because if the endpoint is a
+                // server, then we are looking at the client side
                 if(endpoint_data->status == STATUS_SERVER) {
+#ifdef HTTP_CLIENT_PORT_MASKING
+                  http_key.saddr = endpoint_key.addr;
                   http_key.lport = 0;
+                  http_key.daddr = nat_data->addr;
                   http_key.dport = 0;
-                } else if (endpoint_data->status == STATUS_CLIENT){
-                  http_key.dport = nat_data->port;
-                  http_key.lport = endpoint_key.port;
-                }
 #else
-                http_key.lport = endpoint_key.port;
-                http_key.dport = nat_data->port;
+                  http_key.saddr = endpoint_key.addr;
+                  http_key.lport = endpoint_key.port;
+                  http_key.daddr = nat_data->addr;
+                  http_key.dport = nat_data->port;
 #endif
-                http_key.saddr = endpoint_key.addr;
-                http_key.daddr = nat_data->addr;
+
+                } else if (endpoint_data->status == STATUS_CLIENT) {
+                  http_key.saddr = nat_data->addr;
+                  http_key.lport = nat_data->port;
+                  http_key.daddr = endpoint_key.addr;
+                  http_key.dport = endpoint_key.port;
+                }
+
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_http_summary.update(&http_key, &summary_data);
-                rewritten_rules_out_6.delete(&endpoint_key);
+                rewritten_rules_6.delete(&endpoint_key);
               }
 
               //remember to restore endpoint key!!!
@@ -616,29 +663,47 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_in_6.lookup(&endpoint_key);
+              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                connection_key.lport = nat_data->port;
-                connection_key.dport = endpoint_key.port;
-                connection_key.saddr = nat_data->addr;
-                connection_key.daddr = endpoint_key.addr;
+                if(endpoint_data->status == STATUS_SERVER) {
+                  connection_key.saddr = nat_data->addr;
+                  connection_key.lport = nat_data->port;
+                  connection_key.daddr = endpoint_key.addr;
+                  connection_key.dport = endpoint_key.port;
+
+                } else if (endpoint_data->status == STATUS_CLIENT) {
+                  connection_key.saddr = endpoint_key.addr;
+                  connection_key.lport = endpoint_key.port;
+                  connection_key.daddr = nat_data->addr;
+                  connection_key.dport = nat_data->port;
+                }
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_summary.update(&connection_key, &summary_data);
-                rewritten_rules_in_6.delete(&endpoint_key);
+                rewritten_rules_6.delete(&endpoint_key);
               }
 
               bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
               endpoint_key.port = dport;
 
-              nat_data = rewritten_rules_out_6.lookup(&endpoint_key);
+              nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                connection_key.lport = endpoint_key.port;
-                connection_key.dport = nat_data->port;
-                connection_key.saddr = endpoint_key.addr;
-                connection_key.daddr = nat_data->addr;
+                // reverse w.r.t. previous checks because if the endpoint is a
+                // server, then we are looking at the client side
+                if(endpoint_data->status == STATUS_SERVER) {
+                  connection_key.saddr = endpoint_key.addr;
+                  connection_key.lport = endpoint_key.port;
+                  connection_key.daddr = nat_data->addr;
+                  connection_key.dport = nat_data->port;
+
+                } else if (endpoint_data->status == STATUS_CLIENT) {
+                  connection_key.saddr = nat_data->addr;
+                  connection_key.lport = nat_data->port;
+                  connection_key.daddr = endpoint_key.addr;
+                  connection_key.dport = endpoint_key.port;
+                }
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_summary.update(&connection_key, &summary_data);
-                rewritten_rules_out_6.delete(&endpoint_key);
+                rewritten_rules_6.delete(&endpoint_key);
               }
 
               //remember to restore endpoint and connection key!!!
@@ -770,17 +835,17 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                http_key.saddr = nat_data->addr;
+                http_key.saddr = endpoint_key.addr;
 #ifndef HTTP_CLIENT_PORT_MASKING
-                http_key.lport = nat_data->port;
-                http_key.dport = endpoint_key.port;
+                http_key.lport = endpoint_key.port;
+                http_key.dport = nat_data->port;
 #else
                 http_key.lport = 0;
                 http_key.dport = 0;
 #endif
-                http_key.daddr = endpoint_key.addr;
+                http_key.daddr = nat_data->addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_http_summary.update(&http_key, &summary_data);
               }
@@ -788,12 +853,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               endpoint_key.addr = connection_key.daddr;
               endpoint_key.port = connection_key.dport;
 
-              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                http_key.saddr = endpoint_key.addr;
-                http_key.lport = endpoint_key.port;
-                http_key.daddr = nat_data->addr;
-                http_key.dport = nat_data->port;
+                http_key.saddr = nat_data->addr;
+                http_key.lport = nat_data->port;
+                http_key.daddr = endpoint_key.addr;
+                http_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_http_summary.update(&http_key, &summary_data);
               }
@@ -823,12 +888,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                connection_key.saddr = nat_data->addr;
-                connection_key.lport = nat_data->port;
-                connection_key.dport = endpoint_key.port;
-                connection_key.daddr = endpoint_key.addr;
+                connection_key.lport = endpoint_key.port;
+                connection_key.saddr = endpoint_key.addr;
+                connection_key.daddr = nat_data->addr;
+                connection_key.dport = nat_data->port;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_summary.update(&connection_key, &summary_data);
               }
@@ -836,12 +901,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               endpoint_key.addr = daddr;
               endpoint_key.port = dport;
 
-              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                connection_key.saddr = endpoint_key.addr;
-                connection_key.lport = endpoint_key.port;
-                connection_key.daddr = nat_data->addr;
-                connection_key.dport = nat_data->port;
+                connection_key.saddr = nat_data->addr;
+                connection_key.lport = nat_data->port;
+                connection_key.daddr = endpoint_key.addr;
+                connection_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv4_summary.update(&connection_key, &summary_data);
               }
@@ -1027,17 +1092,17 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_in_6.lookup(&endpoint_key);
+              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                http_key.saddr = nat_data->addr;
+                http_key.saddr = endpoint_key.addr;
 #ifndef HTTP_CLIENT_PORT_MASKING
-                http_key.lport = nat_data->port;
-                http_key.dport = endpoint_key.port;
+                http_key.lport = endpoint_key.port;
+                http_key.dport = nat_data->port;
 #else
                 http_key.lport = 0;
                 http_key.dport = 0;
 #endif
-                http_key.daddr = endpoint_key.addr;
+                http_key.daddr = nat_data->addr;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_http_summary.update(&http_key, &summary_data);
               }
@@ -1045,12 +1110,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               endpoint_key.addr = connection_key.daddr;
               endpoint_key.port = connection_key.dport;
 
-              nat_data = rewritten_rules_out_6.lookup(&endpoint_key);
+              nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                http_key.saddr = endpoint_key.addr;
-                http_key.lport = endpoint_key.port;
-                http_key.daddr = nat_data->addr;
-                http_key.dport = nat_data->port;
+                http_key.saddr = nat_data->addr;
+                http_key.lport = nat_data->port;
+                http_key.daddr = endpoint_key.addr;
+                http_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_http_summary.update(&http_key, &summary_data);
               }
@@ -1080,12 +1145,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_in_6.lookup(&endpoint_key);
+              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                connection_key.saddr = nat_data->addr;
-                connection_key.lport = nat_data->port;
-                connection_key.dport = endpoint_key.port;
-                connection_key.daddr = endpoint_key.addr;
+                connection_key.lport = endpoint_key.port;
+                connection_key.saddr = endpoint_key.addr;
+                connection_key.daddr = nat_data->addr;
+                connection_key.dport = nat_data->port;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_summary.update(&connection_key, &summary_data);
               }
@@ -1093,12 +1158,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
               endpoint_key.port = dport;
 
-              nat_data = rewritten_rules_out_6.lookup(&endpoint_key);
+              nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
-                connection_key.saddr = endpoint_key.addr;
-                connection_key.lport = endpoint_key.port;
-                connection_key.daddr = nat_data->addr;
-                connection_key.dport = nat_data->port;
+                connection_key.saddr = nat_data->addr;
+                connection_key.lport = nat_data->port;
+                connection_key.daddr = endpoint_key.addr;
+                connection_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
                 ipv6_summary.update(&connection_key, &summary_data);
               }
@@ -1315,7 +1380,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
                 http_key.saddr = nat_data->addr;
                 http_key.lport = nat_data->port;
@@ -1328,7 +1393,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               endpoint_key.addr = connection_key.daddr;
               endpoint_key.port = connection_key.dport;
 
-              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
                 http_key.saddr = endpoint_key.addr;
                 http_key.daddr = nat_data->addr;
@@ -1367,7 +1432,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv4_endpoint_key_t* nat_data = rewritten_rules_in.lookup(&endpoint_key);
+              struct ipv4_endpoint_key_t* nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
                 connection_key.saddr = nat_data->addr;
                 connection_key.lport = nat_data->port;
@@ -1380,7 +1445,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               endpoint_key.addr = connection_key.daddr;
               endpoint_key.port = connection_key.dport;
 
-              nat_data = rewritten_rules_out.lookup(&endpoint_key);
+              nat_data = rewritten_rules.lookup(&endpoint_key);
               if(nat_data != NULL) {
                 connection_key.saddr = endpoint_key.addr;
                 connection_key.daddr = nat_data->addr;
@@ -1569,7 +1634,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
 #ifdef BYPASS
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
-              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_in_6.lookup(&endpoint_key);
+              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
                 http_key.saddr = nat_data->addr;
                 http_key.lport = nat_data->port;
@@ -1582,7 +1647,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               endpoint_key.addr = connection_key.daddr;
               endpoint_key.port = connection_key.dport;
 
-              nat_data = rewritten_rules_out_6.lookup(&endpoint_key);
+              nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
                 http_key.saddr = endpoint_key.addr;
                 http_key.daddr = nat_data->addr;
@@ -1621,7 +1686,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
               //
-              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_in_6.lookup(&endpoint_key);
+              struct ipv6_endpoint_key_t* nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
                 connection_key.saddr = nat_data->addr;
                 connection_key.lport = nat_data->port;
@@ -1634,7 +1699,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               endpoint_key.addr = connection_key.daddr;
               endpoint_key.port = connection_key.dport;
 
-              nat_data = rewritten_rules_out_6.lookup(&endpoint_key);
+              nat_data = rewritten_rules_6.lookup(&endpoint_key);
               if(nat_data != NULL) {
                 connection_key.saddr = endpoint_key.addr;
                 connection_key.daddr = nat_data->addr;
@@ -1840,9 +1905,9 @@ int kretprobe__ip_rcv(struct pt_regs *ctx){
 #ifdef REVERSE_BYPASS
       // insert translated addresses into rewritten endpoints
       if(cache_data->saddr != src_ip || cache_data->lport != src_port){
-        struct ipv4_endpoint_key_t key = {.addr = cache_data->saddr, .port = cache_data->lport};
-        struct ipv4_endpoint_key_t value = {.addr = src_ip, .port = src_port};
-        rewritten_rules_in.update(&key, &value);
+        struct ipv4_endpoint_key_t key = {.addr = src_ip, .port = src_port};
+        struct ipv4_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
+        rewritten_rules.update(&key, &value);
 
       }
 #endif
@@ -1850,7 +1915,7 @@ int kretprobe__ip_rcv(struct pt_regs *ctx){
       if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
         struct ipv4_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
         struct ipv4_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
-        rewritten_rules_in.update(&key, &value);
+        rewritten_rules.update(&key, &value);
 
       }
     }
@@ -1938,15 +2003,15 @@ int kretprobe__ip_output(struct pt_regs *ctx){
       if(cache_data->saddr != src_ip || cache_data->lport != src_port){
         struct ipv4_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
         struct ipv4_endpoint_key_t key = {.addr = src_ip, .port = src_port};
-        rewritten_rules_out.update(&key, &value);
+        rewritten_rules.update(&key, &value);
 
       }
 
 #ifdef REVERSE_BYPASS
       if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
-        struct ipv4_endpoint_key_t value = {.addr = dest_ip, .port = dest_port};
-        struct ipv4_endpoint_key_t key = {.addr = cache_data->daddr, .port = cache_data->dport};
-        rewritten_rules_out.update(&key, &value);
+        struct ipv4_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
+        struct ipv4_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
+        rewritten_rules.update(&key, &value);
 
       }
 #endif
@@ -2038,14 +2103,14 @@ int kretprobe__ipv6_rcv(struct pt_regs *ctx){
       if(cache_data->saddr != src_ip || cache_data->lport != src_port){
         struct ipv6_endpoint_key_t key = {.addr = src_ip, .port = src_port};
         struct ipv6_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
-        rewritten_rules_out_6.update(&key, &value);
+        rewritten_rules_6.update(&key, &value);
       }
 #endif
 
       if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
         struct ipv6_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
         struct ipv6_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
-        rewritten_rules_in_6.update(&key, &value);
+        rewritten_rules_6.update(&key, &value);
       }
     }
 
@@ -2134,7 +2199,7 @@ int kretprobe__ip6_output(struct pt_regs *ctx) {
       if(cache_data->saddr != src_ip || cache_data->lport != src_port){
         struct ipv6_endpoint_key_t value = {.addr = cache_data->saddr, .port = cache_data->lport};
         struct ipv6_endpoint_key_t key = {.addr = src_ip, .port = src_port};
-        rewritten_rules_out_6.update(&key, &value);
+        rewritten_rules_6.update(&key, &value);
 
       }
 
@@ -2142,10 +2207,10 @@ int kretprobe__ip6_output(struct pt_regs *ctx) {
       if(cache_data->daddr != dest_ip || cache_data->dport != dest_port) {
         struct ipv6_endpoint_key_t value = {.addr = cache_data->daddr, .port = cache_data->dport};
         struct ipv6_endpoint_key_t key = {.addr = dest_ip, .port = dest_port};
-        rewritten_rules_in_6.update(&key, &value);
+        rewritten_rules_6.update(&key, &value);
       }
-    }
 #endif
+    }
 
     iptables6_rewrite_cache_out.delete(&pid);
   }
