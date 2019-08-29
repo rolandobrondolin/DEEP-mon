@@ -28,6 +28,9 @@ build: ## Build the monitor container
 build-standalone: ## Build a standalone image, without snap and backend integration
 	sudo docker build . -f Dockerfile.standalone -t "hyppo_monitor_standalone"
 
+build-standalone-no-cache: ## Build a standalone image, without snap and backend integration
+	sudo docker build . -f Dockerfile.standalone -t "hyppo_monitor_standalone" --no-cache
+
 build-kube: ## Build DEEPmon and push it to GitLab Registry
 	sudo docker login registry.gitlab.com
 	sudo docker build -t registry.gitlab.com/projecthyppo/monitor:ipdps .
