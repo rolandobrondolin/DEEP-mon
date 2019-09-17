@@ -28,8 +28,10 @@ CONTEXT_SETTINGS = dict(
 @click.option('--window-mode', '-w')
 @click.option('--output-format', '-o')
 @click.option('--debug-mode', '-d')
-def deepmon(kube_config, window_mode, output_format, debug_mode):
-    monitor = MonitorMain(output_format, window_mode, debug_mode)
+@click.option('--net_monitor', '-n')
+@click.option('--nat_trace')
+def deepmon(kube_config, window_mode, output_format, debug_mode, net_monitor, nat_trace):
+    monitor = MonitorMain(output_format, window_mode, debug_mode, net_monitor, nat_trace)
     if output_format == 'snap':
         monitor.snap_monitor_loop()
     else:

@@ -6,6 +6,7 @@ from bpf_collector import BpfCollector
 from proc_topology import ProcTopology
 from sample_controller import SampleController
 from process_table import ProcTable
+from net_collector import NetCollector
 from rapl import rapl
 import os
 import socket
@@ -19,7 +20,7 @@ except ImportError:
 
 class MonitorMain():
 
-    def __init__(self, output_format, window_mode, debug_mode):
+    def __init__(self, output_format, window_mode, debug_mode, net_monitor, nat_trace):
         self.output_format = output_format
         self.window_mode = window_mode
         # TODO: Don't hardcode the frequency
@@ -32,12 +33,21 @@ class MonitorMain():
         self.rapl_monitor = rapl.RaplMonitor(self.topology)
         self.started = False
 
+        self.net_monitor = net_monitor
+        self.net_collector = None
+        if self.net_monitor:
+            self.net_collector = NetCollector(trace_nat = nat_trace)
+
 
     def _start_bpf_program(self, window_mode):
         if window_mode == 'dynamic':
             self.collector.start_capture(self.sample_controller.get_timeslice())
+            if self.net_monitor:
+                self.net_collector.start_capture()
         elif window_mode == 'fixed':
             self.collector.start_timed_capture(frequency=self.frequency)
+            if self.net_monitor:
+                self.net_collector.start_capture()
         else:
             print("Please provide a window mode")
 
@@ -50,6 +60,11 @@ class MonitorMain():
         sample = self.collector.get_new_sample(self.sample_controller, self.rapl_monitor)
         # add stuff to cumulative process table
         self.process_table.add_process_from_sample(sample)
+
+        if self.net_monitor:
+            net_sample = self.net_collector.get_sample()
+            self.process_table.add_network_data(net_sample)
+
 
         # Now, extract containers!
         container_list = self.process_table.get_container_dictionary()

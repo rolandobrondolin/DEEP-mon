@@ -4,3 +4,5 @@ output_format:    "console"
 customer_id:      "not_registered"
 debug_mode:       False
 send_thread_data: False
+net_monitor:      True
+nat_trace:        True
