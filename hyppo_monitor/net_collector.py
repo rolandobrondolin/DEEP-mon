@@ -146,6 +146,7 @@ class TransactionData:
                 "LAT_AVG (ms): " + '{:.5f}'.format(self.avg),
                 str(self.http_path)
             )
+
         else:
             fmt = '{:<8} {:<40} {:<40} {:<20} {:<20} {:<20} {:<25}'
             output_str = fmt.format(
@@ -157,6 +158,18 @@ class TransactionData:
                 "BYTE_RX: " + str(self.byte_rx),
                 "LAT_AVG (ms): " + '{:.5f}'.format(self.avg)
             )
+
+        fmt = '{:<5} {:<30} {:<30} {:<30} {:<30} {:<30} {:<30} {:<30}'
+        output_str = output_str + "\n" + fmt.format(
+            "--->",
+            "50p: " + '{:.5f}'.format(self.p50),
+            "75p: " + '{:.5f}'.format(self.p75),
+            "90p: " + '{:.5f}'.format(self.p90),
+            "99p: " + '{:.5f}'.format(self.p99),
+            "99.9p: " + '{:.5f}'.format(self.p99_9),
+            "99.99p: " + '{:.5f}'.format(self.p99_99),
+            "99.999p: " + '{:.5f}'.format(self.p99_999),
+        )
 
         return output_str
 
