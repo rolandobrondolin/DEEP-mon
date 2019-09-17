@@ -119,10 +119,13 @@ class ProcTable:
                 container_dict[value.container_id].add_cpu_usage(value.get_cpu_usage())
                 container_dict[value.container_id].add_pid(value.get_pid())
                 container_dict[value.container_id].set_last_ts(value.get_last_ts())
+                container_dict[value.container_id].add_network_transactions(value.get_network_transactions())
+                container_dict[value.container_id].compute_aggregate_network_metrics()
 
 
         return container_dict
 
-    def add_network_data(self, net_sample):
-
-        return
+    def add_network_data(self, pid_dictionary):
+        for pid, transactions in pid_dictionary.items():
+            if pid in self.proc_table:
+                self.proc_table[pid].set_network_transactions(transactions)

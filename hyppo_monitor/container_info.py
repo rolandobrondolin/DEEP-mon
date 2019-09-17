@@ -3,6 +3,8 @@ from __future__ import division
 import json
 import snap_plugin.v1 as snap
 import time
+from net_collector import TransactionData
+
 
 class bcolors:
     RED = '\033[91m'
@@ -30,6 +32,11 @@ class ContainerInfo:
         self.cpu_usage = 0.0
         self.pid_set = set()
         self.timestamp = 0
+        self.network_transactions = []
+        self.transaction_count = 0
+        self.byte_tx = 0
+        self.byte_rx = 0
+        self.avg_latency = 0
 
     def add_weighted_cycles(self, new_cycles):
         self.weighted_cycles = self.weighted_cycles + new_cycles
@@ -57,6 +64,18 @@ class ContainerInfo:
 
     def add_pid(self, new_pid):
         self.pid_set.add(new_pid)
+
+    def add_network_transactions(self, transaction_list):
+        self.network_transactions.extend(transaction_list)
+
+    def compute_aggregate_network_metrics(self):
+        if self.network_transactions != []:
+            for transaction in self.network_transactions:
+                self.transaction_count = self.transaction_count + transaction.get_transaction_count()
+                self.byte_rx = self.byte_rx + transaction.get_byte_rx()
+                self.byte_tx = self.byte_tx + transaction.get_byte_tx()
+                self.avg_latency = self.avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
+            self.avg_latency = self.avg_latency / self.transaction_count
 
     def set_timestamp(self, ts):
         self.timestamp = ts
@@ -91,6 +110,9 @@ class ContainerInfo:
 
     def get_timestamp(self):
         return self.timestamp
+
+    def get_network_transactions(self):
+        return self.network_transactions
 
     def to_dict(self):
         return {'container_id': self.container_id,

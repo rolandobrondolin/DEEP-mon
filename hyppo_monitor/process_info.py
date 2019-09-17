@@ -1,5 +1,7 @@
 import ctypes as ct
 import snap_plugin.v1 as snap
+from net_collector import TransactionData
+
 
 class BpfPidStatus(ct.Structure):
     TASK_COMM_LEN = 16
@@ -63,6 +65,12 @@ class ProcessInfo:
         self.cache_refs = 0
         self.time_ns = 0
 
+        self.network_transactions = []
+        self.transaction_count = 0
+        self.byte_tx = 0
+        self.byte_rx = 0
+        self.avg_latency = 0
+
         for i in range(0, num_sockets):
             self.socket_data.append(SocketProcessItem())
 
@@ -116,11 +124,25 @@ class ProcessInfo:
     def set_container_id(self, container_id):
         self.container_id = container_id
 
+    def set_network_transactions(self, network_transactions):
+        self.network_transactions = network_transactions
+
+    def compute_aggregate_network_metrics(self):
+        if self.network_transactions != []:
+            for transaction in self.network_transactions:
+                self.transaction_count = self.transaction_count + transaction.get_transaction_count()
+                self.byte_rx = self.byte_rx + transaction.get_byte_rx()
+                self.byte_tx = self.byte_tx + transaction.get_byte_tx()
+                self.avg_latency = self.avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
+            self.avg_latency = self.avg_latency / self.transaction_count
+
+
     def reset_data(self):
         self.instruction_retired = 0
         self.cycles = 0
         self.cache_misses = 0
         self.time_ns = 0
+        self.network_transactions = []
         for item in self.socket_data:
             item.reset()
 
@@ -178,6 +200,11 @@ class ProcessInfo:
                 max_ts = item.get_ts()
         return max_ts
 
+    def get_network_transactions(self):
+        return self.network_transactions
+
+
+
     def __str__(self):
         str_rep = str(self.pid) + " comm: " + str(self.comm) \
             + " c_id: " + self.container_id + " p: " + str(self.power) \
@@ -187,6 +214,7 @@ class ProcessInfo:
             str_rep = str_rep + " " + str(socket_item)
 
         return str_rep
+
 
     def to_snap(self, request_time, user_id, hostname):
         metrics_to_be_returned = []

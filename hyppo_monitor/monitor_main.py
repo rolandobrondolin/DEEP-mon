@@ -65,7 +65,7 @@ class MonitorMain():
 
         if self.net_monitor:
             net_sample = self.net_collector.get_sample()
-            self.process_table.add_network_data(net_sample)
+            self.process_table.add_network_data(net_sample.get_pid_dictionary())
 
         # Now, extract containers!
         container_list = self.process_table.get_container_dictionary()
