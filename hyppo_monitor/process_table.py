@@ -120,8 +120,10 @@ class ProcTable:
                 container_dict[value.container_id].add_pid(value.get_pid())
                 container_dict[value.container_id].set_last_ts(value.get_last_ts())
                 container_dict[value.container_id].add_network_transactions(value.get_network_transactions())
-                container_dict[value.container_id].compute_aggregate_network_metrics()
 
+        # aggregate stuff at the container level
+        for key, value in container_dict.items():
+            value.compute_aggregate_network_metrics()
 
         return container_dict
 

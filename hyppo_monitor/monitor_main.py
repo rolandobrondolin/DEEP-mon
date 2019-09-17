@@ -20,7 +20,7 @@ except ImportError:
 
 class MonitorMain():
 
-    def __init__(self, output_format, window_mode, debug_mode, net_monitor, nat_trace):
+    def __init__(self, output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details):
         self.output_format = output_format
         self.window_mode = window_mode
         # TODO: Don't hardcode the frequency
@@ -33,6 +33,7 @@ class MonitorMain():
         self.rapl_monitor = rapl.RaplMonitor(self.topology)
         self.started = False
 
+        self.print_net_details = print_net_details
         self.net_monitor = net_monitor
         self.net_collector = None
         if self.net_monitor:
@@ -63,14 +64,16 @@ class MonitorMain():
         # add stuff to cumulative process table
         self.process_table.add_process_from_sample(sample)
 
+        nat_data = []
         if self.net_monitor:
             net_sample = self.net_collector.get_sample()
             self.process_table.add_network_data(net_sample.get_pid_dictionary())
+            nat_data = net_sample.get_nat_list()
 
         # Now, extract containers!
         container_list = self.process_table.get_container_dictionary()
 
-        return [sample, container_list, self.process_table.get_proc_table()]
+        return [sample, container_list, self.process_table.get_proc_table(), nat_data]
 
 
     def monitor_loop(self):
@@ -95,9 +98,20 @@ class MonitorMain():
                     print(value.to_json())
                 print
                 print(sample.get_log_json())
+
             elif self.output_format == "console":
+                if self.print_net_details:
+                    nat_data = sample_array[3]
+                    for nat_rule in nat_data:
+                        print(nat_rule)
+
                 for key, value in sorted(container_list.items()):
                     print(value)
+
+                    if self.print_net_details:
+                        for item in value.get_network_transactions():
+                            print(item)
+
                 print('│')
                 print('└─╼', end='\t')
                 print(sample.get_log_line())

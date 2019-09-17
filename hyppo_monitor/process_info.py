@@ -66,10 +66,6 @@ class ProcessInfo:
         self.time_ns = 0
 
         self.network_transactions = []
-        self.transaction_count = 0
-        self.byte_tx = 0
-        self.byte_rx = 0
-        self.avg_latency = 0
 
         for i in range(0, num_sockets):
             self.socket_data.append(SocketProcessItem())
@@ -126,15 +122,6 @@ class ProcessInfo:
 
     def set_network_transactions(self, network_transactions):
         self.network_transactions = network_transactions
-
-    def compute_aggregate_network_metrics(self):
-        if self.network_transactions != []:
-            for transaction in self.network_transactions:
-                self.transaction_count = self.transaction_count + transaction.get_transaction_count()
-                self.byte_rx = self.byte_rx + transaction.get_byte_rx()
-                self.byte_tx = self.byte_tx + transaction.get_byte_tx()
-                self.avg_latency = self.avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
-            self.avg_latency = self.avg_latency / self.transaction_count
 
 
     def reset_data(self):

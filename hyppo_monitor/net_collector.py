@@ -70,6 +70,7 @@ class TransactionData:
         self.p99_9 = 0
         self.p99_99 = 0
         self.p99_999 = 0
+        self.http_path = ""
 
     def load_latencies(self, latency_list):
         # remove zeros
@@ -85,6 +86,9 @@ class TransactionData:
         self.p99_9 = np.percentile(latency_list, 99.9)
         self.p99_99 = np.percentile(latency_list, 99.99)
         self.p99_999 = np.percentile(latency_list, 99.999)
+
+    def load_http_path(self, path):
+        self.http_path = path
 
     def get_type(self):
         return self.type
@@ -119,6 +123,44 @@ class TransactionData:
     def get_percentiles(self):
         return [self.p50, self.p75, self.p90, self.p99, self.p99_9, self.p99_99, self.p99_999]
 
+    def get_http_path(self):
+        return self.http_path
+
+    def __str__(self):
+        role_str = ""
+        if self.role is TransactionRole.server:
+            role_str = "server"
+        else:
+            role_str = "client"
+
+        output_str = ""
+        if self.type == TransactionType.ipv4_http or self.type == TransactionType.ipv6_http:
+            fmt = '{:<8} {:<40} {:<40} {:<20} {:<20} {:<20} {:<25} {:<60}'
+            output_str = fmt.format(
+                role_str,
+                "SRC: " + str(self.saddr) + ":" + str(self.lport),
+                "DST: " + str(self.daddr) + ":" + str(self.dport),
+                "T_COUNT: " + str(self.t_count),
+                "BYTE_TX: " + str(self.byte_tx),
+                "BYTE_RX: " + str(self.byte_rx),
+                "LAT_AVG (ms): " + '{:.5f}'.format(self.avg),
+                str(self.http_path)
+            )
+        else:
+            fmt = '{:<8} {:<40} {:<40} {:<20} {:<20} {:<20} {:<25}'
+            output_str = fmt.format(
+                role_str,
+                "SRC: " + str(self.saddr) + ":" + str(self.lport),
+                "DST: " + str(self.daddr) + ":" + str(self.dport),
+                "T_COUNT: " + str(self.t_count),
+                "BYTE_TX: " + str(self.byte_tx),
+                "BYTE_RX: " + str(self.byte_rx),
+                "LAT_AVG (ms): " + '{:.5f}'.format(self.avg)
+            )
+
+        return output_str
+
+
 
 class NatData:
     def __init__(self, type, saddr, lport, daddr, dport):
@@ -142,6 +184,17 @@ class NatData:
 
     def get_dport(self):
         return self.dport
+
+    def __str__(self):
+
+        fmt = '{:<10} {:<40} {:<40}'
+        output_str = fmt.format(
+            "NAT RULE",
+            "SRC: " + str(self.saddr) + ":" + str(self.lport),
+            "DST: " + str(self.daddr) + ":" + str(self.dport),
+        )
+
+        return output_str
 
 
 
@@ -215,7 +268,10 @@ class NetCollector:
         transaction_types = [TransactionType.ipv4_tcp, TransactionType.ipv6_tcp, TransactionType.ipv4_http, TransactionType.ipv6_http]
         transaction_tables = [self.ipv4_summary, self.ipv6_summary, self.ipv4_http_summary, self.ipv6_http_summary]
 
-        for i in range(0,4):
+        # transaction_types = [TransactionType.ipv4_http, TransactionType.ipv6_http]
+        # transaction_tables = [self.ipv4_http_summary, self.ipv6_http_summary]
+
+        for i in range(0,len(transaction_types)):
             transaction_type = transaction_types[i]
             transaction_table = transaction_tables[i]
 
@@ -228,14 +284,17 @@ class NetCollector:
                     nat_list.append(data_item)
                 else:
                     role = None
-                    if value.status == TransactionRole.client:
+                    if int(value.status) == -1:
                         role = TransactionRole.client;
-                    elif value.status == TransactionRole.server:
+                    elif int(value.status) == 1:
                         role = TransactionRole.server;
 
                     lat = list(value.latency)
                     data_item = TransactionData(transaction_type, role, formatted_key.saddr, formatted_key.lport, formatted_key.daddr, formatted_key.dport, int(value.transaction_count), int(value.byte_rx), int(value.byte_tx))
                     data_item.load_latencies(lat)
+
+                    if transaction_type == TransactionType.ipv4_http or transaction_type == TransactionType.ipv6_http:
+                        data_item.load_http_path(str(key.http_payload))
 
                     # sum up host metrics
                     host_transaction_count = host_transaction_count + int(value.transaction_count)

@@ -4,7 +4,7 @@ import json
 import snap_plugin.v1 as snap
 import time
 from net_collector import TransactionData
-
+from net_collector import TransactionType
 
 class bcolors:
     RED = '\033[91m'
@@ -33,10 +33,16 @@ class ContainerInfo:
         self.pid_set = set()
         self.timestamp = 0
         self.network_transactions = []
-        self.transaction_count = 0
-        self.byte_tx = 0
-        self.byte_rx = 0
-        self.avg_latency = 0
+
+        self.tcp_transaction_count = 0
+        self.tcp_byte_tx = 0
+        self.tcp_byte_rx = 0
+        self.tcp_avg_latency = 0
+
+        self.http_transaction_count = 0
+        self.http_byte_tx = 0
+        self.http_byte_rx = 0
+        self.http_avg_latency = 0
 
     def add_weighted_cycles(self, new_cycles):
         self.weighted_cycles = self.weighted_cycles + new_cycles
@@ -71,11 +77,22 @@ class ContainerInfo:
     def compute_aggregate_network_metrics(self):
         if self.network_transactions != []:
             for transaction in self.network_transactions:
-                self.transaction_count = self.transaction_count + transaction.get_transaction_count()
-                self.byte_rx = self.byte_rx + transaction.get_byte_rx()
-                self.byte_tx = self.byte_tx + transaction.get_byte_tx()
-                self.avg_latency = self.avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
-            self.avg_latency = self.avg_latency / self.transaction_count
+                if transaction.type == TransactionType.ipv4_http or transaction.type == TransactionType.ipv6_http:
+                    self.http_transaction_count = self.http_transaction_count + transaction.get_transaction_count()
+                    self.http_byte_rx = self.http_byte_rx + transaction.get_byte_rx()
+                    self.http_byte_tx = self.http_byte_tx + transaction.get_byte_tx()
+                    self.http_avg_latency = self.http_avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
+                else:
+                    self.tcp_transaction_count = self.tcp_transaction_count + transaction.get_transaction_count()
+                    self.tcp_byte_rx = self.tcp_byte_rx + transaction.get_byte_rx()
+                    self.tcp_byte_tx = self.tcp_byte_tx + transaction.get_byte_tx()
+                    self.tcp_avg_latency = self.tcp_avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
+
+            if self.http_transaction_count > 0:
+                self.http_avg_latency = self.http_avg_latency / float(self.http_transaction_count)
+            if self.tcp_transaction_count > 0:
+                self.tcp_avg_latency = self.tcp_avg_latency / float(self.tcp_transaction_count)
+
 
     def set_timestamp(self, ts):
         self.timestamp = ts
@@ -319,7 +336,7 @@ class ContainerInfo:
 
 
     def __str__(self):
-        fmt = '{:<28} {:<32} {:<34} {:<34} {:<34} {:<34} {:<38} {:<30}'
+        fmt = '{:<28} {:<32} {:<34} {:<34} {:<34} {:<34} {:<38} {:<30} {:<30}'
         output_line = fmt.format (
                 bcolors.BLUE + "ID: " + bcolors.ENDC
                     + self.container_id,
@@ -335,9 +352,35 @@ class ContainerInfo:
                     +str(self.cache_refs),
                 bcolors.BLUE + "EXEC TIME (s): " + bcolors.ENDC
                     + '{:.5f}'.format(self.time_ns / 1000000000),
-                bcolors.GREEN + "TOTAL POWER (mW): " + bcolors.ENDC
-                    + '{:.3f}'.format(self.power),
                 bcolors.BLUE + "CPU USAGE: " + bcolors.ENDC
-                    + '{:.3f}'.format(self.cpu_usage)
+                    + '{:.3f}'.format(self.cpu_usage),
+                bcolors.GREEN + "TOTAL POWER (mW): " + bcolors.ENDC
+                    + '{:.3f}'.format(self.power)
                 )
+        if self.http_transaction_count > 0:
+            fmt = '{:<10} {:<32} {:<34} {:<34} {:<34}'
+            output_line = output_line + "\n" + fmt.format(
+                    bcolors.BLUE + "--->" + bcolors.ENDC,
+                    bcolors.BLUE + "HTTP_T_COUNT: " + bcolors.ENDC
+                        + str(self.http_transaction_count),
+                    bcolors.BLUE + "HTTP_BYTE_SENT: " + bcolors.ENDC
+                        + str(self.http_byte_tx),
+                    bcolors.BLUE + "HTTP_BYTE_RECV: " + bcolors.ENDC
+                        + str(self.http_byte_rx),
+                    bcolors.BLUE + "HTTP_AVG_LATENCY (ms): " + bcolors.ENDC
+                        + '{:.3f}'.format(self.http_avg_latency)
+                    )
+        if self.tcp_transaction_count > 0:
+            fmt = '{:<10} {:<32} {:<34} {:<34} {:<34}'
+            output_line = output_line + "\n" + fmt.format(
+                    bcolors.BLUE + "--->" + bcolors.ENDC,
+                    bcolors.BLUE + "TCP_T_COUNT: " + bcolors.ENDC
+                        + str(self.tcp_transaction_count),
+                    bcolors.BLUE + "TCP_BYTE_SENT: " + bcolors.ENDC
+                        + str(self.tcp_byte_tx),
+                    bcolors.BLUE + "TCP_BYTE_RECV: " + bcolors.ENDC
+                        + str(self.tcp_byte_rx),
+                    bcolors.BLUE + "TCP_AVG_LATENCY (ms): " + bcolors.ENDC
+                        + '{:.3f}'.format(self.tcp_avg_latency)
+                    )
         return output_line
