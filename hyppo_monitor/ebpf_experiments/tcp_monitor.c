@@ -99,6 +99,7 @@ struct ipv6_http_key_t {
 
 struct summary_data_t {
   u64 latency[LATENCY_SAMPLES];
+  u32 pid;
   u32 transaction_count;
   u64 byte_tx;
   u64 byte_rx;
@@ -289,6 +290,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv4_http_summary.update(&http_key, &summary_data);
 
 #ifdef BYPASS
@@ -380,6 +382,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv4_summary.update(&connection_key, &summary_data);
 
 #ifdef BYPASS
@@ -564,6 +567,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv6_http_summary.update(&http_key, &summary_data);
 
 #ifdef BYPASS
@@ -657,6 +661,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv6_summary.update(&connection_key, &summary_data);
 
 #ifdef BYPASS
@@ -829,6 +834,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv4_http_summary.update(&http_key, &summary_data);
 
 #ifdef BYPASS
@@ -882,6 +888,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv4_summary.update(&connection_key, &summary_data);
 
 #ifdef BYPASS
@@ -1086,6 +1093,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv6_http_summary.update(&http_key, &summary_data);
 
 #ifdef BYPASS
@@ -1139,6 +1147,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv6_summary.update(&connection_key, &summary_data);
 
 #ifdef BYPASS
@@ -1374,6 +1383,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv4_http_summary.update(&http_key, &summary_data);
 
 #ifdef BYPASS
@@ -1426,6 +1436,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv4_summary.update(&connection_key, &summary_data);
 
 #ifdef BYPASS
@@ -1630,6 +1641,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv6_http_summary.update(&http_key, &summary_data);
 
 #ifdef BYPASS
@@ -1680,6 +1692,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
+              summary_data.pid = bpf_get_current_pid_tgid();
               ipv6_summary.update(&connection_key, &summary_data);
 
 #ifdef BYPASS

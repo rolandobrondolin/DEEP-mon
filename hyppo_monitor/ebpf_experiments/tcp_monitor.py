@@ -92,7 +92,7 @@ while not exiting:
         p99_9   = np.percentile(lat, 99.9)
         p99_99  = np.percentile(lat, 99.99)
 
-        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
+        print(status + "   " + str(key) + "   " + str(v.pid) + " " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
                 # + " " + str(list(v.latency)))
                 + "         " + str(mean) + " " + str(p90) + " " + str(p99) + " " + str(p99_9) + " " + str(p99_99))
         # print(str(list(v.latency)))
@@ -126,7 +126,7 @@ while not exiting:
         p99_9   = np.percentile(lat, 99.9)
         p99_99  = np.percentile(lat, 99.99)
 
-        print(status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
+        print(status + "   " + str(key) + "   " + str(v.pid) + " " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
                 # + " " + str(list(v.latency)))
                 + "         " + str(mean) + " " + str(p90) + " " + str(p99) + " " + str(p99_9) + " " + str(p99_99))
         # print(str(list(v.latency)))
@@ -153,7 +153,7 @@ while not exiting:
         p99_9   = np.percentile(lat, 99.9)
         p99_99  = np.percentile(lat, 99.99)
 
-        print(str(k.http_payload).splitlines()[0] + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
+        print(str(k.http_payload).splitlines()[0] + "   " + status + "   " + str(key) + "   " + str(v.pid) + " " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
         #        + " " + str(list(v.latency)))
                 + "         " + str(mean) + " " + str(p90) + " " + str(p99) + " " + str(p99_9) + " " + str(p99_99))
     #ipv4_http_summary.clear()
@@ -180,7 +180,7 @@ while not exiting:
         p99_9   = np.percentile(lat, 99.9)
         p99_99  = np.percentile(lat, 99.99)
 
-        print(str(k.http_payload).splitlines()[0] + "   " + status + "   " + str(key) + "   " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
+        print(str(k.http_payload).splitlines()[0] + "   " + status + "   " + str(key) + "   " + str(v.pid) + " " + str(v.transaction_count) + "  " + str(v.byte_tx) + " " + str(v.byte_rx) \
         #        + " " + str(list(v.latency)))
                 + "         " + str(mean) + " " + str(p90) + " " + str(p99) + " " + str(p99_9) + " " + str(p99_99))
 
@@ -188,19 +188,19 @@ while not exiting:
     print()
 
 
-    #check on links
-    for k, v in rewritten_rules.items():
-        key = get_ipv4_endpoint_key(k)
-        value = get_ipv4_endpoint_key(v)
-        print(str(key) + "    " + str(value))
-    print()
-
-
-    for k, v in rewritten_rules_6.items():
-        key = get_ipv6_endpoint_key(k)
-        value = get_ipv6_endpoint_key(v)
-        print(str(key) + "    " + str(value))
-    print()
+    # #check on links
+    # for k, v in rewritten_rules.items():
+    #     key = get_ipv4_endpoint_key(k)
+    #     value = get_ipv4_endpoint_key(v)
+    #     print(str(key) + "    " + str(value))
+    # print()
+    #
+    #
+    # for k, v in rewritten_rules_6.items():
+    #     key = get_ipv6_endpoint_key(k)
+    #     value = get_ipv6_endpoint_key(v)
+    #     print(str(key) + "    " + str(value))
+    # print()
 
     # print("##### Mappings IPv4 #####")
     # for item in paths:
