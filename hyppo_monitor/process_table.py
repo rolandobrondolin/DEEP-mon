@@ -8,16 +8,12 @@ class ProcTable:
     def __init__(self):
         self.proc_table = {}
 
-    def add_process(self, proc_info):
-        self.proc_table[proc_info.get_pid()] = proc_info
-
-    def add_process_from_sample(self, sample):
-        # reset counters for each entries
-
+    # remove processes that did not receive updates in the last 8 seconds
+    def reset_metrics_and_evict_stale_processes(self, ts):
         evicted_keys = []
 
         for proc_table_key, proc_table_value in self.proc_table.iteritems():
-            if proc_table_value.get_last_ts() + 8000000000 < sample.get_max_ts():
+            if proc_table_value.get_last_ts() + 8000000000 < ts:
                 evicted_keys.append(proc_table_key)
             else:
                 proc_table_value.set_power(0)
@@ -28,6 +24,13 @@ class ProcTable:
         for k in evicted_keys:
             self.proc_table.pop(k, None)
 
+
+    def add_process(self, proc_info):
+        self.proc_table[proc_info.get_pid()] = proc_info
+
+
+    def add_process_from_sample(self, sample):
+        # reset counters for each entries
         for key, value in sample.get_pid_dict().iteritems():
             if key in self.proc_table:
                 # process already there, check if comm is the same

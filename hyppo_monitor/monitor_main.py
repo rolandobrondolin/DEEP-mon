@@ -58,13 +58,14 @@ class MonitorMain():
             self.started = True
 
         sample = self.collector.get_new_sample(self.sample_controller, self.rapl_monitor)
+        # clear metrics for the new sample
+        self.process_table.reset_metrics_and_evict_stale_processes(sample.get_max_ts())
         # add stuff to cumulative process table
         self.process_table.add_process_from_sample(sample)
 
         if self.net_monitor:
             net_sample = self.net_collector.get_sample()
             self.process_table.add_network_data(net_sample)
-
 
         # Now, extract containers!
         container_list = self.process_table.get_container_dictionary()
