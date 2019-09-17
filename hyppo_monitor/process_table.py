@@ -40,8 +40,7 @@ class ProcTable:
                     self.proc_table[key].set_cache_misses(value.get_cache_misses())
                     self.proc_table[key].set_cache_refs(value.get_cache_refs())
                     self.proc_table[key].set_time_ns(value.get_time_ns())
-                    self.proc_table[key].set_socket_data_array(\
-                        value.get_socket_data())
+                    self.proc_table[key].set_socket_data_array(value.get_socket_data())
 
                 else:
                     # process is changed, replace entry and find cgroup_id
@@ -120,3 +119,7 @@ class ProcTable:
 
 
         return container_dict
+
+    def add_network_data(self, net_sample):
+
+        return
