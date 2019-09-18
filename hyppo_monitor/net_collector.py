@@ -72,20 +72,66 @@ class TransactionData:
         self.p99_999 = 0
         self.http_path = ""
 
-    def load_latencies(self, latency_list):
-        # remove zeros
-        #latency_list = latency_list[latency_list!=0]
-        filter(lambda a: a != 0, latency_list)
-        # convert to float and go for milliseconds
-        latency_list = [float(i) / 1000000 for i in latency_list]
-        self.avg = np.average(latency_list)
-        self.p50 = np.percentile(latency_list, 50)
-        self.p75 = np.percentile(latency_list, 75)
-        self.p90 = np.percentile(latency_list, 90)
-        self.p99 = np.percentile(latency_list, 99)
-        self.p99_9 = np.percentile(latency_list, 99.9)
-        self.p99_99 = np.percentile(latency_list, 99.99)
-        self.p99_999 = np.percentile(latency_list, 99.999)
+    def load_latencies(self, latency_hist, total_time, transaction_count):
+        latency_hist = [float(i) for i in latency_hist]
+
+        # extract latencies from log2 histograms
+        idx_max = -1
+        val_max = 0
+        vals = latency_hist
+        for i, v in enumerate(vals):
+            if v > 0: idx_max = i
+            if v > val_max: val_max = v
+
+        # compute percentiles, obtain the index, then save results in local vars
+        pct_compute_array = [50, 75, 90, 99, 99.9, 99.99, 99.999]
+        bin_indexes = []
+        pct_output = []
+        for pct in pct_compute_array:
+            cumulative_sum = np.cumsum(latency_hist)
+            bin_indexes.append(np.searchsorted(cumulative_sum, np.percentile(cumulative_sum, pct)))
+        # print(bin_indexes)
+
+        for pct_idx in range(0, len(bin_indexes)):
+            i = bin_indexes[pct_idx]
+            low = (1 << i) >> 1
+            high = (1 << i) - 1
+            if (low == high):
+                low -= 1
+
+            pct_output.append(float(high + low) / 2)
+
+        self.p50 = pct_output[0] #/ 1000000
+        self.p75 = pct_output[1] #/ 1000000
+        self.p90 = pct_output[2] #/ 1000000
+        self.p99 = pct_output[3] #/ 1000000
+        self.p99_9 = pct_output[4] #/ 1000000
+        self.p99_99 = pct_output[5] #/ 1000000
+        self.p99_999 = pct_output[6] #/ 1000000
+
+        self.avg = float(total_time) / float(transaction_count * 1000000)
+
+        # for i in range(1, idx_max + 1):
+        #     low = (1 << i) >> 1
+        #     high = (1 << i) - 1
+        #     if (low == high):
+        #         low -= 1
+        #     val = vals[i]
+
+
+        # # remove zeros
+        # #latency_list = latency_list[latency_list!=0]
+        # filter(lambda a: a != 0, latency_list)
+        # # convert to float and go for milliseconds
+        # latency_list = [float(i) / 1000000 for i in latency_list]
+        # self.avg = np.average(latency_list)
+        # self.p50 = np.percentile(latency_list, 50)
+        # self.p75 = np.percentile(latency_list, 75)
+        # self.p90 = np.percentile(latency_list, 90)
+        # self.p99 = np.percentile(latency_list, 99)
+        # self.p99_9 = np.percentile(latency_list, 99.9)
+        # self.p99_99 = np.percentile(latency_list, 99.99)
+        # self.p99_999 = np.percentile(latency_list, 99.999)
 
     def load_http_path(self, path):
         self.http_path = path
@@ -135,7 +181,7 @@ class TransactionData:
 
         output_str = ""
         if self.type == TransactionType.ipv4_http or self.type == TransactionType.ipv6_http:
-            fmt = '{:<8} {:<40} {:<40} {:<20} {:<20} {:<20} {:<25} {:<60}'
+            fmt = '{:<8} {:<40} {:<40} {:<20} {:<20} {:<20} {:<25} {:<68}'
             output_str = fmt.format(
                 role_str,
                 "SRC: " + str(self.saddr) + ":" + str(self.lport),
@@ -252,6 +298,11 @@ class NetCollector:
         self.rewritten_rules = None
         self.rewritten_rules_6 = None
 
+        self.ipv4_hist = None
+        self.ipv6_hist = None
+        self.ipv4_http_hist = None
+        self.ipv6_http_hist = None
+
     def start_capture(self):
         bpf_code_path = os.path.dirname(os.path.abspath(__file__)) \
                         + "/bpf/tcp_monitor.c"
@@ -268,6 +319,11 @@ class NetCollector:
         self.rewritten_rules = self.ebpf_tcp_monitor["rewritten_rules"]
         self.rewritten_rules_6 = self.ebpf_tcp_monitor["rewritten_rules_6"]
 
+        self.ipv4_hist = self.ebpf_tcp_monitor["ipv4_hist"]
+        self.ipv6_hist = self.ebpf_tcp_monitor["ipv6_hist"]
+        self.ipv4_http_hist = self.ebpf_tcp_monitor["ipv4_http_hist"]
+        self.ipv6_http_hist = self.ebpf_tcp_monitor["ipv6_http_hist"]
+
 
     def get_sample(self):
         #iterate over summary tables
@@ -280,13 +336,25 @@ class NetCollector:
         # set the types and tables to iterate on
         transaction_types = [TransactionType.ipv4_tcp, TransactionType.ipv6_tcp, TransactionType.ipv4_http, TransactionType.ipv6_http]
         transaction_tables = [self.ipv4_summary, self.ipv6_summary, self.ipv4_http_summary, self.ipv6_http_summary]
+        transaction_histograms = [self.ipv4_hist, self.ipv6_hist, self.ipv4_http_hist, self.ipv6_http_hist]
 
         # transaction_types = [TransactionType.ipv4_http, TransactionType.ipv6_http]
         # transaction_tables = [self.ipv4_http_summary, self.ipv6_http_summary]
-
+        log2_index_max = 257
         for i in range(0,len(transaction_types)):
             transaction_type = transaction_types[i]
             transaction_table = transaction_tables[i]
+            transaction_histogram = transaction_histograms[i]
+
+            histogram_data = {}
+
+            # retrieve histograms data
+            for key, value in transaction_histogram.items():
+                formatted_key = get_session_key_by_type(key, transaction_type)
+                vals = histogram_data[formatted_key] = histogram_data.get(formatted_key, [0] * log2_index_max)
+                slot = key.slot
+                vals[slot] = value.value
+            print(histogram_data)
 
             for key, value in transaction_table.items():
                 data_item = None
@@ -302,9 +370,12 @@ class NetCollector:
                     elif int(value.status) == 1:
                         role = TransactionRole.server;
 
-                    lat = list(value.latency)
                     data_item = TransactionData(transaction_type, role, formatted_key.saddr, formatted_key.lport, formatted_key.daddr, formatted_key.dport, int(value.transaction_count), int(value.byte_rx), int(value.byte_tx))
-                    data_item.load_latencies(lat)
+                    try:
+                        data_item.load_latencies(histogram_data[formatted_key], int(value.time), int(value.transaction_count))
+                    except KeyError:
+                        # skip item if we lost it somehow
+                        continue
 
                     if transaction_type == TransactionType.ipv4_http or transaction_type == TransactionType.ipv6_http:
                         data_item.load_http_path(str(key.http_payload))
@@ -329,5 +400,11 @@ class NetCollector:
         # are rewritten inside the tables automatically
         self.rewritten_rules.clear()
         self.rewritten_rules_6.clear()
+
+        # clear also histograms
+        self.ipv4_hist.clear()
+        self.ipv6_hist.clear()
+        self.ipv4_http_hist.clear()
+        self.ipv6_http_hist.clear()
 
         return NetSample(pid_dict, nat_list, host_transaction_count, host_byte_tx, host_byte_rx)

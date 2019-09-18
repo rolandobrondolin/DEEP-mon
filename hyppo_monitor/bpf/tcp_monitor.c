@@ -9,8 +9,8 @@
 #include <linux/netfilter.h>
 #include <net/netfilter/nf_tables.h>
 
-#define LATENCY_SAMPLES 30
-#define PAYLOAD_LEN 60
+#define LATENCY_HISTOGRAM_SIZE 64
+#define PAYLOAD_LEN 68
 
 #define STATUS_CLIENT -1
 #define STATUS_SERVER 1
@@ -21,7 +21,6 @@
 #define T_UNKNOWN 2
 #define T_STATUS_ON 1
 #define T_STATUS_OFF 0
-
 
 #define HTTP_CLIENT_PORT_MASKING
 #define KILL_CONNECTION_DATA
@@ -55,12 +54,14 @@ struct ipv4_key_t {
   u32 daddr;
   u16 lport;
   u16 dport;
+  u32 pad;
+  u64 slot;
 };
 
 struct ipv6_key_t {
   unsigned __int128 saddr;
   unsigned __int128 daddr;
-  u64 a;
+  u64 slot;
   u32 b;
   u16 lport;
   u16 dport;
@@ -83,14 +84,16 @@ struct ipv4_http_key_t {
   u32 daddr;
   u16 lport;
   u16 dport;
+  // u32 pad;
   char http_payload[PAYLOAD_LEN];
+  u64 slot;
 };
 
 struct ipv6_http_key_t {
   unsigned __int128 saddr;
   unsigned __int128 daddr;
   // remove padding to support 60 bytes of http_payload
-  // u64 a;
+  u64 slot;
   // u32 b;
   u16 lport;
   u16 dport;
@@ -98,11 +101,11 @@ struct ipv6_http_key_t {
 };
 
 struct summary_data_t {
-  u64 latency[LATENCY_SAMPLES];
   u32 pid;
   u32 transaction_count;
   u64 byte_tx;
   u64 byte_rx;
+  u64 time;
   int16_t status;
 };
 
@@ -125,6 +128,13 @@ BPF_HASH(ipv4_summary, struct ipv4_key_t, struct summary_data_t);
 BPF_HASH(ipv6_summary, struct ipv6_key_t, struct summary_data_t);
 BPF_HASH(ipv4_http_summary, struct ipv4_http_key_t, struct summary_data_t);
 BPF_HASH(ipv6_http_summary, struct ipv6_http_key_t, struct summary_data_t);
+
+
+
+BPF_HISTOGRAM(ipv4_hist, struct ipv4_key_t, LATENCY_HISTOGRAM_SIZE);
+BPF_HISTOGRAM(ipv6_hist, struct ipv6_key_t, LATENCY_HISTOGRAM_SIZE);
+BPF_HISTOGRAM(ipv4_http_hist, struct ipv4_http_key_t, LATENCY_HISTOGRAM_SIZE);
+BPF_HISTOGRAM(ipv6_http_hist, struct ipv6_http_key_t, LATENCY_HISTOGRAM_SIZE);
 
 
 BPF_HASH(set_state_cache, struct sock *, struct endpoint_data_t);
@@ -160,14 +170,14 @@ BPF_HASH(rewritten_rules_6, struct ipv6_endpoint_key_t, struct ipv6_endpoint_key
 
 
 
-static void safe_array_write(u32 idx, u64* array, u64 value) {
-  #pragma clang loop unroll(full)
-  for(int array_index = 0; array_index<LATENCY_SAMPLES; array_index++) {
-    if(array_index == idx) {
-      array[array_index] = value;
-    }
-  }
-}
+// static void safe_array_write(u32 idx, u64* array, u64 value) {
+//   #pragma clang loop unroll(full)
+//   for(int array_index = 0; array_index<LATENCY_SAMPLES; array_index++) {
+//     if(array_index == idx) {
+//       array[array_index] = value;
+//     }
+//   }
+// }
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
@@ -272,20 +282,25 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               struct summary_data_t summary_data;
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
 
               // check status and flow correctness
               if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
-                safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
+                summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
+                // store data inside the proper histogram
+                http_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
+                ipv4_http_hist.increment(http_key);
+                http_key.slot = 0;
+
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
-                safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
+                summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
+                // store data inside the proper histogram
+                http_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
+                ipv4_http_hist.increment(http_key);
+                http_key.slot = 0;
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -365,19 +380,23 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
               // check status and flow correctness
               if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
-                safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
+                summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
+                // store data inside the proper histogram
+                connection_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
+                ipv4_hist.increment(connection_key);
+                connection_key.slot = 0;
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
-                safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
+                summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
+                // store data inside the proper histogram
+                connection_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
+                ipv4_hist.increment(connection_key);
+                connection_key.slot = 0;
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -549,20 +568,24 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
               struct summary_data_t summary_data;
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
 
               // check status and flow correctness
               if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
-                safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
+                summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
+                // store data inside the proper histogram
+                http_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
+                ipv6_http_hist.increment(http_key);
+                http_key.slot = 0;
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
-                safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
+                summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
+                // store data inside the proper histogram
+                http_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
+                ipv6_http_hist.increment(http_key);
+                http_key.slot = 0;
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -644,19 +667,23 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
               // check status and flow correctness
               if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
-                safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
+                summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
+                // store data inside the proper histogram
+                connection_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
+                ipv6_hist.increment(connection_key);
+                connection_key.slot = 0;
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (total time for server)
-                safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
+                summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
+                // store data inside the proper histogram
+                connection_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
+                ipv6_hist.increment(connection_key);
+                connection_key.slot = 0;
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -823,13 +850,13 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               struct summary_data_t summary_data;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
+              summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
+              // store data inside the proper histogram
+              http_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
+              ipv4_http_hist.increment(http_key);
+              http_key.slot = 0;
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
@@ -877,13 +904,13 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               struct summary_data_t summary_data;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
+              summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
+              // store data inside the proper histogram
+              connection_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
+              ipv4_hist.increment(connection_key);
+              connection_key.slot = 0;
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
@@ -1082,13 +1109,13 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               struct summary_data_t summary_data;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
+              summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
+              // store data inside the proper histogram
+              http_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
+              ipv6_http_hist.increment(http_key);
+              http_key.slot = 0;
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
@@ -1136,13 +1163,13 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               struct summary_data_t summary_data;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
+              summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
+              // store data inside the proper histogram
+              connection_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
+              ipv6_hist.increment(connection_key);
+              connection_key.slot = 0;
 
               //measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data->last_ts_in - connection_data->first_ts_out);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
@@ -1372,13 +1399,13 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               struct summary_data_t summary_data;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
+              summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
+              // store data inside the proper histogram
+              http_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
+              ipv4_http_hist.increment(http_key);
+              http_key.slot = 0;
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
@@ -1426,12 +1453,13 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               struct summary_data_t summary_data = {};
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
+              summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
+              // store data inside the proper histogram
+              connection_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
+              ipv4_hist.increment(connection_key);
+              connection_key.slot = 0;
+
               //measuring just response time for server
-              safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
@@ -1630,13 +1658,13 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               struct summary_data_t summary_data;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
+              summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
+              // store data inside the proper histogram
+              http_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
+              ipv6_http_hist.increment(http_key);
+              http_key.slot = 0;
 
               // measuring overall transaction time for client
-              safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
@@ -1682,12 +1710,13 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               struct summary_data_t summary_data = {};
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
 
-              u32 idx = summary_data.transaction_count;
-              if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                idx = bpf_get_prandom_u32() % LATENCY_SAMPLES;
-              }
+              summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
+              // store data inside the proper histogram
+              connection_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
+              ipv6_hist.increment(connection_key);
+              connection_key.slot = 0;
+
               //measuring just response time for server transaction
-              safe_array_write(idx, summary_data.latency, connection_data->first_ts_out - connection_data->last_ts_in);
               summary_data.transaction_count+=1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
