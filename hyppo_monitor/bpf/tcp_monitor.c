@@ -9,7 +9,7 @@
 #include <linux/netfilter.h>
 #include <net/netfilter/nf_tables.h>
 
-#define LATENCY_HISTOGRAM_SIZE 64
+// #define LATENCY_SAMPLES 128
 #define PAYLOAD_LEN 68
 
 #define STATUS_CLIENT -1
@@ -130,11 +130,10 @@ BPF_HASH(ipv4_http_summary, struct ipv4_http_key_t, struct summary_data_t);
 BPF_HASH(ipv6_http_summary, struct ipv6_http_key_t, struct summary_data_t);
 
 
-
-BPF_HISTOGRAM(ipv4_hist, struct ipv4_key_t, LATENCY_HISTOGRAM_SIZE);
-BPF_HISTOGRAM(ipv6_hist, struct ipv6_key_t, LATENCY_HISTOGRAM_SIZE);
-BPF_HISTOGRAM(ipv4_http_hist, struct ipv4_http_key_t, LATENCY_HISTOGRAM_SIZE);
-BPF_HISTOGRAM(ipv6_http_hist, struct ipv6_http_key_t, LATENCY_HISTOGRAM_SIZE);
+BPF_HASH(ipv4_latency, struct ipv4_key_t, u64);
+BPF_HASH(ipv6_latency, struct ipv6_key_t, u64);
+BPF_HASH(ipv4_http_latency, struct ipv4_http_key_t, u64);
+BPF_HASH(ipv6_http_latency, struct ipv6_http_key_t, u64);
 
 
 BPF_HASH(set_state_cache, struct sock *, struct endpoint_data_t);
@@ -288,18 +287,27 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 //measuring latencies (response time for server)
                 summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
-                // store data inside the proper histogram
-                http_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
-                ipv4_http_hist.increment(http_key);
+
+                // store latency data in the proper hashmap
+                u64 idx = summary_data.transaction_count;
+                if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                  http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                }
+                u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
+                ipv4_http_latency.update(&http_key, &delta);
                 http_key.slot = 0;
 
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
-                // store data inside the proper histogram
-                http_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
-                ipv4_http_hist.increment(http_key);
+                // store latency data in the proper hashmap
+                u64 idx = summary_data.transaction_count;
+                if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                  http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                }
+                u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
+                ipv4_http_latency.update(&http_key, &delta);
                 http_key.slot = 0;
               }
               summary_data.transaction_count+= 1;
@@ -385,18 +393,30 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 //measuring latencies (response time for server)
                 summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
-                // store data inside the proper histogram
-                connection_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
-                ipv4_hist.increment(connection_key);
+
+                // store latency data in the proper hashmap
+                u64 idx = summary_data.transaction_count;
+                if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                  connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                }
+                u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
+                ipv4_latency.update(&connection_key, &delta);
                 connection_key.slot = 0;
+
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
-                // store data inside the proper histogram
-                connection_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
-                ipv4_hist.increment(connection_key);
+
+                // store latency data in the proper hashmap
+                u64 idx = summary_data.transaction_count;
+                if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                  connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                }
+                u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
+                ipv4_latency.update(&connection_key, &delta);
                 connection_key.slot = 0;
+
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -574,17 +594,28 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 //measuring latencies (response time for server)
                 summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
-                // store data inside the proper histogram
-                http_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
-                ipv6_http_hist.increment(http_key);
+
+                // store latency data in the proper hashmap
+                u64 idx = summary_data.transaction_count;
+                if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                  http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                }
+                u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
+                ipv6_http_latency.update(&http_key, &delta);
                 http_key.slot = 0;
+
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
-                // store data inside the proper histogram
-                http_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
-                ipv6_http_hist.increment(http_key);
+
+                // store latency data in the proper hashmap
+                u64 idx = summary_data.transaction_count;
+                if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                  http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                }
+                u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
+                ipv6_http_latency.update(&http_key, &delta);
                 http_key.slot = 0;
               }
               summary_data.transaction_count+= 1;
@@ -672,18 +703,30 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
                 //measuring latencies (response time for server)
                 summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
-                // store data inside the proper histogram
-                connection_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
-                ipv6_hist.increment(connection_key);
+
+                // store latency data in the proper hashmap
+                u64 idx = summary_data.transaction_count;
+                if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                  connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                }
+                u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
+                ipv6_latency.update(&connection_key, &delta);
                 connection_key.slot = 0;
+
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (total time for server)
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
-                // store data inside the proper histogram
-                connection_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
-                ipv6_hist.increment(connection_key);
+
+                // store latency data in the proper hashmap
+                u64 idx = summary_data.transaction_count;
+                if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                  connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                }
+                u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
+                ipv6_latency.update(&connection_key, &delta);
                 connection_key.slot = 0;
+
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -851,9 +894,14 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
-              // store data inside the proper histogram
-              http_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
-              ipv4_http_hist.increment(http_key);
+
+              // store latency data in the proper hashmap
+              u64 idx = summary_data.transaction_count;
+              if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+              }
+              u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
+              ipv4_http_latency.update(&http_key, &delta);
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -905,9 +953,14 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
-              // store data inside the proper histogram
-              connection_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
-              ipv4_hist.increment(connection_key);
+
+              // store latency data in the proper hashmap
+              u64 idx = summary_data.transaction_count;
+              if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+              }
+              u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
+              ipv4_latency.update(&connection_key, &delta);
               connection_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1110,9 +1163,14 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
-              // store data inside the proper histogram
-              http_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
-              ipv6_http_hist.increment(http_key);
+
+              // store latency data in the proper hashmap
+              u64 idx = summary_data.transaction_count;
+              if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+              }
+              u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
+              ipv6_http_latency.update(&http_key, &delta);
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1164,9 +1222,14 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
-              // store data inside the proper histogram
-              connection_key.slot = bpf_log2l((connection_data->last_ts_in - connection_data->first_ts_out) / 1000000);
-              ipv6_hist.increment(connection_key);
+
+              // store latency data in the proper hashmap
+              u64 idx = summary_data.transaction_count;
+              if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+              }
+              u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
+              ipv6_latency.update(&connection_key, &delta);
               connection_key.slot = 0;
 
               //measuring overall transaction time for client
@@ -1400,9 +1463,14 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
-              // store data inside the proper histogram
-              http_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
-              ipv4_http_hist.increment(http_key);
+
+              // store latency data in the proper hashmap
+              u64 idx = summary_data.transaction_count;
+              if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+              }
+              u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
+              ipv4_http_latency.update(&http_key, &delta);
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1454,9 +1522,14 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
-              // store data inside the proper histogram
-              connection_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
-              ipv4_hist.increment(connection_key);
+
+              // store latency data in the proper hashmap
+              u64 idx = summary_data.transaction_count;
+              if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+              }
+              u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
+              ipv4_latency.update(&connection_key, &delta);
               connection_key.slot = 0;
 
               //measuring just response time for server
@@ -1659,9 +1732,14 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
-              // store data inside the proper histogram
-              http_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
-              ipv6_http_hist.increment(http_key);
+
+              // store latency data in the proper hashmap
+              u64 idx = summary_data.transaction_count;
+              if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+              }
+              u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
+              ipv6_http_latency.update(&http_key, &delta);
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1711,9 +1789,14 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
-              // store data inside the proper histogram
-              connection_key.slot = bpf_log2l((connection_data->first_ts_out - connection_data->last_ts_in) / 1000000);
-              ipv6_hist.increment(connection_key);
+
+              // store latency data in the proper hashmap
+              u64 idx = summary_data.transaction_count;
+              if(summary_data.transaction_count > LATENCY_SAMPLES) {
+                connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+              }
+              u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
+              ipv6_latency.update(&connection_key, &delta);
               connection_key.slot = 0;
 
               //measuring just response time for server transaction
