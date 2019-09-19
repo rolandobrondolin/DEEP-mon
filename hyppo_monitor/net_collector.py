@@ -285,7 +285,8 @@ class NetCollector:
             self.ebpf_tcp_monitor = BPF(src_file=bpf_code_path, \
                 cflags=["-DBYPASS", "-DREVERSE_BYPASS", "-DLATENCY_SAMPLES=%d" % self.latency_index_max])
         else:
-            self.ebpf_tcp_monitor = BPF(src_file=bpf_code_path)
+            self.ebpf_tcp_monitor = BPF(src_file=bpf_code_path, \
+                cflags=["-DLATENCY_SAMPLES=%d" % self.latency_index_max])
 
         self.ipv4_summary = self.ebpf_tcp_monitor["ipv4_summary"]
         self.ipv6_summary = self.ebpf_tcp_monitor["ipv6_summary"]
