@@ -5,6 +5,7 @@ import snap_plugin.v1 as snap
 import time
 from net_collector import TransactionData
 from net_collector import TransactionType
+import numpy as np
 
 class bcolors:
     RED = '\033[91m'
@@ -38,11 +39,15 @@ class ContainerInfo:
         self.tcp_byte_tx = 0
         self.tcp_byte_rx = 0
         self.tcp_avg_latency = 0
+        self.tcp_percentiles = []
 
         self.http_transaction_count = 0
         self.http_byte_tx = 0
         self.http_byte_rx = 0
         self.http_avg_latency = 0
+        self.http_percentiles = []
+
+        self.pct = [50,75,90,99,99.9,99.99,99.999]
 
     def add_weighted_cycles(self, new_cycles):
         self.weighted_cycles = self.weighted_cycles + new_cycles
@@ -76,23 +81,36 @@ class ContainerInfo:
 
     def compute_aggregate_network_metrics(self):
         if self.network_transactions != []:
+            http_transactions = []
+            tcp_transactions = []
             for transaction in self.network_transactions:
                 if transaction.type == TransactionType.ipv4_http or transaction.type == TransactionType.ipv6_http:
                     self.http_transaction_count = self.http_transaction_count + transaction.get_transaction_count()
                     self.http_byte_rx = self.http_byte_rx + transaction.get_byte_rx()
                     self.http_byte_tx = self.http_byte_tx + transaction.get_byte_tx()
                     self.http_avg_latency = self.http_avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
+                    http_transactions.extend(transaction.get_samples())
                 else:
                     self.tcp_transaction_count = self.tcp_transaction_count + transaction.get_transaction_count()
                     self.tcp_byte_rx = self.tcp_byte_rx + transaction.get_byte_rx()
                     self.tcp_byte_tx = self.tcp_byte_tx + transaction.get_byte_tx()
                     self.tcp_avg_latency = self.tcp_avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
+                    tcp_transactions.extend(transaction.get_samples())
 
             if self.http_transaction_count > 0:
                 self.http_avg_latency = self.http_avg_latency / float(self.http_transaction_count)
+                self.http_percentiles = self.compute_container_percentiles(http_transactions)
             if self.tcp_transaction_count > 0:
                 self.tcp_avg_latency = self.tcp_avg_latency / float(self.tcp_transaction_count)
+                self.tcp_percentiles = self.compute_container_percentiles(tcp_transactions)
 
+
+
+    def compute_container_percentiles(self, latency_list):
+        out = []
+        for p in self.pct:
+            out.append(np.percentile(latency_list, p))
+        return out
 
     def set_timestamp(self, ts):
         self.timestamp = ts
@@ -130,6 +148,12 @@ class ContainerInfo:
 
     def get_network_transactions(self):
         return self.network_transactions
+
+    def get_http_percentiles(self):
+        return [self.pct, self.http_percentiles]
+
+    def get_tcp_percentiles(self):
+        return [self.pct, self.tcp_percentiles]
 
     def to_dict(self):
         return {'container_id': self.container_id,
@@ -358,7 +382,7 @@ class ContainerInfo:
                     + '{:.3f}'.format(self.power)
                 )
         if self.http_transaction_count > 0:
-            fmt = '{:<10} {:<32} {:<34} {:<34} {:<34}'
+            fmt = '{:<5} {:<32} {:<34} {:<34} {:<34}'
             output_line = output_line + "\n" + fmt.format(
                     bcolors.BLUE + "--->" + bcolors.ENDC,
                     bcolors.BLUE + "HTTP_T_COUNT: " + bcolors.ENDC
@@ -370,8 +394,20 @@ class ContainerInfo:
                     bcolors.BLUE + "HTTP_AVG_LATENCY (ms): " + bcolors.ENDC
                         + '{:.3f}'.format(self.http_avg_latency)
                     )
+            fmt = '{:<5} {:<30} {:<30} {:<30} {:<30} {:<30} {:<30} {:<30}'
+            output_line = output_line + "\n" + fmt.format(
+                    bcolors.BLUE + "--->" + bcolors.ENDC,
+                    bcolors.BLUE + "50p: " + bcolors.ENDC + '{:.5f}'.format(self.http_percentiles[0]),
+                    bcolors.BLUE + "75p: " + bcolors.ENDC + '{:.5f}'.format(self.http_percentiles[1]),
+                    bcolors.BLUE + "90p: " + bcolors.ENDC + '{:.5f}'.format(self.http_percentiles[2]),
+                    bcolors.BLUE + "99p: " + bcolors.ENDC + '{:.5f}'.format(self.http_percentiles[3]),
+                    bcolors.BLUE + "99.9p: " + bcolors.ENDC + '{:.5f}'.format(self.http_percentiles[4]),
+                    bcolors.BLUE + "99.99p: " + bcolors.ENDC + '{:.5f}'.format(self.http_percentiles[5]),
+                    bcolors.BLUE + "99.999p: " + bcolors.ENDC + '{:.5f}'.format(self.http_percentiles[6]),
+            )
+
         if self.tcp_transaction_count > 0:
-            fmt = '{:<10} {:<32} {:<34} {:<34} {:<34}'
+            fmt = '{:<5} {:<32} {:<34} {:<34} {:<34}'
             output_line = output_line + "\n" + fmt.format(
                     bcolors.BLUE + "--->" + bcolors.ENDC,
                     bcolors.BLUE + "TCP_T_COUNT: " + bcolors.ENDC
@@ -383,4 +419,15 @@ class ContainerInfo:
                     bcolors.BLUE + "TCP_AVG_LATENCY (ms): " + bcolors.ENDC
                         + '{:.3f}'.format(self.tcp_avg_latency)
                     )
+            fmt = '{:<5} {:<30} {:<30} {:<30} {:<30} {:<30} {:<30} {:<30}'
+            output_line = output_line + "\n" + fmt.format(
+                    bcolors.BLUE + "--->" + bcolors.ENDC,
+                    bcolors.BLUE + "50p: " + bcolors.ENDC + '{:.5f}'.format(self.tcp_percentiles[0]),
+                    bcolors.BLUE + "75p: " + bcolors.ENDC + '{:.5f}'.format(self.tcp_percentiles[1]),
+                    bcolors.BLUE + "90p: " + bcolors.ENDC + '{:.5f}'.format(self.tcp_percentiles[2]),
+                    bcolors.BLUE + "99p: " + bcolors.ENDC + '{:.5f}'.format(self.tcp_percentiles[3]),
+                    bcolors.BLUE + "99.9p: " + bcolors.ENDC + '{:.5f}'.format(self.tcp_percentiles[4]),
+                    bcolors.BLUE + "99.99p: " + bcolors.ENDC + '{:.5f}'.format(self.tcp_percentiles[5]),
+                    bcolors.BLUE + "99.999p: " + bcolors.ENDC + '{:.5f}'.format(self.tcp_percentiles[6]),
+            )
         return output_line

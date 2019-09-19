@@ -90,12 +90,14 @@ class TransactionData:
         self.p99_99 = 0
         self.p99_999 = 0
         self.http_path = ""
+        self.samples = []
 
     def load_latencies(self, latency_list, total_time, transaction_count):
         # remove zeros
         latency_list = filter(lambda a: a != 0, latency_list)
         # convert to float and go for milliseconds
         latency_list = [float(i) / 1000000 for i in latency_list]
+        self.samples = latency_list
         # self.avg = np.average(latency_list)
         self.avg = float(total_time) / float(transaction_count * 1000000)
         self.p50 = np.percentile(latency_list, 50)
@@ -144,6 +146,9 @@ class TransactionData:
 
     def get_http_path(self):
         return self.http_path
+
+    def get_samples(self):
+        return self.samples
 
     def __str__(self):
         role_str = ""
