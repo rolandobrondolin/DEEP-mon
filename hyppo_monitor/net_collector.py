@@ -114,8 +114,20 @@ class TransactionData:
     def get_type(self):
         return self.type
 
+    def get_type_str_no_ip(self):
+        if self.type is TransactionType.ipv6_tcp or self.type is TransactionType.ipv4_tcp:
+            return "tcp"
+        else:
+            return "http"
+
     def get_role(self):
         return self.role
+
+    def get_role_str(self):
+        if self.role is TransactionRole.client:
+            return "client"
+        else:
+            return "server"
 
     def get_saddr(self):
         return self.saddr

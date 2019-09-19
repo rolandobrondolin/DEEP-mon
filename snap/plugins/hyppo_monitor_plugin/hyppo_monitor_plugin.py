@@ -28,6 +28,9 @@ class HyppoStreamCollector(snap.StreamCollector):
         self.debug_mode = False
         self.send_thread_data = False
         self.hostname = ""
+        self.net_monitor = True
+        self.nat_trace = True
+        self.print_net_details = False
 
         try:
             with open('/hyppo-config/config.yaml', 'r') as config_file:
@@ -50,14 +53,20 @@ class HyppoStreamCollector(snap.StreamCollector):
             self.customer_id = self.config["customer_id"]
             self.debug_mode = self.config["debug_mode"]
             self.send_thread_data = self.config["send_thread_data"]
+            self.net_monitor = self.config["net_monitor"]
+            self.nat_trace = self.config["nat_trace"]
+            self.print_net_details = False
         except KeyError as e:
             self.output_format = "console"
             self.window_mode = "fixed"
             self.customer_id = "not_registered"
             self.debug_mode = False
             self.send_thread_data = False
+            self.net_monitor = True
+            self.nat_trace = True
+            self.print_net_details = False
 
-        self.hyppo_monitor = MonitorMain(self.output_format, self.window_mode, self.debug_mode)
+        self.hyppo_monitor = MonitorMain(self.output_format, self.window_mode, self.debug_mode, self.net_monitor, self.nat_trace, self.print_net_details)
 
         if self.window_mode == "dynamic":
             self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
@@ -87,7 +96,7 @@ class HyppoStreamCollector(snap.StreamCollector):
 
         #here wrap up things to match snap format
         for key, value in container_list.iteritems():
-            metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname))
+            metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname, self.net_monitor))
 
         #add threads from proc_table
         if self.send_thread_data == True:
@@ -117,6 +126,8 @@ class HyppoStreamCollector(snap.StreamCollector):
             self.time_to_sleep = 1 - (time.time() - start_time)
 
         return metrics_to_stream
+
+
 
     def update_catalog(self, config):
         LOG.debug("update_catalog called on HyppoStreamCollector")
@@ -250,7 +261,7 @@ class HyppoStreamCollector(snap.StreamCollector):
             metrics.append(metric)
         #container related metrics
         #skipping container id: for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
-        for key in ("cycles", "weighted_cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "cache_refs"):
+        for key in ("cycles", "weighted_cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "cache_refs", "net_summary", "net_detail"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),

@@ -16,7 +16,7 @@ RUN apt-get install -y snap-telemetry
 # Install our mod of kubernetes client
 RUN git clone --recursive https://gitlab.com/projecthyppo/kubernetes-client-python.git
 RUN cd kubernetes-client-python && pip install . && cd ../ && rm -r kubernetes-client-python
-RUN pip install snap-plugin-lib-py
+RUN pip install snap-plugin-lib-py numpy==1.16
 
 WORKDIR /home
 

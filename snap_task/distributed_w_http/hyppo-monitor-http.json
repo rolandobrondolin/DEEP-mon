@@ -23,6 +23,8 @@
         "/hyppo/hyppo-monitor/*/*/container/*/cache_refs": {},
         "/hyppo/hyppo-monitor/*/*/container/*/power": {},
         "/hyppo/hyppo-monitor/*/*/container/*/time_ns": {},
+        "/hyppo/hyppo-monitor/*/*/container/*/net_summary": {},
+        "/hyppo/hyppo-monitor/*/*/container/*/net_detail": {},
         "/hyppo/hyppo-monitor/*/*/host/package_power": {},
         "/hyppo/hyppo-monitor/*/*/host/core_power": {},
         "/hyppo/hyppo-monitor/*/*/host/dram_power": {},

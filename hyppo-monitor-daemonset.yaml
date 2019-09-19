@@ -15,6 +15,9 @@ data:
     customer_id: "test"
     debug_mode: False
     send_thread_data: False
+    net_monitor:      True
+    nat_trace:        False
+    print_net_details: False
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -41,6 +44,7 @@ spec:
         #   requests:
         #     cpu: 1000m
         #     memory: 1000Mi
+        imagePullPolicy: Always
         volumeMounts:
         - name: modules
           mountPath: /lib/modules
@@ -53,7 +57,7 @@ spec:
           readOnly: true
         - name: kernel-dbg
           mountPath: /sys/kernel/debug
-          readOnly: true
+          #readOnly: true
         - name: host-proc
           mountPath: /host/proc
           readOnly: true

@@ -264,8 +264,78 @@ class ContainerInfo:
         )
         return metric
 
+    def _get_net_summary(self, request_time, snap_namespace):
+        net_summary = {}
+        if self.tcp_transaction_count > 0:
+            net_summary["tcp"] = {
+                "t_count": self.tcp_transaction_count,
+                "byte_sent": self.tcp_byte_tx,
+                "byte_recv": self.tcp_byte_rx,
+                "avg_lat": self.tcp_avg_latency,
+                "50p": self.tcp_percentiles[0],
+                "75p": self.tcp_percentiles[1],
+                "90p": self.tcp_percentiles[2],
+                "99p": self.tcp_percentiles[3],
+                "99.9p": self.tcp_percentiles[4],
+                "99.99p": self.tcp_percentiles[5],
+                "99.999p": self.tcp_percentiles[6]
+            }
+        if self.http_transaction_count > 0:
+            net_summary["http"] = {
+                "t_count": self.http_transaction_count,
+                "byte_sent": self.http_byte_tx,
+                "byte_recv": self.http_byte_rx,
+                "avg_lat": self.http_avg_latency,
+                "50p": self.http_percentiles[0],
+                "75p": self.http_percentiles[1],
+                "90p": self.http_percentiles[2],
+                "99p": self.http_percentiles[3],
+                "99.9p": self.http_percentiles[4],
+                "99.99p": self.http_percentiles[5],
+                "99.999p": self.http_percentiles[6]
+            }
 
-    def to_snap(self, request_time, user_id, hostname):
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="Network summary",
+            data=json.dumps(net_summary),
+            timestamp=request_time
+        )
+        return metric
+
+    def _get_net_detail(self, request_time, snap_namespace):
+
+        net_detail = []
+        for transaction in self.network_transactions:
+            net_item = {
+                "src_ip": transaction.get_saddr(),
+                "src_port": transaction.get_lport(),
+                "dst_ip": transaction.get_daddr(),
+                "dst_port": transaction.get_dport(),
+                "http_path": transaction.get_http_path(),
+                "protocol": transaction.get_type_str_no_ip(),
+                "role": transaction.get_role_str(),
+                "t_count": transaction.get_transaction_count(),
+                "byte_sent": transaction.get_byte_tx(),
+                "byte_recv": transaction.get_byte_rx(),
+                "avg_lat": transaction.get_avg_latency(),
+                "pct_vector": self.pct,
+                "pct_values": transaction.get_percentiles()
+            }
+
+            net_detail.append(net_item)
+
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="Network detail",
+            data=json.dumps(net_detail),
+            timestamp=request_time
+        )
+        return metric
+
+    def to_snap(self, request_time, user_id, hostname, send_net_data):
         metrics_to_be_returned = []
 
         namespace=[
@@ -355,6 +425,30 @@ class ContainerInfo:
             snap.NamespaceElement(value="time_ns")
         ]
         metrics_to_be_returned.append(self._get_time_ns(request_time, namespace))
+
+
+        if send_net_data == True and self.http_transaction_count > 0 or self.tcp_transaction_count > 0:
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="container"),
+                snap.NamespaceElement(value=str(self.container_id)),
+                snap.NamespaceElement(value="net_summary")
+            ]
+            metrics_to_be_returned.append(self._get_net_summary(request_time, namespace))
+
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="container"),
+                snap.NamespaceElement(value=str(self.container_id)),
+                snap.NamespaceElement(value="net_detail")
+            ]
+            metrics_to_be_returned.append(self._get_net_detail(request_time, namespace))
 
         return metrics_to_be_returned
 
