@@ -268,31 +268,31 @@ class ContainerInfo:
         net_summary = {}
         if self.tcp_transaction_count > 0:
             net_summary["tcp"] = {
-                "t_count": self.tcp_transaction_count,
-                "byte_sent": self.tcp_byte_tx,
-                "byte_recv": self.tcp_byte_rx,
-                "avg_lat": self.tcp_avg_latency,
-                "50p": self.tcp_percentiles[0],
-                "75p": self.tcp_percentiles[1],
-                "90p": self.tcp_percentiles[2],
-                "99p": self.tcp_percentiles[3],
-                "99.9p": self.tcp_percentiles[4],
-                "99.99p": self.tcp_percentiles[5],
-                "99.999p": self.tcp_percentiles[6]
+                "t_count": {"value": self.tcp_transaction_count, "strategy": "sum"},
+                "byte_sent": {"value": self.tcp_byte_tx, "strategy": "sum"},
+                "byte_recv": {"value": self.tcp_byte_rx, "strategy": "sum"},
+                "avg_lat": {"value": self.tcp_avg_latency, "strategy": "avg", "weight": "t_count"},
+                "50p": {"value": self.tcp_percentiles[0], "strategy": "max"},
+                "75p": {"value": self.tcp_percentiles[1], "strategy": "max"},
+                "90p": {"value": self.tcp_percentiles[2], "strategy": "max"},
+                "99p": {"value": self.tcp_percentiles[3], "strategy": "max"},
+                "99.9p": {"value": self.tcp_percentiles[4], "strategy": "max"},
+                "99.99p": {"value": self.tcp_percentiles[5], "strategy": "max"},
+                "99.999p": {"value": self.tcp_percentiles[6], "strategy": "max"}
             }
         if self.http_transaction_count > 0:
             net_summary["http"] = {
-                "t_count": self.http_transaction_count,
-                "byte_sent": self.http_byte_tx,
-                "byte_recv": self.http_byte_rx,
-                "avg_lat": self.http_avg_latency,
-                "50p": self.http_percentiles[0],
-                "75p": self.http_percentiles[1],
-                "90p": self.http_percentiles[2],
-                "99p": self.http_percentiles[3],
-                "99.9p": self.http_percentiles[4],
-                "99.99p": self.http_percentiles[5],
-                "99.999p": self.http_percentiles[6]
+                "t_count": {"value": self.http_transaction_count, "strategy": "sum"},
+                "byte_sent": {"value": self.http_byte_tx, "strategy": "sum"},
+                "byte_recv": {"value": self.http_byte_rx, "strategy": "sum"},
+                "avg_lat": {"value": self.http_avg_latency, "strategy": "avg", "weight": "t_count"},
+                "50p": {"value": self.http_percentiles[0], "strategy": "max"},
+                "75p": {"value": self.http_percentiles[1], "strategy": "max"},
+                "90p": {"value": self.http_percentiles[2], "strategy": "max"},
+                "99p": {"value": self.http_percentiles[3], "strategy": "max"},
+                "99.9p": {"value": self.http_percentiles[4], "strategy": "max"},
+                "99.99p": {"value": self.http_percentiles[5], "strategy": "max"},
+                "99.999p": {"value": self.http_percentiles[6], "strategy": "max"}
             }
 
         metric = snap.Metric(
