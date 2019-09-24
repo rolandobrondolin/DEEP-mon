@@ -22,6 +22,7 @@
         "/hyppo/hyppo-monitor/*/*/container/*/cache_misses": {},
         "/hyppo/hyppo-monitor/*/*/container/*/cache_refs": {},
         "/hyppo/hyppo-monitor/*/*/container/*/power": {},
+        "/hyppo/hyppo-monitor/*/*/container/*/thread_count": {},
         "/hyppo/hyppo-monitor/*/*/container/*/time_ns": {},
         "/hyppo/hyppo-monitor/*/*/container/*/net_summary": {},
         "/hyppo/hyppo-monitor/*/*/container/*/net_detail": {},

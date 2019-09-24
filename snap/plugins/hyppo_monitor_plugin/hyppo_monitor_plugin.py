@@ -261,7 +261,7 @@ class HyppoStreamCollector(snap.StreamCollector):
             metrics.append(metric)
         #container related metrics
         #skipping container id: for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
-        for key in ("cycles", "weighted_cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "cache_refs", "net_summary", "net_detail"):
+        for key in ("cycles", "weighted_cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "thread_count", "cache_refs", "net_summary", "net_detail"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),

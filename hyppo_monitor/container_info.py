@@ -254,6 +254,16 @@ class ContainerInfo:
         )
         return metric
 
+    def _get_thread_count(self, request_time, snap_namespace):
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="Thread count per container",
+            data=len(self.pid_set),
+            timestamp=request_time
+        )
+        return metric
+
     def _get_time_ns(self, request_time, snap_namespace):
         metric = snap.Metric(
             namespace=snap_namespace,
@@ -316,12 +326,19 @@ class ContainerInfo:
                 "http_path": transaction.get_http_path(),
                 "protocol": transaction.get_type_str_no_ip(),
                 "role": transaction.get_role_str(),
-                "t_count": transaction.get_transaction_count(),
-                "byte_sent": transaction.get_byte_tx(),
-                "byte_recv": transaction.get_byte_rx(),
-                "avg_lat": transaction.get_avg_latency(),
-                "pct_vector": self.pct,
-                "pct_values": transaction.get_percentiles()
+                "metrics": {
+                    "t_count": {"value": transaction.get_transaction_count(), "strategy": "sum"},
+                    "byte_sent": {"value": transaction.get_byte_tx(), "strategy": "sum"},
+                    "byte_recv": {"value": transaction.get_byte_rx(), "strategy": "sum"},
+                    "avg_lat": {"value": transaction.get_avg_latency(), "strategy": "avg", "weight": "t_count"},
+                    "50p": {"value": transaction.get_percentiles()[0], "strategy": "max"},
+                    "75p": {"value": transaction.get_percentiles()[1], "strategy": "max"},
+                    "90p": {"value": transaction.get_percentiles()[2], "strategy": "max"},
+                    "99p": {"value": transaction.get_percentiles()[3], "strategy": "max"},
+                    "99.9p": {"value": transaction.get_percentiles()[4], "strategy": "max"},
+                    "99.99p": {"value": transaction.get_percentiles()[5], "strategy": "max"},
+                    "99.999p": {"value": transaction.get_percentiles()[6], "strategy": "max"}
+                }
             }
 
             net_detail.append(net_item)
@@ -414,6 +431,17 @@ class ContainerInfo:
             snap.NamespaceElement(value="cpu")
         ]
         metrics_to_be_returned.append(self._get_snap_cpu(request_time, namespace))
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
+            snap.NamespaceElement(value="container"),
+            snap.NamespaceElement(value=str(self.container_id)),
+            snap.NamespaceElement(value="thread_count")
+        ]
+        metrics_to_be_returned.append(self._get_thread_count(request_time, namespace))
 
         namespace=[
             snap.NamespaceElement(value="hyppo"),
