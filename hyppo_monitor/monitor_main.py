@@ -68,6 +68,7 @@ class MonitorMain():
         if self.net_monitor:
             net_sample = self.net_collector.get_sample()
             self.process_table.add_network_data(net_sample.get_pid_dictionary())
+            self.process_table.add_nat_data(net_sample.get_nat_dictionary())
             nat_data = net_sample.get_nat_list()
 
         # Now, extract containers!
@@ -109,7 +110,9 @@ class MonitorMain():
                     print(value)
 
                     if self.print_net_details:
-                        for item in value.get_network_transactions():
+                        for item in value.get_rewritten_network_transactions():
+                            print(item)
+                        for item in value.get_nat_rules():
                             print(item)
 
                 print('│')

@@ -34,6 +34,7 @@ class ContainerInfo:
         self.pid_set = set()
         self.timestamp = 0
         self.network_transactions = []
+        self.nat_rules = []
 
         self.tcp_transaction_count = 0
         self.tcp_byte_tx = 0
@@ -78,6 +79,9 @@ class ContainerInfo:
 
     def add_network_transactions(self, transaction_list):
         self.network_transactions.extend(transaction_list)
+
+    def add_nat_rules(self, nat_list):
+        self.nat_rules.extend(nat_list)
 
     def compute_aggregate_network_metrics(self):
         if self.network_transactions != []:
@@ -148,6 +152,54 @@ class ContainerInfo:
 
     def get_network_transactions(self):
         return self.network_transactions
+
+    def get_rewritten_network_transactions(self):
+
+        for index in range(len(self.network_transactions)):
+            transaction = self.network_transactions[index]
+
+            # find if there are nat rules to be added or substituted
+            src_modified = False
+            dst_modified = False
+            for nat_rule in self.nat_rules:
+                # start with transaction src and look at both ends of nat rules
+                if src_modified == False and nat_rule.get_saddr() == transaction.get_saddr() and nat_rule.get_lport() == transaction.get_lport():
+                    # rewrite transaction source
+                    transaction.set_saddr(nat_rule.get_daddr())
+                    transaction.set_lport(nat_rule.get_dport())
+                    src_modified = True
+                    # print(nat_rule)
+                #
+                # if src_modified == False and nat_rule.get_daddr() == transaction.get_saddr() and nat_rule.get_dport() == transaction.get_lport():
+                #     # rewrite transaction source
+                #     transaction.set_saddr(nat_rule.get_saddr())
+                #     transaction.set_lport(nat_rule.get_lport())
+                #     src_modified = True
+                #     # print(nat_rule)
+
+                # if dst_modified == False and nat_rule.get_saddr() == transaction.get_daddr() and nat_rule.get_lport() == transaction.get_dport():
+                #     # rewrite transaction source
+                #     transaction.set_daddr(nat_rule.get_daddr())
+                #     transaction.set_dport(nat_rule.get_dport())
+                #     dst_modified = True
+                #     # print(nat_rule)
+
+                if dst_modified == False and nat_rule.get_daddr() == transaction.get_daddr() and nat_rule.get_dport() == transaction.get_dport():
+                    # rewrite transaction source
+                    transaction.set_daddr(nat_rule.get_saddr())
+                    transaction.set_dport(nat_rule.get_lport())
+                    dst_modified = True
+                    # print(nat_rule)
+
+                if src_modified and dst_modified:
+                    break
+            self.network_transactions[index] = transaction
+
+        return self.network_transactions
+
+
+    def get_nat_rules(self):
+        return self.nat_rules
 
     def get_http_percentiles(self):
         return [self.pct, self.http_percentiles]
@@ -318,6 +370,39 @@ class ContainerInfo:
 
         net_detail = []
         for transaction in self.network_transactions:
+
+            # find if there are nat rules to be added or substituted
+            src_modified = False
+            dst_modified = False
+            for nat_rule in self.nat_rules:
+                # start with transaction src and look at both ends of nat rules
+                if src_modified == False and nat_rule.get_saddr() == transaction.get_saddr() and nat_rule.get_lport() == transaction.get_lport():
+                    # rewrite transaction source
+                    transaction.set_saddr(nat_rule.get_daddr())
+                    transaction.set_lport(nat_rule.get_dport())
+                    src_modified = True
+                #
+                # if src_modified == False and nat_rule.get_daddr() == transaction.get_saddr() and nat_rule.get_dport() == transaction.get_lport():
+                #     # rewrite transaction source
+                #     transaction.set_saddr(nat_rule.get_saddr())
+                #     transaction.set_lport(nat_rule.get_lport())
+                #     src_modified = True
+
+                # if dst_modified == False and nat_rule.get_saddr() == transaction.get_daddr() and nat_rule.get_lport() == transaction.get_dport():
+                #     # rewrite transaction source
+                #     transaction.set_daddr(nat_rule.get_daddr())
+                #     transaction.set_dport(nat_rule.get_dport())
+                #     dst_modified = True
+
+                if dst_modified == False and nat_rule.get_daddr() == transaction.get_daddr() and nat_rule.get_dport() == transaction.get_dport():
+                    # rewrite transaction source
+                    transaction.set_daddr(nat_rule.get_saddr())
+                    transaction.set_dport(nat_rule.get_lport())
+                    dst_modified = True
+
+                if src_modified and dst_modified:
+                    break
+
             net_item = {
                 "src_ip": transaction.get_saddr(),
                 "src_port": transaction.get_lport(),

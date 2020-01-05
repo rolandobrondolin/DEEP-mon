@@ -66,6 +66,7 @@ class ProcessInfo:
         self.time_ns = 0
 
         self.network_transactions = []
+        self.nat_rules = []
 
         for i in range(0, num_sockets):
             self.socket_data.append(SocketProcessItem())
@@ -123,6 +124,9 @@ class ProcessInfo:
     def set_network_transactions(self, network_transactions):
         self.network_transactions = network_transactions
 
+    def set_nat_rules(self, nat_rules):
+        self.nat_rules = nat_rules
+
 
     def reset_data(self):
         self.instruction_retired = 0
@@ -130,6 +134,7 @@ class ProcessInfo:
         self.cache_misses = 0
         self.time_ns = 0
         self.network_transactions = []
+        self.nat_rules = []
         for item in self.socket_data:
             item.reset()
 
@@ -190,6 +195,8 @@ class ProcessInfo:
     def get_network_transactions(self):
         return self.network_transactions
 
+    def get_nat_rules(self):
+        return self.nat_rules
 
 
     def __str__(self):

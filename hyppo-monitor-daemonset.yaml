@@ -16,7 +16,7 @@ data:
     debug_mode: False
     send_thread_data: False
     net_monitor:      True
-    nat_trace:        False
+    nat_trace:        True
     print_net_details: False
 ---
 apiVersion: apps/v1

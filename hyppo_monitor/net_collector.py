@@ -162,6 +162,19 @@ class TransactionData:
     def get_samples(self):
         return self.samples
 
+    def set_saddr(self, saddr):
+        self.saddr = saddr
+
+    def set_lport(self, lport):
+        self.lport = lport
+
+    def set_daddr(self, daddr):
+        self.daddr = daddr
+
+    def set_dport(self, dport):
+        self.dport = dport
+
+
     def __str__(self):
         role_str = ""
         if self.role is TransactionRole.server:
@@ -249,8 +262,9 @@ class NatData:
 
 class NetSample:
 
-    def __init__(self, pid_dictionary, nat_list, host_transaction_count, host_byte_tx, host_byte_rx):
+    def __init__(self, pid_dictionary, nat_dictionary, nat_list, host_transaction_count, host_byte_tx, host_byte_rx):
         self.pid_dictionary = pid_dictionary
+        self.nat_dictionary = nat_dictionary
         self.host_transaction_count = host_transaction_count
         self.host_byte_tx = host_byte_tx
         self.host_byte_rx = host_byte_rx
@@ -258,6 +272,9 @@ class NetSample:
 
     def get_pid_dictionary(self):
         return self.pid_dictionary
+
+    def get_nat_dictionary(self):
+        return self.nat_dictionary
 
     def get_host_transaction_count(self):
         return self.host_transaction_count
@@ -321,6 +338,7 @@ class NetCollector:
     def get_sample(self):
         #iterate over summary tables
         pid_dict = {}
+        nat_dict = {}
         nat_list = []
         host_transaction_count = 0
         host_byte_tx = 0
@@ -355,6 +373,12 @@ class NetCollector:
                     # we found a nat rule, use the appropriate object
                     data_item = NatData(transaction_type, formatted_key.saddr, formatted_key.lport, formatted_key.daddr, formatted_key.dport)
                     nat_list.append(data_item)
+                    # add the nat rule to the pid
+                    if int(value.pid) in nat_dict:
+                        nat_dict[int(value.pid)].append(data_item)
+                    else:
+                        nat_dict[int(value.pid)] = [data_item]
+
                 else:
                     role = None
                     if int(value.status) == -1:
@@ -399,4 +423,4 @@ class NetCollector:
         self.ipv4_http_latency.clear()
         self.ipv6_http_latency.clear()
 
-        return NetSample(pid_dict, nat_list, host_transaction_count, host_byte_tx, host_byte_rx)
+        return NetSample(pid_dict, nat_dict, nat_list, host_transaction_count, host_byte_tx, host_byte_rx)

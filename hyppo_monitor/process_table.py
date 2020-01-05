@@ -120,6 +120,7 @@ class ProcTable:
                 container_dict[value.container_id].add_pid(value.get_pid())
                 container_dict[value.container_id].set_last_ts(value.get_last_ts())
                 container_dict[value.container_id].add_network_transactions(value.get_network_transactions())
+                container_dict[value.container_id].add_nat_rules(value.get_nat_rules())
 
         # aggregate stuff at the container level
         for key, value in container_dict.items():
@@ -131,3 +132,8 @@ class ProcTable:
         for pid, transactions in pid_dictionary.items():
             if pid in self.proc_table:
                 self.proc_table[pid].set_network_transactions(transactions)
+
+    def add_nat_data(self, nat_dictionary):
+        for pid, nat_rules in nat_dictionary.items():
+            if pid in self.proc_table:
+                self.proc_table[pid].set_nat_rules(nat_rules)
