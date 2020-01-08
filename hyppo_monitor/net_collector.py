@@ -309,7 +309,6 @@ class NetCollector:
         self.ipv6_latency = None
         self.ipv4_http_latency = None
         self.ipv6_http_latency = None
-        self.recv_cache = None
 
         self.latency_index_max = 256
 
@@ -334,8 +333,6 @@ class NetCollector:
         self.ipv6_latency = self.ebpf_tcp_monitor["ipv6_latency"]
         self.ipv4_http_latency = self.ebpf_tcp_monitor["ipv4_http_latency"]
         self.ipv6_http_latency = self.ebpf_tcp_monitor["ipv6_http_latency"]
-        self.recv_cache = self.ebpf_tcp_monitor["recv_cache"]
-
 
     def get_sample(self):
         #iterate over summary tables
@@ -424,11 +421,5 @@ class NetCollector:
         self.ipv6_latency.clear()
         self.ipv4_http_latency.clear()
         self.ipv6_http_latency.clear()
-
-        if len(self.recv_cache) > 10000:
-            try:
-                self.recv_cache.clear()
-            except KeyError:
-                print("##### KEY ERROR ON RECV_CACHE OCCURRED #####")
 
         return NetSample(pid_dict, nat_dict, nat_list, host_transaction_count, host_byte_tx, host_byte_rx)

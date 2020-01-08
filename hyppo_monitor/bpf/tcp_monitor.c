@@ -109,14 +109,7 @@ struct summary_data_t {
   int16_t status;
 };
 
-struct currsock_t {
-  u16 family;
-  u32 saddr;
-  u32 daddr;
-  unsigned __int128 saddr6;
-  unsigned __int128 daddr6;
-  u16 lport;
-  u16 dport;
+struct msg_t {
   struct msghdr *msg;
 };
 
@@ -130,14 +123,14 @@ BPF_HASH(ipv4_http_summary, struct ipv4_http_key_t, struct summary_data_t);
 BPF_HASH(ipv6_http_summary, struct ipv6_http_key_t, struct summary_data_t);
 
 
-BPF_HASH(ipv4_latency, struct ipv4_key_t, u64, 30000);
-BPF_HASH(ipv6_latency, struct ipv6_key_t, u64, 30000);
-BPF_HASH(ipv4_http_latency, struct ipv4_http_key_t, u64, 30000);
-BPF_HASH(ipv6_http_latency, struct ipv6_http_key_t, u64, 30000);
+BPF_HASH(ipv4_latency, struct ipv4_key_t, u64, 60000);
+BPF_HASH(ipv6_latency, struct ipv6_key_t, u64, 60000);
+BPF_HASH(ipv4_http_latency, struct ipv4_http_key_t, u64, 60000);
+BPF_HASH(ipv6_http_latency, struct ipv6_http_key_t, u64, 60000);
 
 
 BPF_HASH(set_state_cache, struct sock *, struct endpoint_data_t);
-BPF_HASH(recv_cache, struct sock *, struct msghdr *, 90000);
+BPF_HASH(recv_cache, struct sock *, struct msg_t, 90000);
 
 struct iptables_data_t {
   u32 saddr;
@@ -1369,16 +1362,18 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
 
 int kprobe__tcp_recvmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len) {
-  recv_cache.update(&sk, &msg);
+  struct msg_t cache_item = {.msg = msg};
+  recv_cache.update(&sk, &cache_item);
   return 0;
 }
 
 int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 
-  struct msghdr * msg = (struct msghdr *) recv_cache.lookup(&sk);
-  if(msg == NULL) {
+  struct msg_t * cache_item = recv_cache.lookup(&sk);
+  if(cache_item == NULL) {
     return 0;
   }
+  struct msghdr * msg = cache_item->msg;
   recv_cache.delete(&sk);
 
   u64 pid = bpf_get_current_pid_tgid();
