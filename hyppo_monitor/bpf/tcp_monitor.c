@@ -137,7 +137,7 @@ BPF_HASH(ipv6_http_latency, struct ipv6_http_key_t, u64, 30000);
 
 
 BPF_HASH(set_state_cache, struct sock *, struct endpoint_data_t);
-BPF_HASH(recv_cache, u64, struct currsock_t, 90000);
+BPF_HASH(recv_cache, struct sock *, struct msghdr *, 90000);
 
 struct iptables_data_t {
   u32 saddr;
@@ -1359,57 +1359,36 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+
 int kprobe__tcp_recvmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len) {
-
-  u64 pid = bpf_get_current_pid_tgid();
-
-  struct currsock_t cache_data = {.msg = msg};
-  cache_data.lport = sk->__sk_common.skc_num;
-
-  cache_data.dport = sk->__sk_common.skc_dport;
-  cache_data.dport = ntohs(cache_data.dport);
-  cache_data.family = sk->__sk_common.skc_family;
-
-  if (cache_data.family == AF_INET) {
-    cache_data.saddr = sk->__sk_common.skc_rcv_saddr;
-    cache_data.daddr = sk->__sk_common.skc_daddr;
-  }
-  else if(cache_data.family == AF_INET6) {
-    bpf_probe_read(&cache_data.saddr6, sizeof(cache_data.saddr6), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
-    bpf_probe_read(&cache_data.daddr6, sizeof(cache_data.daddr6), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
-  }
-
-  recv_cache.update(&pid, &cache_data);
+  recv_cache.update(&sk, &msg);
   return 0;
 }
 
-int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
-  u64 pid = bpf_get_current_pid_tgid();
+int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 
-  struct currsock_t * cache_data;
-  cache_data = recv_cache.lookup(&pid);
-  recv_cache.delete(&pid);
-
-  //recycle ts
-  u64 ts = bpf_ktime_get_ns();
-  int copied = PT_REGS_RC(ctx);
-
-  // lost information
-  if(cache_data == NULL) {
+  struct msghdr * msg = (struct msghdr *) recv_cache.lookup(&sk);
+  if(msg == NULL) {
     return 0;
   }
+  recv_cache.delete(&sk);
 
-  u16 lport = cache_data->lport;
-  u16 dport = cache_data->dport;
-  u16 family = cache_data->family;
+
+  u64 pid = bpf_get_current_pid_tgid();
+  u64 ts = bpf_ktime_get_ns();
+
+  u16 lport = sk->__sk_common.skc_num;
+  u16 dport = sk->__sk_common.skc_dport;
+  dport = ntohs(dport);
+  u16 family = sk->__sk_common.skc_family;
 
   if (copied <= 0){
     return 0;
   }
 
   if (family == AF_INET) {
-    u32 saddr = cache_data->saddr;
-    u32 daddr = cache_data->daddr;
+    u32 saddr = sk->__sk_common.skc_rcv_saddr;
+    u32 daddr = sk->__sk_common.skc_daddr;
 
     //check if I am a server or a client
     struct ipv4_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
@@ -1640,7 +1619,6 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
       }
 
       // ok, now read content of the message and see if it is an http request
-      struct msghdr * msg = cache_data->msg;
       struct iov_iter iter;
       bpf_probe_read(&iter, sizeof(iter), &msg->msg_iter);
       struct iovec data_to_be_read;
@@ -1683,7 +1661,8 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
 
     //check if I am a server or a client
-    struct ipv6_endpoint_key_t endpoint_key = {.addr = cache_data->saddr6, .port = lport};
+    struct ipv6_endpoint_key_t endpoint_key = {.port = lport};
+    bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
     struct endpoint_data_t * endpoint_data = ipv6_endpoints.lookup(&endpoint_key);
 
     if(endpoint_data == NULL) {
@@ -1697,7 +1676,9 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
 
 
     // create connection tuple
-    struct ipv6_key_t connection_key = {.saddr = cache_data->saddr6, .daddr = cache_data->daddr6, .lport = lport, .dport = dport};
+    struct ipv6_key_t connection_key = {.lport = lport, .dport = dport};
+    bpf_probe_read(&connection_key.saddr, sizeof(connection_key.saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+    bpf_probe_read(&connection_key.daddr, sizeof(connection_key.daddr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
 
     struct connection_data_t * connection_data = ipv6_connections.lookup(&connection_key);
 
@@ -1718,9 +1699,9 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
             //if we are dealing with http, use the appropriate hashmap
             if(connection_data->http_payload[0] != '\0') {
 #ifdef HTTP_CLIENT_PORT_MASKING
-              struct ipv6_http_key_t http_key = {.saddr = cache_data->saddr6, .daddr = cache_data->daddr6, .lport = lport, .dport = 0};
+              struct ipv6_http_key_t http_key = {.saddr = connection_key.saddr, .daddr = connection_key.daddr, .lport = lport, .dport = 0};
 #else
-              struct ipv6_http_key_t http_key = {.saddr = cache_data->saddr6, .daddr = cache_data->daddr6, .lport = lport, .dport = 0};
+              struct ipv6_http_key_t http_key = {.saddr = connection_key.saddr, .daddr = connection_key.daddr, .lport = lport, .dport = 0};
 #endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
@@ -1831,12 +1812,12 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               }
 
               //remember to restore endpoint and connection key!!!
-              endpoint_key.addr = cache_data->saddr6;
+              bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
               endpoint_key.port = lport;
-              connection_key.saddr = cache_data->saddr6;
-              connection_key.daddr = cache_data->daddr6;
-              connection_key.dport = dport;
+              bpf_probe_read(&connection_key.saddr, sizeof(connection_key.saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
               connection_key.lport = lport;
+              bpf_probe_read(&connection_key.daddr, sizeof(connection_key.daddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+              connection_key.dport = dport;
 #endif //BYPASS
             }
             //clean connection_data
@@ -1908,7 +1889,6 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
       }
 
       // ok, now read content of the message and see if it is an http request
-      struct msghdr * msg = cache_data->msg;
       struct iov_iter iter;
       bpf_probe_read(&iter, sizeof(iter), &msg->msg_iter);
       struct iovec data_to_be_read;
