@@ -213,10 +213,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
       struct endpoint_data_t endpoint_value;
       //check first if I am a client
       ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), set_state_cache.lookup(&sk));
-      if(ret == 0) {
-        // I was a client
-        set_state_cache.delete(&sk);
-      } else {
+      if(ret != 0) {
         // I was a server
         ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), ipv4_endpoints.lookup(&endpoint_key));
         if(ret != 0) {
@@ -247,6 +244,8 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
       }
 
     }
+
+    set_state_cache.delete(&sk);
 
     if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
       // socket closed, clean things
@@ -486,9 +485,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
           }
 //          endpoint_data->open_transactions = endpoint_data->open_transactions - 1;
 #ifdef KILL_CONNECTION_DATA
-          if(endpoint_data->status == STATUS_CLIENT) {
             ipv4_endpoints.delete(&endpoint_key);
-          }
 #endif
         }
 #ifdef KILL_CONNECTION_DATA
@@ -515,10 +512,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
       struct endpoint_data_t endpoint_value;
       //check first if I am a client
       ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), set_state_cache.lookup(&sk));
-      if(ret == 0) {
-        // I was a client
-        set_state_cache.delete(&sk);
-      } else {
+      if(ret != 0) {
         // I was a server
         ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), ipv6_endpoints.lookup(&endpoint_key));
         if(ret != 0) {
@@ -551,6 +545,8 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
       }
 
     }
+
+    set_state_cache.delete(&sk);
 
     if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
 
@@ -793,9 +789,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
           }
 //          endpoint_data->open_transactions = endpoint_data->open_transactions - 1;
 #ifdef KILL_CONNECTION_DATA
-          if(endpoint_data->status == STATUS_CLIENT) {
             ipv6_endpoints.delete(&endpoint_key);
-          }
 #endif
         }
 #ifdef KILL_CONNECTION_DATA
