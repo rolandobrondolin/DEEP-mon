@@ -213,7 +213,10 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
       struct endpoint_data_t endpoint_value;
       //check first if I am a client
       ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), set_state_cache.lookup(&sk));
-      if(ret != 0) {
+      if(ret == 0) {
+        // I was a client
+        set_state_cache.delete(&sk);
+      } else {
         // I was a server
         ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), ipv4_endpoints.lookup(&endpoint_key));
         if(ret != 0) {
@@ -245,9 +248,11 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
     }
 
-    set_state_cache.delete(&sk);
 
     if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
+      // delete pending stuff on connection setup if still there
+      set_state_cache.delete(&sk);
+
       // socket closed, clean things
       struct ipv4_key_t connection_key = {.saddr = saddr, .lport = lport, .daddr = daddr, .dport = dport};
       struct connection_data_t * connection_data = ipv4_connections.lookup(&connection_key);
@@ -512,7 +517,10 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
       struct endpoint_data_t endpoint_value;
       //check first if I am a client
       ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), set_state_cache.lookup(&sk));
-      if(ret != 0) {
+      if(ret == 0) {
+        // I was a client
+        set_state_cache.delete(&sk);
+      } else {
         // I was a server
         ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), ipv6_endpoints.lookup(&endpoint_key));
         if(ret != 0) {
@@ -546,9 +554,9 @@ int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
 
     }
 
-    set_state_cache.delete(&sk);
-
     if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
+      // delete pending stuff on connection setup if still there
+      set_state_cache.delete(&sk);
 
       // socket closed, clean things
       struct ipv6_key_t connection_key = {.lport = lport, .dport = dport};
@@ -1372,7 +1380,6 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
     return 0;
   }
   recv_cache.delete(&sk);
-
 
   u64 pid = bpf_get_current_pid_tgid();
   u64 ts = bpf_ktime_get_ns();
