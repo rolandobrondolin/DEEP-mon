@@ -130,14 +130,14 @@ BPF_HASH(ipv4_http_summary, struct ipv4_http_key_t, struct summary_data_t);
 BPF_HASH(ipv6_http_summary, struct ipv6_http_key_t, struct summary_data_t);
 
 
-BPF_HASH(ipv4_latency, struct ipv4_key_t, u64);
-BPF_HASH(ipv6_latency, struct ipv6_key_t, u64);
-BPF_HASH(ipv4_http_latency, struct ipv4_http_key_t, u64);
-BPF_HASH(ipv6_http_latency, struct ipv6_http_key_t, u64);
+BPF_HASH(ipv4_latency, struct ipv4_key_t, u64, 30000);
+BPF_HASH(ipv6_latency, struct ipv6_key_t, u64, 30000);
+BPF_HASH(ipv4_http_latency, struct ipv4_http_key_t, u64, 30000);
+BPF_HASH(ipv6_http_latency, struct ipv6_http_key_t, u64, 30000);
 
 
 BPF_HASH(set_state_cache, struct sock *, struct endpoint_data_t);
-BPF_HASH(recv_cache, u64, struct currsock_t);
+BPF_HASH(recv_cache, u64, struct currsock_t, 90000);
 
 struct iptables_data_t {
   u32 saddr;
@@ -1390,12 +1390,14 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 }
 
 int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
-  u64 ts = bpf_get_current_pid_tgid();
+  u64 pid = bpf_get_current_pid_tgid();
+
   struct currsock_t * cache_data;
-  cache_data = recv_cache.lookup(&ts);
+  cache_data = recv_cache.lookup(&pid);
+  recv_cache.delete(&pid);
 
   //recycle ts
-  ts = bpf_ktime_get_ns();
+  u64 ts = bpf_ktime_get_ns();
   int copied = PT_REGS_RC(ctx);
 
   // lost information
@@ -1537,7 +1539,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
-              summary_data.pid = bpf_get_current_pid_tgid();
+              summary_data.pid = pid;
               ipv4_summary.update(&connection_key, &summary_data);
 
 #ifdef BYPASS
@@ -1747,7 +1749,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
-              summary_data.pid = bpf_get_current_pid_tgid();
+              summary_data.pid = pid;
               ipv6_http_summary.update(&http_key, &summary_data);
 
 #ifdef BYPASS
@@ -1945,8 +1947,6 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
     }
   }
 
-  ts = bpf_get_current_pid_tgid();
-  recv_cache.delete(&ts);
   return 0;
 }
 
@@ -2024,6 +2024,7 @@ int kretprobe__ip_rcv(struct pt_regs *ctx){
 
       if(src_port == 0 || dest_port == 0) {
         // skip not yet established connections
+        iptables_rewrite_cache_in.delete(&pid);
         return 0;
       }
 
@@ -2121,6 +2122,7 @@ int kretprobe__ip_output(struct pt_regs *ctx){
 
       if(src_port == 0 || dest_port == 0) {
         // skip not yet established connections
+        iptables_rewrite_cache_out.delete(&pid);
         return 0;
       }
 
@@ -2220,6 +2222,7 @@ int kretprobe__ipv6_rcv(struct pt_regs *ctx){
 
       if(src_port == 0 || dest_port == 0) {
         // skip not yet established connections
+        iptables6_rewrite_cache_in.delete(&pid);
         return 0;
       }
 
@@ -2250,7 +2253,7 @@ int kretprobe__ipv6_rcv(struct pt_regs *ctx){
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-int ip6_output(struct pt_regs *ctx, struct net *net, struct sock *sk, struct sk_buff *skb){
+int kprobe__ip6_output(struct pt_regs *ctx, struct net *net, struct sock *sk, struct sk_buff *skb){
   u64 pid = bpf_get_current_pid_tgid();
 
   struct sk_buff skb_imported;
@@ -2317,6 +2320,7 @@ int kretprobe__ip6_output(struct pt_regs *ctx) {
 
       if(src_port == 0 || dest_port == 0) {
         // skip not yet established connections
+        iptables6_rewrite_cache_out.delete(&pid);
         return 0;
       }
 

@@ -469,7 +469,8 @@ class BpfCollector:
 
         pid_power = 0
         for socket in self.topology.get_sockets():
-            pid_power = pid_power + (core_power[socket] * \
-                (float(pid.get_socket_data(socket).get_weighted_cycles()) \
-                / float(total_cycles[socket])))
+            if float(total_cycles[socket]) > 0:
+                pid_power = pid_power + (core_power[socket] * \
+                    (float(pid.get_socket_data(socket).get_weighted_cycles()) \
+                    / float(total_cycles[socket])))
         return pid_power

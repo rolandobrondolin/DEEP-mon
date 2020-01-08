@@ -110,7 +110,7 @@ class MonitorMain():
                     print(value)
 
                     if self.print_net_details:
-                        for item in value.get_rewritten_network_transactions():
+                        for item in value.get_network_transactions():
                             print(item)
                         for item in value.get_nat_rules():
                             print(item)
