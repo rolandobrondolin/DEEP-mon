@@ -177,8 +177,24 @@ BPF_HASH(rewritten_rules_6, struct ipv6_endpoint_key_t, struct ipv6_endpoint_key
 // ones to attribute and cleanup final TCP and HTTP transactions              //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef SET_STATE_KPROBE
 
 int kprobe__tcp_set_state(struct pt_regs *ctx, struct sock *sk, int state) {
+
+#elif SET_STATE_4_15
+
+TRACEPOINT_PROBE(tcp, tcp_set_state) {
+  struct sock *sk = (struct sock *)args->skaddr;
+  int state = args->newstate;
+
+#elif SET_STATE_4_16
+
+TRACEPOINT_PROBE(sock, inet_sock_set_state) {
+  struct sock *sk = (struct sock *)args->skaddr;
+  int state = args->newstate;
+
+#endif
+
   u64 ts = bpf_ktime_get_ns();
   //get dport and lport
   int ret;

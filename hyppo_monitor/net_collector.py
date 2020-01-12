@@ -315,12 +315,21 @@ class NetCollector:
     def start_capture(self):
         bpf_code_path = os.path.dirname(os.path.abspath(__file__)) \
                         + "/bpf/tcp_monitor.c"
+
+        cflags = ["-DLATENCY_SAMPLES=%d" % self.latency_index_max]
         if self.nat:
-            self.ebpf_tcp_monitor = BPF(src_file=bpf_code_path, \
-                cflags=["-DBYPASS", "-DREVERSE_BYPASS", "-DLATENCY_SAMPLES=%d" % self.latency_index_max])
+            cflags.append("-DBYPASS")
+            cflags.append("-DREVERSE_BYPASS")
+        if BPF.tracepoint_exists("sock", "inet_sock_set_state"):
+            cflags.append("-DSET_STATE_4_16")
+        elif BPF.tracepoint_exists("tcp", "tcp_set_state"):
+            cflags.append("-DSET_STATE_4_15")
         else:
-            self.ebpf_tcp_monitor = BPF(src_file=bpf_code_path, \
-                cflags=["-DLATENCY_SAMPLES=%d" % self.latency_index_max])
+            cflags.append("-DSET_STATE_KPROBE")
+
+        print(cflags)
+
+        self.ebpf_tcp_monitor = BPF(src_file=bpf_code_path, cflags=cflags)
 
         self.ipv4_summary = self.ebpf_tcp_monitor["ipv4_summary"]
         self.ipv6_summary = self.ebpf_tcp_monitor["ipv6_summary"]
