@@ -3,15 +3,19 @@ MAINTAINER Rolando Brondolin
 
 RUN apt-get clean
 RUN apt-get update
-RUN apt-get install -y python python-pip wget curl apt-transport-https git
+RUN apt-get install -y python python-pip wget curl apt-transport-https git make golang-1.10
 
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D4284CDD
 RUN echo "deb https://repo.iovisor.org/apt/xenial xenial main" | tee /etc/apt/sources.list.d/iovisor.list
-RUN curl -s https://packagecloud.io/install/repositories/intelsdi-x/snap/script.deb.sh | bash
 RUN apt-get update
 
 RUN apt-get install -y libelf1 bcc-tools libbcc-examples
-RUN apt-get install -y snap-telemetry
+ENV GOPATH /go
+ENV PATH /go/bin:/usr/lib/go-1.10/bin:$PATH
+
+RUN go get -d github.com/intelsdi-x/snap && cd $GOPATH/src/github.com/intelsdi-x/snap && make && make install
+RUN mkdir /opt/snap && mkdir /opt/snap/plugins && mkdir /opt/snap/tasks
+
 
 # Install our mod of kubernetes client
 RUN git clone --recursive https://gitlab.com/projecthyppo/kubernetes-client-python.git
@@ -20,8 +24,6 @@ RUN pip install snap-plugin-lib-py numpy==1.16
 
 WORKDIR /home
 
-RUN wget https://github.com/intelsdi-x/snap-plugin-publisher-influxdb/releases/download/25/snap-plugin-publisher-influxdb_linux_x86_64
-RUN mv snap-plugin-publisher-influxdb_linux_x86_64 /opt/snap/plugins
 RUN curl -sL https://github.com/grafana/snap-plugin-collector-kubestate/releases/download/1/snap-plugin-collector-kubestate_linux_x86_64 \
     -o /opt/snap/plugins/snap-plugin-collector-kubestate_linux_x86_64
 

@@ -36,6 +36,11 @@ build-kube: ## Build DEEPmon and push it to GitLab Registry
 	sudo docker build -t registry.gitlab.com/projecthyppo/monitor:ipdps .
 	sudo docker push registry.gitlab.com/projecthyppo/monitor:ipdps
 
+build-kube-no-cache:
+	sudo docker login registry.gitlab.com
+	sudo docker build -t registry.gitlab.com/projecthyppo/monitor:ipdps . --no-cache
+	sudo docker push registry.gitlab.com/projecthyppo/monitor:ipdps
+
 run-kube: ## Run DEEPmon in Kubernetes as a DaemonSet
 	kubectl apply -f hyppo-monitor-daemonset.yaml
 
