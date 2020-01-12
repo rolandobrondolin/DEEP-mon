@@ -148,6 +148,7 @@ class ContainerNamer(snap.Collector):
                                 snap.NamespaceElement(value="service-pod"),
                                 snap.NamespaceElement(value=self.customer_id),
                                 snap.NamespaceElement(value=service.metadata.namespace),
+                                snap.NamespaceElement(value=pod.spec.node_name),
                                 snap.NamespaceElement(value=service.metadata.name),
                                 snap.NamespaceElement(value="pod")
                             ],
@@ -226,6 +227,7 @@ class ContainerNamer(snap.Collector):
                 snap.NamespaceElement(value="service-pod"),
                 snap.NamespaceElement.dynamic_namespace_element(name="customer_id", description="Customer ID"),
                 snap.NamespaceElement.dynamic_namespace_element(name="namespace", description="Kubernetes Namespace"),
+                snap.NamespaceElement.dynamic_namespace_element(name="node_name", description="Kubernetes Node Name"),
                 snap.NamespaceElement.dynamic_namespace_element(name="service_name", description="Kubernetes Service Name"),
                 snap.NamespaceElement(value="pod"),
                       ],
