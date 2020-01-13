@@ -14,7 +14,7 @@ from monitor_main import MonitorMain
 config = {}
 try:
     with open('hyppo_monitor/config.yaml', 'r') as config_file:
-        config = yaml.load(config_file)
+        config = yaml.load(config_file, Loader=yaml.FullLoader)
 except IOError:
     print("Couldn't find a config file, check your path")
     config = {}

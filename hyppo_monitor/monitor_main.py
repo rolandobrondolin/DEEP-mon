@@ -183,3 +183,6 @@ class MonitorMain():
                 time_to_sleep = 1 / self.frequency
 
             # print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
+if __name__ == "__main__":
+    monitor = MonitorMain("console", "fixed", False, True, False, False)
+    monitor.monitor_loop()

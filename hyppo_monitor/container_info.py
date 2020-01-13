@@ -6,6 +6,7 @@ import time
 from net_collector import TransactionData
 from net_collector import TransactionType
 import numpy as np
+from ddsketch.ddsketch import DDSketch
 
 class bcolors:
     RED = '\033[91m'
@@ -111,9 +112,17 @@ class ContainerInfo:
 
 
     def compute_container_percentiles(self, latency_list):
+        # out = []
+        # for p in self.pct:
+        #     out.append(np.percentile(latency_list, p))
+        # return out
+        sketch = DDSketch()
+        for item in latency_list:
+            sketch.add(item)
+
         out = []
         for p in self.pct:
-            out.append(np.percentile(latency_list, p))
+            out.append(sketch.quantile(p/100))
         return out
 
     def set_timestamp(self, ts):

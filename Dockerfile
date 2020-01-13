@@ -22,6 +22,9 @@ RUN git clone --recursive https://gitlab.com/projecthyppo/kubernetes-client-pyth
 RUN cd kubernetes-client-python && pip install . && cd ../ && rm -r kubernetes-client-python
 RUN pip install snap-plugin-lib-py numpy==1.16
 
+RUN git clone https://github.com/DataDog/sketches-py.git
+RUN cd sketches-py && python setup.py install
+
 WORKDIR /home
 
 RUN curl -sL https://github.com/grafana/snap-plugin-collector-kubestate/releases/download/1/snap-plugin-collector-kubestate_linux_x86_64 \

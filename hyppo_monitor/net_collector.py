@@ -6,6 +6,7 @@ from socket import inet_ntop, AF_INET, AF_INET6
 from struct import pack
 from collections import namedtuple
 import os
+from ddsketch.ddsketch import DDSketch
 
 
 from enum import Enum
@@ -100,13 +101,26 @@ class TransactionData:
         self.samples = latency_list
         # self.avg = np.average(latency_list)
         self.avg = float(total_time) / float(transaction_count * 1000000)
-        self.p50 = np.percentile(latency_list, 50)
-        self.p75 = np.percentile(latency_list, 75)
-        self.p90 = np.percentile(latency_list, 90)
-        self.p99 = np.percentile(latency_list, 99)
-        self.p99_9 = np.percentile(latency_list, 99.9)
-        self.p99_99 = np.percentile(latency_list, 99.99)
-        self.p99_999 = np.percentile(latency_list, 99.999)
+
+        sketch = DDSketch()
+        for item in latency_list:
+            sketch.add(item)
+
+        self.p50 = sketch.quantile(0.5)
+        self.p75 = sketch.quantile(0.75)
+        self.p90 = sketch.quantile(0.9)
+        self.p99 = sketch.quantile(0.99)
+        self.p99_9 = sketch.quantile(0.999)
+        self.p99_99 = sketch.quantile(0.9999)
+        self.p99_999 = sketch.quantile(0.99999)
+
+        # self.p50 = np.percentile(latency_list, 50)
+        # self.p75 = np.percentile(latency_list, 75)
+        # self.p90 = np.percentile(latency_list, 90)
+        # self.p99 = np.percentile(latency_list, 99)
+        # self.p99_9 = np.percentile(latency_list, 99.9)
+        # self.p99_99 = np.percentile(latency_list, 99.99)
+        # self.p99_999 = np.percentile(latency_list, 99.999)
 
     def load_http_path(self, path):
         self.http_path = path
