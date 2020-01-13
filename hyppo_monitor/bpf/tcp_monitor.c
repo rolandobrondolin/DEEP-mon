@@ -22,6 +22,7 @@
 #define T_STATUS_ON 1
 #define T_STATUS_OFF 0
 
+// #define TCP_CLIENT_PORT_MASKING
 #define HTTP_CLIENT_PORT_MASKING
 #define KILL_CONNECTION_DATA
 // #define BYPASS
@@ -398,9 +399,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
             } else {
 
               struct summary_data_t summary_data = {};
-
+#ifdef TCP_CLIENT_PORT_MASKING
+              if(endpoint_data->status == STATUS_SERVER) {
+                connection_key.dport = 0;
+              } else {
+                connection_key.lport = 0;
+              }
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
-
+#else
+              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
+#endif
               // check status and flow correctness
               if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
@@ -415,7 +423,9 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
                 ipv4_latency.update(&connection_key, &delta);
                 connection_key.slot = 0;
-
+#ifdef TCP_CLIENT_PORT_MASKING
+                connection_key.dport = dport;
+#endif
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
@@ -429,7 +439,9 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
                 ipv4_latency.update(&connection_key, &delta);
                 connection_key.slot = 0;
-
+#ifdef TCP_CLIENT_PORT_MASKING
+                connection_key.lport = lport;
+#endif
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -708,9 +720,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
             } else {
 
               struct summary_data_t summary_data = {};
-
+#ifdef TCP_CLIENT_PORT_MASKING
+              if(endpoint_data->status == STATUS_SERVER) {
+                connection_key.dport = 0;
+              } else {
+                connection_key.lport = 0;
+              }
               ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
-
+#else
+              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
+#endif
               // check status and flow correctness
               if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
@@ -725,6 +744,9 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
                 ipv6_latency.update(&connection_key, &delta);
                 connection_key.slot = 0;
+#ifdef TCP_CLIENT_PORT_MASKING
+                connection_key.dport = dport;
+#endif
 
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (total time for server)
@@ -739,7 +761,9 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
                 ipv6_latency.update(&connection_key, &delta);
                 connection_key.slot = 0;
-
+#ifdef TCP_CLIENT_PORT_MASKING
+                connection_key.lport = lport;
+#endif
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -961,8 +985,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 #endif //BYPASS
             } else {
               struct summary_data_t summary_data;
+#ifdef TCP_CLIENT_PORT_MASKING
+              connection_key.lport = 0;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
-
+#else
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
+#endif
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
               // store latency data in the proper hashmap
@@ -981,6 +1009,9 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.status = STATUS_CLIENT;
               summary_data.pid = bpf_get_current_pid_tgid();
               ipv4_summary.update(&connection_key, &summary_data);
+#ifdef TCP_CLIENT_PORT_MASKING
+              connection_key.lport = lport;
+#endif
 
 #ifdef BYPASS
               //
@@ -1230,8 +1261,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 #endif //BYPASS
             } else {
               struct summary_data_t summary_data;
+#ifdef TCP_CLIENT_PORT_MASKING
+              connection_key.lport = 0;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
-
+#else
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
+#endif
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
               // store latency data in the proper hashmap
@@ -1250,6 +1285,9 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.status = STATUS_CLIENT;
               summary_data.pid = bpf_get_current_pid_tgid();
               ipv6_summary.update(&connection_key, &summary_data);
+#ifdef TCP_CLIENT_PORT_MASKING
+              connection_key.lport = lport;
+#endif
 
 #ifdef BYPASS
               //
@@ -1512,7 +1550,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 #endif //BYPASS
             } else {
               struct summary_data_t summary_data = {};
+#ifdef TCP_CLIENT_PORT_MASKING
+              connection_key.dport = 0;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
+#else
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
+#endif
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
@@ -1532,6 +1575,9 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               summary_data.status = STATUS_SERVER;
               summary_data.pid = pid;
               ipv4_summary.update(&connection_key, &summary_data);
+#ifdef TCP_CLIENT_PORT_MASKING
+              connection_key.dport = dport;
+#endif
 
 #ifdef BYPASS
               //
@@ -1781,7 +1827,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 #endif //BYPASS
             } else {
               struct summary_data_t summary_data = {};
+#ifdef TCP_CLIENT_PORT_MASKING
+              connection_key.dport = 0;
               bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
+#else
+              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
+#endif
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
@@ -1801,6 +1852,9 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               summary_data.status = STATUS_SERVER;
               summary_data.pid = bpf_get_current_pid_tgid();
               ipv6_summary.update(&connection_key, &summary_data);
+#ifdef TCP_CLIENT_PORT_MASKING
+              connection_key.dport = dport;
+#endif
 
 #ifdef BYPASS
               //
