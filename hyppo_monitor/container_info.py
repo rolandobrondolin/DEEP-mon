@@ -86,21 +86,21 @@ class ContainerInfo:
 
     def compute_aggregate_network_metrics(self):
         if self.network_transactions != []:
-            http_transactions = []
-            tcp_transactions = []
+            http_transactions = DDSketch()
+            tcp_transactions = DDSketch()
             for transaction in self.network_transactions:
                 if transaction.type == TransactionType.ipv4_http or transaction.type == TransactionType.ipv6_http:
                     self.http_transaction_count = self.http_transaction_count + transaction.get_transaction_count()
                     self.http_byte_rx = self.http_byte_rx + transaction.get_byte_rx()
                     self.http_byte_tx = self.http_byte_tx + transaction.get_byte_tx()
                     self.http_avg_latency = self.http_avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
-                    http_transactions.extend(transaction.get_samples())
+                    http_transactions.merge(transaction.get_samples())
                 else:
                     self.tcp_transaction_count = self.tcp_transaction_count + transaction.get_transaction_count()
                     self.tcp_byte_rx = self.tcp_byte_rx + transaction.get_byte_rx()
                     self.tcp_byte_tx = self.tcp_byte_tx + transaction.get_byte_tx()
                     self.tcp_avg_latency = self.tcp_avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
-                    tcp_transactions.extend(transaction.get_samples())
+                    tcp_transactions.merge(transaction.get_samples())
 
             if self.http_transaction_count > 0:
                 self.http_avg_latency = self.http_avg_latency / float(self.http_transaction_count)
@@ -109,20 +109,10 @@ class ContainerInfo:
                 self.tcp_avg_latency = self.tcp_avg_latency / float(self.tcp_transaction_count)
                 self.tcp_percentiles = self.compute_container_percentiles(tcp_transactions)
 
-
-
-    def compute_container_percentiles(self, latency_list):
-        # out = []
-        # for p in self.pct:
-        #     out.append(np.percentile(latency_list, p))
-        # return out
-        sketch = DDSketch()
-        for item in latency_list:
-            sketch.add(item)
-
+    def compute_container_percentiles(self, latency_sketch):
         out = []
         for p in self.pct:
-            out.append(sketch.quantile(p/100))
+            out.append(latency_sketch.quantile(p/100))
         return out
 
     def set_timestamp(self, ts):

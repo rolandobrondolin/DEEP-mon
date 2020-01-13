@@ -93,34 +93,17 @@ class TransactionData:
         self.http_path = ""
         self.samples = []
 
-    def load_latencies(self, latency_list, total_time, transaction_count):
-        # remove zeros
-        latency_list = filter(lambda a: a != 0, latency_list)
-        # convert to float and go for milliseconds
-        latency_list = [float(i) / 1000000 for i in latency_list]
-        self.samples = latency_list
-        # self.avg = np.average(latency_list)
+    def load_latencies(self, latency_sketch, total_time, transaction_count):
+        self.samples = latency_sketch
         self.avg = float(total_time) / float(transaction_count * 1000000)
 
-        sketch = DDSketch()
-        for item in latency_list:
-            sketch.add(item)
-
-        self.p50 = sketch.quantile(0.5)
-        self.p75 = sketch.quantile(0.75)
-        self.p90 = sketch.quantile(0.9)
-        self.p99 = sketch.quantile(0.99)
-        self.p99_9 = sketch.quantile(0.999)
-        self.p99_99 = sketch.quantile(0.9999)
-        self.p99_999 = sketch.quantile(0.99999)
-
-        # self.p50 = np.percentile(latency_list, 50)
-        # self.p75 = np.percentile(latency_list, 75)
-        # self.p90 = np.percentile(latency_list, 90)
-        # self.p99 = np.percentile(latency_list, 99)
-        # self.p99_9 = np.percentile(latency_list, 99.9)
-        # self.p99_99 = np.percentile(latency_list, 99.99)
-        # self.p99_999 = np.percentile(latency_list, 99.999)
+        self.p50 = latency_sketch.quantile(0.5)
+        self.p75 = latency_sketch.quantile(0.75)
+        self.p90 = latency_sketch.quantile(0.9)
+        self.p99 = latency_sketch.quantile(0.99)
+        self.p99_9 = latency_sketch.quantile(0.999)
+        self.p99_99 = latency_sketch.quantile(0.9999)
+        self.p99_999 = latency_sketch.quantile(0.99999)
 
     def load_http_path(self, path):
         self.http_path = path
@@ -383,9 +366,9 @@ class NetCollector:
             # retrieve latency reservoir data
             for key, value in transaction_latency.items():
                 formatted_key = get_session_key_by_type(key, transaction_type)
-                vals = latency_data[formatted_key] = latency_data.get(formatted_key, [0] * self.latency_index_max)
-                slot = key.slot
-                vals[slot] = value.value
+                sketch = latency_data[formatted_key] = latency_data.get(formatted_key, DDSketch())
+                if value.value > 0:
+                    sketch.add(float(value.value) / 1000000)
             # print(latency_data)
 
             for key, value in transaction_table.items():
