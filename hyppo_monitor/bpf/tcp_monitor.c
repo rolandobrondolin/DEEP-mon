@@ -161,6 +161,11 @@ BPF_HASH(iptables6_rewrite_cache_out, u64, struct iptables6_data_t);
 BPF_HASH(rewritten_rules_6, struct ipv6_endpoint_key_t, struct ipv6_endpoint_key_t);
 
 
+#define BPF_SKIP_ITEM 0
+#define BPF_COUNT_ITEM 1
+#define WRITE_TO_LATENCY_TRUE 1
+#define WRITE_TO_LATENCY_FALSE 0
+BPF_ARRAY(conf, u32, 2);
 
 
 // static void safe_array_write(u32 idx, u64* array, u64 value) {
@@ -196,6 +201,8 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 
 #endif
 
+  int write_config = BPF_SKIP_ITEM;
+  int count_lost_config = BPF_COUNT_ITEM;
   u64 ts = bpf_ktime_get_ns();
   //get dport and lport
   int ret;
@@ -308,7 +315,15 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
-                ipv4_http_latency.update(&http_key, &delta);
+
+                // write to table only if it is not to be cleared
+                unsigned int write_to_latency_table = 0;
+                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                  ipv4_http_latency.update(&http_key, &delta);
+                } else {
+                  conf.increment(count_lost_config);
+                }
                 http_key.slot = 0;
 
               } else if (endpoint_data->status == STATUS_CLIENT){
@@ -321,7 +336,15 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
-                ipv4_http_latency.update(&http_key, &delta);
+
+                // write to table only if it is not to be cleared
+                unsigned int write_to_latency_table = 0;
+                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                  ipv4_http_latency.update(&http_key, &delta);
+                } else {
+                  conf.increment(count_lost_config);
+                }
                 http_key.slot = 0;
               }
               summary_data.transaction_count+= 1;
@@ -421,7 +444,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
-                ipv4_latency.update(&connection_key, &delta);
+
+                // write to table only if it is not to be cleared
+                unsigned int write_to_latency_table = 0;
+                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                  ipv4_latency.update(&connection_key, &delta);
+                } else {
+                  conf.increment(count_lost_config);
+                }
+
                 connection_key.slot = 0;
 #ifdef TCP_CLIENT_PORT_MASKING
                 connection_key.dport = dport;
@@ -437,7 +469,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
-                ipv4_latency.update(&connection_key, &delta);
+
+                // write to table only if it is not to be cleared
+                unsigned int write_to_latency_table = 0;
+                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                  ipv4_latency.update(&connection_key, &delta);
+                } else {
+                  conf.increment(count_lost_config);
+                }
+
                 connection_key.slot = 0;
 #ifdef TCP_CLIENT_PORT_MASKING
                 connection_key.lport = lport;
@@ -626,7 +667,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
-                ipv6_http_latency.update(&http_key, &delta);
+
+                // write to table only if it is not to be cleared
+                unsigned int write_to_latency_table = 0;
+                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                  ipv6_http_latency.update(&http_key, &delta);
+                } else {
+                  conf.increment(count_lost_config);
+                }
+
                 http_key.slot = 0;
 
               } else if (endpoint_data->status == STATUS_CLIENT){
@@ -640,7 +690,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
-                ipv6_http_latency.update(&http_key, &delta);
+
+                // write to table only if it is not to be cleared
+                unsigned int write_to_latency_table = 0;
+                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                  ipv6_http_latency.update(&http_key, &delta);
+                } else {
+                  conf.increment(count_lost_config);
+                }
+
                 http_key.slot = 0;
               }
               summary_data.transaction_count+= 1;
@@ -742,7 +801,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
-                ipv6_latency.update(&connection_key, &delta);
+
+                // write to table only if it is not to be cleared
+                unsigned int write_to_latency_table = 0;
+                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                  ipv6_latency.update(&connection_key, &delta);
+                } else {
+                  conf.increment(count_lost_config);
+                }
+
                 connection_key.slot = 0;
 #ifdef TCP_CLIENT_PORT_MASKING
                 connection_key.dport = dport;
@@ -759,7 +827,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
-                ipv6_latency.update(&connection_key, &delta);
+
+                // write to table only if it is not to be cleared
+                unsigned int write_to_latency_table = 0;
+                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                  ipv6_latency.update(&connection_key, &delta);
+                } else {
+                  conf.increment(count_lost_config);
+                }
+
                 connection_key.slot = 0;
 #ifdef TCP_CLIENT_PORT_MASKING
                 connection_key.lport = lport;
@@ -852,6 +929,9 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg, size_t size) {
   u64 ts = bpf_ktime_get_ns();
 
+  int write_config = BPF_SKIP_ITEM;
+  int count_lost_config = BPF_COUNT_ITEM;
+
   u16 lport = sk->__sk_common.skc_num;
   u16 dport = sk->__sk_common.skc_dport;
   dport = ntohs(dport);
@@ -936,7 +1016,16 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
-              ipv4_http_latency.update(&http_key, &delta);
+
+              // write to table only if it is not to be cleared
+              unsigned int write_to_latency_table = 0;
+              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                ipv4_http_latency.update(&http_key, &delta);
+              } else {
+                conf.increment(count_lost_config);
+              }
+
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -999,7 +1088,16 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
-              ipv4_latency.update(&connection_key, &delta);
+
+              // write to table only if it is not to be cleared
+              unsigned int write_to_latency_table = 0;
+              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                ipv4_latency.update(&connection_key, &delta);
+              } else {
+                conf.increment(count_lost_config);
+              }
+
               connection_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1212,7 +1310,16 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
-              ipv6_http_latency.update(&http_key, &delta);
+
+              // write to table only if it is not to be cleared
+              unsigned int write_to_latency_table = 0;
+              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                ipv6_http_latency.update(&http_key, &delta);
+              } else {
+                conf.increment(count_lost_config);
+              }
+
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1275,7 +1382,16 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
-              ipv6_latency.update(&connection_key, &delta);
+
+              // write to table only if it is not to be cleared
+              unsigned int write_to_latency_table = 0;
+              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                ipv6_latency.update(&connection_key, &delta);
+              } else {
+                conf.increment(count_lost_config);
+              }
+
               connection_key.slot = 0;
 
               //measuring overall transaction time for client
@@ -1430,6 +1546,9 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
   struct msghdr * msg = cache_item->msg;
   recv_cache.delete(&sk);
 
+  int write_config = BPF_SKIP_ITEM;
+  int count_lost_config = BPF_COUNT_ITEM;
+
   u64 pid = bpf_get_current_pid_tgid();
   u64 ts = bpf_ktime_get_ns();
 
@@ -1501,7 +1620,16 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
-              ipv4_http_latency.update(&http_key, &delta);
+
+              // write to table only if it is not to be cleared
+              unsigned int write_to_latency_table = 0;
+              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                ipv4_http_latency.update(&http_key, &delta);
+              } else {
+                conf.increment(count_lost_config);
+              }
+
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1565,7 +1693,16 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
-              ipv4_latency.update(&connection_key, &delta);
+
+              // write to table only if it is not to be cleared
+              unsigned int write_to_latency_table = 0;
+              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                ipv4_latency.update(&connection_key, &delta);
+              } else {
+                conf.increment(count_lost_config);
+              }
+
               connection_key.slot = 0;
 
               //measuring just response time for server
@@ -1842,7 +1979,16 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
-              ipv6_latency.update(&connection_key, &delta);
+
+              // write to table only if it is not to be cleared
+              unsigned int write_to_latency_table = 0;
+              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
+              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
+                ipv6_latency.update(&connection_key, &delta);
+              } else {
+                conf.increment(count_lost_config);
+              }
+
               connection_key.slot = 0;
 
               //measuring just response time for server transaction
