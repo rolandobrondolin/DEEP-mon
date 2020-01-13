@@ -5,5 +5,5 @@ customer_id:      "not_registered"
 debug_mode:       False
 send_thread_data: False
 net_monitor:      True
-nat_trace:        True
-print_net_details: True
+nat_trace:        False
+print_net_details: False

@@ -415,20 +415,29 @@ class NetCollector:
                     else:
                         pid_dict[int(value.pid)] = [data_item]
 
-        #clear tables for next sample
-        self.ipv4_summary.clear()
-        self.ipv6_summary.clear()
-        self.ipv4_http_summary.clear()
-        self.ipv6_http_summary.clear()
-        # try to clean rewritten rules as for each packet the useful nat rules
-        # are rewritten inside the tables automatically
-        self.rewritten_rules.clear()
-        self.rewritten_rules_6.clear()
+        try:
+            #clear tables for next sample
+            self.ipv4_summary.clear()
+            self.ipv6_summary.clear()
+            self.ipv4_http_summary.clear()
+            self.ipv6_http_summary.clear()
+        except Exception as e:
+            print(e)
+            # try to clean rewritten rules as for each packet the useful nat rules
+            # are rewritten inside the tables automatically
+        try:
+            self.rewritten_rules.clear()
+            self.rewritten_rules_6.clear()
+        except Exception as e:
+            print(e)
 
-        # clear also reservoir hashmaps
-        self.ipv4_latency.clear()
-        self.ipv6_latency.clear()
-        self.ipv4_http_latency.clear()
-        self.ipv6_http_latency.clear()
+        try:
+            # clear also reservoir hashmaps
+            self.ipv4_latency.clear()
+            self.ipv6_latency.clear()
+            self.ipv4_http_latency.clear()
+            self.ipv6_http_latency.clear()
+        except Exception as e:
+            print(e)
 
         return NetSample(pid_dict, nat_dict, nat_list, host_transaction_count, host_byte_tx, host_byte_rx)

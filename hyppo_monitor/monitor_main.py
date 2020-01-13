@@ -62,14 +62,15 @@ class MonitorMain():
         # clear metrics for the new sample
         self.process_table.reset_metrics_and_evict_stale_processes(sample.get_max_ts())
         # add stuff to cumulative process table
-        self.process_table.add_process_from_sample(sample)
 
         nat_data = []
         if self.net_monitor:
             net_sample = self.net_collector.get_sample()
-            self.process_table.add_network_data(net_sample.get_pid_dictionary())
-            self.process_table.add_nat_data(net_sample.get_nat_dictionary())
-            nat_data = net_sample.get_nat_list()
+            self.process_table.add_process_from_sample(sample, \
+                net_dictionary=net_sample.get_pid_dictionary(), \
+                nat_dictionary=net_sample.get_nat_dictionary())
+        else:
+            self.process_table.add_process_from_sample(sample)
 
         # Now, extract containers!
         container_list = self.process_table.get_container_dictionary()

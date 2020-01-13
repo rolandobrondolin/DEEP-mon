@@ -29,7 +29,7 @@ class ProcTable:
         self.proc_table[proc_info.get_pid()] = proc_info
 
 
-    def add_process_from_sample(self, sample):
+    def add_process_from_sample(self, sample, net_dictionary=None, nat_dictionary=None):
         # reset counters for each entries
         for key, value in sample.get_pid_dict().iteritems():
             if key in self.proc_table:
@@ -55,6 +55,10 @@ class ProcTable:
                 value.set_cgroup_id(self.find_cgroup_id(key, value.tgid))
                 value.set_container_id(value.get_cgroup_id()[0:12])
                 self.proc_table[key] = value
+            if net_dictionary and key in net_dictionary:
+                self.proc_table[key].set_network_transactions(net_dictionary[key])
+            if nat_dictionary and key in nat_dictionary:
+                self.proc_table[key].set_nat_rules(nat_dictionary[key])
 
     def find_cgroup_id(self, pid, tgid):
         # exclude idle
@@ -127,13 +131,3 @@ class ProcTable:
             value.compute_aggregate_network_metrics()
 
         return container_dict
-
-    def add_network_data(self, pid_dictionary):
-        for pid, transactions in pid_dictionary.items():
-            if pid in self.proc_table:
-                self.proc_table[pid].set_network_transactions(transactions)
-
-    def add_nat_data(self, nat_dictionary):
-        for pid, nat_rules in nat_dictionary.items():
-            if pid in self.proc_table:
-                self.proc_table[pid].set_nat_rules(nat_rules)
