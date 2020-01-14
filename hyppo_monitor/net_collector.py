@@ -295,17 +295,17 @@ class NetCollector:
 
         # define hash tables, skip endpoints and connections for now
         # as they self manage and self clean in eBPF code
-        self.ipv4_summary = None
-        self.ipv6_summary = None
-        self.ipv4_http_summary = None
-        self.ipv6_http_summary = None
+        self.ipv4_summary = [None, None]
+        self.ipv6_summary = [None, None]
+        self.ipv4_http_summary = [None, None]
+        self.ipv6_http_summary = [None, None]
         self.rewritten_rules = None
         self.rewritten_rules_6 = None
 
-        self.ipv4_latency = None
-        self.ipv6_latency = None
-        self.ipv4_http_latency = None
-        self.ipv6_http_latency = None
+        self.ipv4_latency = [None, None]
+        self.ipv6_latency = [None, None]
+        self.ipv4_http_latency = [None, None]
+        self.ipv6_http_latency = [None, None]
 
         self.latency_index_max = 256
 
@@ -328,21 +328,29 @@ class NetCollector:
 
         self.ebpf_tcp_monitor = BPF(src_file=bpf_code_path, cflags=cflags)
 
-        self.ipv4_summary = self.ebpf_tcp_monitor["ipv4_summary"]
-        self.ipv6_summary = self.ebpf_tcp_monitor["ipv6_summary"]
-        self.ipv4_http_summary = self.ebpf_tcp_monitor["ipv4_http_summary"]
-        self.ipv6_http_summary = self.ebpf_tcp_monitor["ipv6_http_summary"]
+        self.ipv4_summary[0] = self.ebpf_tcp_monitor["ipv4_summary"]
+        self.ipv6_summary[0] = self.ebpf_tcp_monitor["ipv6_summary"]
+        self.ipv4_http_summary[0] = self.ebpf_tcp_monitor["ipv4_http_summary"]
+        self.ipv6_http_summary[0] = self.ebpf_tcp_monitor["ipv6_http_summary"]
+        self.ipv4_summary[1] = self.ebpf_tcp_monitor["ipv4_summary_1"]
+        self.ipv6_summary[1] = self.ebpf_tcp_monitor["ipv6_summary_1"]
+        self.ipv4_http_summary[1] = self.ebpf_tcp_monitor["ipv4_http_summary_1"]
+        self.ipv6_http_summary[1] = self.ebpf_tcp_monitor["ipv6_http_summary_1"]
         self.rewritten_rules = self.ebpf_tcp_monitor["rewritten_rules"]
         self.rewritten_rules_6 = self.ebpf_tcp_monitor["rewritten_rules_6"]
 
-        self.ipv4_latency = self.ebpf_tcp_monitor["ipv4_latency"]
-        self.ipv6_latency = self.ebpf_tcp_monitor["ipv6_latency"]
-        self.ipv4_http_latency = self.ebpf_tcp_monitor["ipv4_http_latency"]
-        self.ipv6_http_latency = self.ebpf_tcp_monitor["ipv6_http_latency"]
+        self.ipv4_latency[0] = self.ebpf_tcp_monitor["ipv4_latency"]
+        self.ipv6_latency[0] = self.ebpf_tcp_monitor["ipv6_latency"]
+        self.ipv4_http_latency[0] = self.ebpf_tcp_monitor["ipv4_http_latency"]
+        self.ipv6_http_latency[0] = self.ebpf_tcp_monitor["ipv6_http_latency"]
+        self.ipv4_latency[1] = self.ebpf_tcp_monitor["ipv4_latency_1"]
+        self.ipv6_latency[1] = self.ebpf_tcp_monitor["ipv6_latency_1"]
+        self.ipv4_http_latency[1] = self.ebpf_tcp_monitor["ipv4_http_latency_1"]
+        self.ipv6_http_latency[1] = self.ebpf_tcp_monitor["ipv6_http_latency_1"]
 
         self.bpf_config = self.ebpf_tcp_monitor["conf"]
-        self.write_to_latency_table = 1
-        self.bpf_config[ct.c_int(0)] = ct.c_uint(self.write_to_latency_table)
+        self.selector = 0
+        self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)
 
     def get_sample(self):
         #iterate over summary tables
@@ -353,13 +361,18 @@ class NetCollector:
         host_byte_tx = 0
         host_byte_rx = 0
 
+        old_selector = self.selector
+
+        if self.selector == 0:
+            self.selector = 1
+        else:
+            self.selector = 0
+        self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)
+
         # set the types and tables to iterate on
         transaction_types = [TransactionType.ipv4_tcp, TransactionType.ipv6_tcp, TransactionType.ipv4_http, TransactionType.ipv6_http]
-        transaction_tables = [self.ipv4_summary, self.ipv6_summary, self.ipv4_http_summary, self.ipv6_http_summary]
-        transaction_latencies = [self.ipv4_latency, self.ipv6_latency, self.ipv4_http_latency, self.ipv6_http_latency]
-
-        self.write_to_latency_table = 0
-        self.bpf_config[ct.c_int(0)] = ct.c_uint(self.write_to_latency_table)
+        transaction_tables = [self.ipv4_summary[old_selector], self.ipv6_summary[old_selector], self.ipv4_http_summary[old_selector], self.ipv6_http_summary[old_selector]]
+        transaction_latencies = [self.ipv4_latency[old_selector], self.ipv6_latency[old_selector], self.ipv4_http_latency[old_selector], self.ipv6_http_latency[old_selector]]
 
         # transaction_types = [TransactionType.ipv4_http, TransactionType.ipv6_http]
         # transaction_tables = [self.ipv4_http_summary, self.ipv6_http_summary]
@@ -424,15 +437,15 @@ class NetCollector:
         # print(len(self.ipv6_summary))
         # print(len(self.ipv4_http_summary))
         # print(len(self.ipv6_http_summary))
-        # print(len(self.ipv4_latency))
-        # print(len(self.ipv4_http_latency) + len(self.ipv4_latency) + len(self.ipv6_http_latency) + len(self.ipv6_latency))
+        print(len(self.ipv4_latency[old_selector]))
+        print(len(self.ipv4_http_latency[old_selector]) + len(self.ipv4_latency[old_selector]) + len(self.ipv6_http_latency[old_selector]) + len(self.ipv6_latency[old_selector]))
 
         try:
             # clear tables for next sample
-            self.ipv4_summary.clear()
-            self.ipv6_summary.clear()
-            self.ipv4_http_summary.clear()
-            self.ipv6_http_summary.clear()
+            self.ipv4_summary[old_selector].clear()
+            self.ipv6_summary[old_selector].clear()
+            self.ipv4_http_summary[old_selector].clear()
+            self.ipv6_http_summary[old_selector].clear()
         except Exception as e:
             print(e)
             # try to clean rewritten rules as for each packet the useful nat rules
@@ -445,17 +458,11 @@ class NetCollector:
 
         try:
             # clear also reservoir hashmaps
-            self.ipv4_latency.clear()
-            self.ipv6_latency.clear()
-            self.ipv4_http_latency.clear()
-            self.ipv6_http_latency.clear()
+            self.ipv4_latency[old_selector].clear()
+            self.ipv6_latency[old_selector].clear()
+            self.ipv4_http_latency[old_selector].clear()
+            self.ipv6_http_latency[old_selector].clear()
         except Exception as e:
             print(e)
-
-        self.write_to_latency_table = 1
-        self.bpf_config[ct.c_int(0)] = ct.c_uint(self.write_to_latency_table)
-        lost_items = self.bpf_config[ct.c_int(1)].value
-        # print(lost_items)
-        self.bpf_config[ct.c_int(1)] =ct.c_uint(0)
 
         return NetSample(pid_dict, nat_dict, nat_list, host_transaction_count, host_byte_tx, host_byte_rx)

@@ -22,7 +22,6 @@
 #define T_STATUS_ON 1
 #define T_STATUS_OFF 0
 
-// #define TCP_CLIENT_PORT_MASKING
 #define HTTP_CLIENT_PORT_MASKING
 #define KILL_CONNECTION_DATA
 // #define BYPASS
@@ -114,20 +113,35 @@ struct msg_t {
   struct msghdr *msg;
 };
 
+#define BPF_SELECTOR_INDEX 0
+#define BPF_SELECTOR_ZERO 0
+#define BPF_SELECTOR_ONE 1
+BPF_ARRAY(conf, u32, 2);
+
 BPF_HASH(ipv4_endpoints, struct ipv4_endpoint_key_t, struct endpoint_data_t);
 BPF_HASH(ipv6_endpoints, struct ipv6_endpoint_key_t, struct endpoint_data_t);
 BPF_HASH(ipv4_connections, struct ipv4_key_t, struct connection_data_t);
 BPF_HASH(ipv6_connections, struct ipv6_key_t, struct connection_data_t);
+
+// selector 0
 BPF_HASH(ipv4_summary, struct ipv4_key_t, struct summary_data_t);
 BPF_HASH(ipv6_summary, struct ipv6_key_t, struct summary_data_t);
 BPF_HASH(ipv4_http_summary, struct ipv4_http_key_t, struct summary_data_t);
 BPF_HASH(ipv6_http_summary, struct ipv6_http_key_t, struct summary_data_t);
-
-
 BPF_HASH(ipv4_latency, struct ipv4_key_t, u64, 60000);
 BPF_HASH(ipv6_latency, struct ipv6_key_t, u64, 60000);
 BPF_HASH(ipv4_http_latency, struct ipv4_http_key_t, u64, 60000);
 BPF_HASH(ipv6_http_latency, struct ipv6_http_key_t, u64, 60000);
+
+// selector 1
+BPF_HASH(ipv4_summary_1, struct ipv4_key_t, struct summary_data_t);
+BPF_HASH(ipv6_summary_1, struct ipv6_key_t, struct summary_data_t);
+BPF_HASH(ipv4_http_summary_1, struct ipv4_http_key_t, struct summary_data_t);
+BPF_HASH(ipv6_http_summary_1, struct ipv6_http_key_t, struct summary_data_t);
+BPF_HASH(ipv4_latency_1, struct ipv4_key_t, u64, 60000);
+BPF_HASH(ipv6_latency_1, struct ipv6_key_t, u64, 60000);
+BPF_HASH(ipv4_http_latency_1, struct ipv4_http_key_t, u64, 60000);
+BPF_HASH(ipv6_http_latency_1, struct ipv6_http_key_t, u64, 60000);
 
 
 BPF_HASH(set_state_cache, struct sock *, struct endpoint_data_t);
@@ -159,13 +173,6 @@ struct iptables6_data_t {
 BPF_HASH(iptables6_rewrite_cache_in, u64, struct iptables6_data_t);
 BPF_HASH(iptables6_rewrite_cache_out, u64, struct iptables6_data_t);
 BPF_HASH(rewritten_rules_6, struct ipv6_endpoint_key_t, struct ipv6_endpoint_key_t);
-
-
-#define BPF_SKIP_ITEM 0
-#define BPF_COUNT_ITEM 1
-#define WRITE_TO_LATENCY_TRUE 1
-#define WRITE_TO_LATENCY_FALSE 0
-BPF_ARRAY(conf, u32, 2);
 
 
 // static void safe_array_write(u32 idx, u64* array, u64 value) {
@@ -201,8 +208,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 
 #endif
 
-  int write_config = BPF_SKIP_ITEM;
-  int count_lost_config = BPF_COUNT_ITEM;
+  int write_config = BPF_SELECTOR_INDEX;
   u64 ts = bpf_ktime_get_ns();
   //get dport and lport
   int ret;
@@ -299,9 +305,19 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 #endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data;
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
 
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary_1.lookup(&http_key));
+              } else {
+                return 0;
+              }
 
               // check status and flow correctness
               if(endpoint_data->status == STATUS_SERVER) {
@@ -316,13 +332,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
-                // write to table only if it is not to be cleared
-                unsigned int write_to_latency_table = 0;
-                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                  ipv4_http_latency.update(&http_key, &delta);
+                // write to the table pointed by the selector
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_http_latency_1.update(&http_key, &delta);
                 } else {
-                  conf.increment(count_lost_config);
+                  ipv4_http_latency.update(&http_key, &delta);
                 }
                 http_key.slot = 0;
 
@@ -337,13 +351,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
-                // write to table only if it is not to be cleared
-                unsigned int write_to_latency_table = 0;
-                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                  ipv4_http_latency.update(&http_key, &delta);
+                // write to the table pointed by the selector
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_http_latency_1.update(&http_key, &delta);
                 } else {
-                  conf.increment(count_lost_config);
+                  ipv4_http_latency.update(&http_key, &delta);
                 }
                 http_key.slot = 0;
               }
@@ -351,7 +363,12 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv4_http_summary.update(&http_key, &summary_data);
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_http_summary_1.update(&http_key, &summary_data);
+              } else {
+                ipv4_http_summary.update(&http_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -380,7 +397,13 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
 
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv4_http_summary.update(&http_key, &summary_data);
+                }
+
                 rewritten_rules.delete(&endpoint_key);
               }
 
@@ -411,7 +434,13 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
 
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv4_http_summary.update(&http_key, &summary_data);
+                }
+
                 rewritten_rules.delete(&endpoint_key);
               }
 
@@ -421,17 +450,21 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 #endif //BYPASS
             } else {
 
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data = {};
-#ifdef TCP_CLIENT_PORT_MASKING
-              if(endpoint_data->status == STATUS_SERVER) {
-                connection_key.dport = 0;
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary_1.lookup(&connection_key));
               } else {
-                connection_key.lport = 0;
+                return 0;
               }
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
-#else
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
-#endif
+
+
               // check status and flow correctness
               if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
@@ -445,19 +478,14 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
-                // write to table only if it is not to be cleared
-                unsigned int write_to_latency_table = 0;
-                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                  ipv4_latency.update(&connection_key, &delta);
+                // write to the table pointed by the selector
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_latency_1.update(&connection_key, &delta);
                 } else {
-                  conf.increment(count_lost_config);
+                  ipv4_latency.update(&connection_key, &delta);
                 }
 
                 connection_key.slot = 0;
-#ifdef TCP_CLIENT_PORT_MASKING
-                connection_key.dport = dport;
-#endif
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
@@ -470,25 +498,25 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
-                // write to table only if it is not to be cleared
-                unsigned int write_to_latency_table = 0;
-                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                  ipv4_latency.update(&connection_key, &delta);
+                // write to the table pointed by the selector
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_latency_1.update(&connection_key, &delta);
                 } else {
-                  conf.increment(count_lost_config);
+                  ipv4_latency.update(&connection_key, &delta);
                 }
 
                 connection_key.slot = 0;
-#ifdef TCP_CLIENT_PORT_MASKING
-                connection_key.lport = lport;
-#endif
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv4_summary.update(&connection_key, &summary_data);
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_summary_1.update(&connection_key, &summary_data);
+              } else {
+                ipv4_summary.update(&connection_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -511,7 +539,13 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
 
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv4_summary.update(&connection_key, &summary_data);
+                }
+
                 rewritten_rules.delete(&endpoint_key);
               }
 
@@ -536,7 +570,13 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
 
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv4_summary.update(&connection_key, &summary_data);
+                }
+
                 rewritten_rules.delete(&endpoint_key);
               }
 
@@ -651,8 +691,19 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 #endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data;
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary_1.lookup(&http_key));
+              } else {
+                return 0;
+              }
 
 
               // check status and flow correctness
@@ -668,13 +719,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
-                // write to table only if it is not to be cleared
-                unsigned int write_to_latency_table = 0;
-                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                  ipv6_http_latency.update(&http_key, &delta);
+                // write to the table pointed by the selector
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_http_latency_1.update(&http_key, &delta);
                 } else {
-                  conf.increment(count_lost_config);
+                  ipv6_http_latency.update(&http_key, &delta);
                 }
 
                 http_key.slot = 0;
@@ -691,13 +740,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
-                // write to table only if it is not to be cleared
-                unsigned int write_to_latency_table = 0;
-                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                  ipv6_http_latency.update(&http_key, &delta);
+                // write to the table pointed by the selector
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_http_latency_1.update(&http_key, &delta);
                 } else {
-                  conf.increment(count_lost_config);
+                  ipv6_http_latency.update(&http_key, &delta);
                 }
 
                 http_key.slot = 0;
@@ -706,7 +753,12 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv6_http_summary.update(&http_key, &summary_data);
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_http_summary_1.update(&http_key, &summary_data);
+              } else {
+                ipv6_http_summary.update(&http_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -736,7 +788,13 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
 
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv6_http_summary.update(&http_key, &summary_data);
+                }
+
                 rewritten_rules_6.delete(&endpoint_key);
               }
 
@@ -768,7 +826,13 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
 
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv6_http_summary.update(&http_key, &summary_data);
+                }
+
                 rewritten_rules_6.delete(&endpoint_key);
               }
 
@@ -778,17 +842,20 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 #endif //BYPASS
             } else {
 
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data = {};
-#ifdef TCP_CLIENT_PORT_MASKING
-              if(endpoint_data->status == STATUS_SERVER) {
-                connection_key.dport = 0;
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary_1.lookup(&connection_key));
               } else {
-                connection_key.lport = 0;
+                return 0;
               }
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
-#else
-              ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
-#endif
+
               // check status and flow correctness
               if(endpoint_data->status == STATUS_SERVER) {
                 //measuring latencies (response time for server)
@@ -802,19 +869,14 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
-                // write to table only if it is not to be cleared
-                unsigned int write_to_latency_table = 0;
-                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                  ipv6_latency.update(&connection_key, &delta);
+                // write to the table pointed by the selector
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_latency_1.update(&connection_key, &delta);
                 } else {
-                  conf.increment(count_lost_config);
+                  ipv6_latency.update(&connection_key, &delta);
                 }
 
                 connection_key.slot = 0;
-#ifdef TCP_CLIENT_PORT_MASKING
-                connection_key.dport = dport;
-#endif
 
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (total time for server)
@@ -828,25 +890,25 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
-                // write to table only if it is not to be cleared
-                unsigned int write_to_latency_table = 0;
-                bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-                if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                  ipv6_latency.update(&connection_key, &delta);
+                // write to the table pointed by the selector
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_latency_1.update(&connection_key, &delta);
                 } else {
-                  conf.increment(count_lost_config);
+                  ipv6_latency.update(&connection_key, &delta);
                 }
 
                 connection_key.slot = 0;
-#ifdef TCP_CLIENT_PORT_MASKING
-                connection_key.lport = lport;
-#endif
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv6_summary.update(&connection_key, &summary_data);
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_summary_1.update(&connection_key, &summary_data);
+              } else {
+                ipv6_summary.update(&connection_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -867,7 +929,13 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   connection_key.dport = nat_data->port;
                 }
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv6_summary.update(&connection_key, &summary_data);
+                }
+
                 rewritten_rules_6.delete(&endpoint_key);
               }
 
@@ -891,7 +959,13 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                   connection_key.dport = endpoint_key.port;
                 }
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv6_summary.update(&connection_key, &summary_data);
+                }
+
                 rewritten_rules_6.delete(&endpoint_key);
               }
 
@@ -929,8 +1003,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg, size_t size) {
   u64 ts = bpf_ktime_get_ns();
 
-  int write_config = BPF_SKIP_ITEM;
-  int count_lost_config = BPF_COUNT_ITEM;
+  int write_config = BPF_SELECTOR_INDEX;
 
   u16 lport = sk->__sk_common.skc_num;
   u16 dport = sk->__sk_common.skc_dport;
@@ -1005,8 +1078,19 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 #endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data;
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary_1.lookup(&http_key));
+              } else {
+                return 0;
+              }
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
@@ -1017,13 +1101,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
-              // write to table only if it is not to be cleared
-              unsigned int write_to_latency_table = 0;
-              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                ipv4_http_latency.update(&http_key, &delta);
+              // write to the table pointed by the selector
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_http_latency_1.update(&http_key, &delta);
               } else {
-                conf.increment(count_lost_config);
+                ipv4_http_latency.update(&http_key, &delta);
               }
 
               http_key.slot = 0;
@@ -1034,7 +1116,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv4_http_summary.update(&http_key, &summary_data);
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_http_summary_1.update(&http_key, &summary_data);
+              } else {
+                ipv4_http_summary.update(&http_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -1052,7 +1139,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 #endif
                 http_key.daddr = nat_data->addr;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv4_http_summary.update(&http_key, &summary_data);
+                }
               }
 
               endpoint_key.addr = connection_key.daddr;
@@ -1065,7 +1157,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 http_key.daddr = endpoint_key.addr;
                 http_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv4_http_summary.update(&http_key, &summary_data);
+                }
               }
 
               //remember to restore endpoint key!!!
@@ -1073,13 +1170,22 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               endpoint_key.port = connection_key.lport;
 #endif //BYPASS
             } else {
+
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data;
-#ifdef TCP_CLIENT_PORT_MASKING
-              connection_key.lport = 0;
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
-#else
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
-#endif
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary_1.lookup(&connection_key));
+              } else {
+                return 0;
+              }
+
+
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
               // store latency data in the proper hashmap
@@ -1089,13 +1195,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
-              // write to table only if it is not to be cleared
-              unsigned int write_to_latency_table = 0;
-              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                ipv4_latency.update(&connection_key, &delta);
+              // write to the table pointed by the selector
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_latency_1.update(&connection_key, &delta);
               } else {
-                conf.increment(count_lost_config);
+                ipv4_latency.update(&connection_key, &delta);
               }
 
               connection_key.slot = 0;
@@ -1106,10 +1210,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv4_summary.update(&connection_key, &summary_data);
-#ifdef TCP_CLIENT_PORT_MASKING
-              connection_key.lport = lport;
-#endif
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_summary_1.update(&connection_key, &summary_data);
+              } else {
+                ipv4_summary.update(&connection_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -1122,7 +1228,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 connection_key.daddr = nat_data->addr;
                 connection_key.dport = nat_data->port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv4_summary.update(&connection_key, &summary_data);
+                }
               }
 
               endpoint_key.addr = daddr;
@@ -1135,7 +1246,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 connection_key.daddr = endpoint_key.addr;
                 connection_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv4_summary.update(&connection_key, &summary_data);
+                }
               }
 
               //remember to restore endpoint and connection key!!!
@@ -1299,8 +1415,19 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 #endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data;
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary_1.lookup(&http_key));
+              } else {
+                return 0;
+              }
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
@@ -1311,13 +1438,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
-              // write to table only if it is not to be cleared
-              unsigned int write_to_latency_table = 0;
-              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                ipv6_http_latency.update(&http_key, &delta);
+              // write to the table pointed by the selector
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_http_latency_1.update(&http_key, &delta);
               } else {
-                conf.increment(count_lost_config);
+                ipv6_http_latency.update(&http_key, &delta);
               }
 
               http_key.slot = 0;
@@ -1328,7 +1453,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv6_http_summary.update(&http_key, &summary_data);
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_http_summary_1.update(&http_key, &summary_data);
+              } else {
+                ipv6_http_summary.update(&http_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -1346,7 +1476,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 #endif
                 http_key.daddr = nat_data->addr;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv6_http_summary.update(&http_key, &summary_data);
+                }
               }
 
               endpoint_key.addr = connection_key.daddr;
@@ -1359,7 +1494,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 http_key.daddr = endpoint_key.addr;
                 http_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv6_http_summary.update(&http_key, &summary_data);
+                }
               }
 
               //remember to restore endpoint key!!!
@@ -1367,13 +1507,22 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               endpoint_key.port = connection_key.lport;
 #endif //BYPASS
             } else {
+
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data;
-#ifdef TCP_CLIENT_PORT_MASKING
-              connection_key.lport = 0;
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
-#else
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
-#endif
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary_1.lookup(&connection_key));
+              } else {
+                return 0;
+              }
+
+
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
               // store latency data in the proper hashmap
@@ -1383,13 +1532,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
-              // write to table only if it is not to be cleared
-              unsigned int write_to_latency_table = 0;
-              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                ipv6_latency.update(&connection_key, &delta);
+              // write to the table pointed by the selector
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_latency_1.update(&connection_key, &delta);
               } else {
-                conf.increment(count_lost_config);
+                ipv6_latency.update(&connection_key, &delta);
               }
 
               connection_key.slot = 0;
@@ -1400,10 +1547,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_CLIENT;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv6_summary.update(&connection_key, &summary_data);
-#ifdef TCP_CLIENT_PORT_MASKING
-              connection_key.lport = lport;
-#endif
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_summary_1.update(&connection_key, &summary_data);
+              } else {
+                ipv6_summary.update(&connection_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -1416,7 +1565,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 connection_key.daddr = nat_data->addr;
                 connection_key.dport = nat_data->port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv6_summary.update(&connection_key, &summary_data);
+                }
               }
 
               bpf_probe_read(&endpoint_key.addr, sizeof(endpoint_key.addr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
@@ -1429,7 +1583,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 connection_key.daddr = endpoint_key.addr;
                 connection_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv6_summary.update(&connection_key, &summary_data);
+                }
               }
 
               //remember to restore endpoint and connection key!!!
@@ -1546,8 +1705,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
   struct msghdr * msg = cache_item->msg;
   recv_cache.delete(&sk);
 
-  int write_config = BPF_SKIP_ITEM;
-  int count_lost_config = BPF_COUNT_ITEM;
+  int write_config = BPF_SELECTOR_INDEX;
 
   u64 pid = bpf_get_current_pid_tgid();
   u64 ts = bpf_ktime_get_ns();
@@ -1609,8 +1767,19 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 #endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data;
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary.lookup(&http_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_http_summary_1.lookup(&http_key));
+              } else {
+                return 0;
+              }
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
@@ -1621,13 +1790,11 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
-              // write to table only if it is not to be cleared
-              unsigned int write_to_latency_table = 0;
-              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                ipv4_http_latency.update(&http_key, &delta);
+              // write to the table pointed by the selector
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_http_latency_1.update(&http_key, &delta);
               } else {
-                conf.increment(count_lost_config);
+                ipv4_http_latency.update(&http_key, &delta);
               }
 
               http_key.slot = 0;
@@ -1638,7 +1805,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv4_http_summary.update(&http_key, &summary_data);
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_http_summary_1.update(&http_key, &summary_data);
+              } else {
+                ipv4_http_summary.update(&http_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -1651,7 +1823,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 http_key.daddr = endpoint_key.addr;
                 http_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv4_http_summary.update(&http_key, &summary_data);
+                }
               }
 
               endpoint_key.addr = connection_key.daddr;
@@ -1669,7 +1846,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 http_key.lport = 0;
 #endif
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv4_http_summary.update(&http_key, &summary_data);
+                }
               }
 
               //remember to restore endpoint key!!!
@@ -1677,13 +1859,19 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               endpoint_key.port = connection_key.lport;
 #endif //BYPASS
             } else {
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data = {};
-#ifdef TCP_CLIENT_PORT_MASKING
-              connection_key.dport = 0;
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
-#else
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
-#endif
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary_1.lookup(&connection_key));
+              } else {
+                return 0;
+              }
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
@@ -1694,13 +1882,11 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
-              // write to table only if it is not to be cleared
-              unsigned int write_to_latency_table = 0;
-              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                ipv4_latency.update(&connection_key, &delta);
+              // write to the table pointed by the selector
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_latency_1.update(&connection_key, &delta);
               } else {
-                conf.increment(count_lost_config);
+                ipv4_latency.update(&connection_key, &delta);
               }
 
               connection_key.slot = 0;
@@ -1711,10 +1897,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
               summary_data.pid = pid;
-              ipv4_summary.update(&connection_key, &summary_data);
-#ifdef TCP_CLIENT_PORT_MASKING
-              connection_key.dport = dport;
-#endif
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv4_summary_1.update(&connection_key, &summary_data);
+              } else {
+                ipv4_summary.update(&connection_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -1727,7 +1915,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 connection_key.daddr = endpoint_key.addr;
                 connection_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv4_summary.update(&connection_key, &summary_data);
+                }
               }
 
               endpoint_key.addr = connection_key.daddr;
@@ -1740,7 +1933,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 connection_key.dport = nat_data->port;
                 connection_key.lport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv4_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv4_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv4_summary.update(&connection_key, &summary_data);
+                }
               }
 
               //remember to restore endpoint and connection key!!!
@@ -1906,8 +2104,19 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 #endif
               bpf_probe_read_str(&(http_key.http_payload), sizeof(http_key.http_payload), &(connection_data->http_payload));
 
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data;
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary.lookup(&http_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_http_summary_1.lookup(&http_key));
+              } else {
+                return 0;
+              }
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
@@ -1917,7 +2126,14 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
-              ipv6_http_latency.update(&http_key, &delta);
+
+              // write to the table pointed by the selector
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_http_latency_1.update(&http_key, &delta);
+              } else {
+                ipv6_http_latency.update(&http_key, &delta);
+              }
+
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1926,7 +2142,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
               summary_data.pid = pid;
-              ipv6_http_summary.update(&http_key, &summary_data);
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_http_summary_1.update(&http_key, &summary_data);
+              } else {
+                ipv6_http_summary.update(&http_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
@@ -1937,7 +2158,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 http_key.daddr = endpoint_key.addr;
                 http_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv6_http_summary.update(&http_key, &summary_data);
+                }
               }
 
               endpoint_key.addr = connection_key.daddr;
@@ -1955,7 +2181,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 http_key.lport = 0;
 #endif
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_http_summary.update(&http_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_http_summary_1.update(&http_key, &summary_data);
+                } else {
+                  ipv6_http_summary.update(&http_key, &summary_data);
+                }
               }
 
               //remember to restore endpoint key!!!
@@ -1963,13 +2194,19 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               endpoint_key.port = connection_key.lport;
 #endif //BYPASS
             } else {
+              // choose the bpf table depending on the current selector
               struct summary_data_t summary_data = {};
-#ifdef TCP_CLIENT_PORT_MASKING
-              connection_key.dport = 0;
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
-#else
-              bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
-#endif
+
+              unsigned int selector_value = 0;
+              bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
+
+              if(selector_value == BPF_SELECTOR_ZERO) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
+              } else if(selector_value == BPF_SELECTOR_ONE) {
+                bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary_1.lookup(&connection_key));
+              } else {
+                return 0;
+              }
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
@@ -1980,13 +2217,11 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
-              // write to table only if it is not to be cleared
-              unsigned int write_to_latency_table = 0;
-              bpf_probe_read(&write_to_latency_table, sizeof(write_to_latency_table), conf.lookup(&write_config));
-              if(write_to_latency_table == WRITE_TO_LATENCY_TRUE) {
-                ipv6_latency.update(&connection_key, &delta);
+              // write to the table pointed by the selector
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_latency_1.update(&connection_key, &delta);
               } else {
-                conf.increment(count_lost_config);
+                ipv6_latency.update(&connection_key, &delta);
               }
 
               connection_key.slot = 0;
@@ -1997,10 +2232,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               summary_data.byte_tx += connection_data->byte_tx;
               summary_data.status = STATUS_SERVER;
               summary_data.pid = bpf_get_current_pid_tgid();
-              ipv6_summary.update(&connection_key, &summary_data);
-#ifdef TCP_CLIENT_PORT_MASKING
-              connection_key.dport = dport;
-#endif
+
+              if(selector_value == BPF_SELECTOR_ONE) {
+                ipv6_summary_1.update(&connection_key, &summary_data);
+              } else {
+                ipv6_summary.update(&connection_key, &summary_data);
+              }
 
 #ifdef BYPASS
               //
@@ -2013,7 +2250,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 connection_key.daddr = endpoint_key.addr;
                 connection_key.dport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv6_summary.update(&connection_key, &summary_data);
+                }
               }
 
               endpoint_key.addr = connection_key.daddr;
@@ -2026,7 +2268,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 connection_key.dport = nat_data->port;
                 connection_key.lport = endpoint_key.port;
                 summary_data.status = STATUS_UNKNOWN;
-                ipv6_summary.update(&connection_key, &summary_data);
+
+                if(selector_value == BPF_SELECTOR_ONE) {
+                  ipv6_summary_1.update(&connection_key, &summary_data);
+                } else {
+                  ipv6_summary.update(&connection_key, &summary_data);
+                }
               }
 
               //remember to restore endpoint and connection key!!!
