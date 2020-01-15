@@ -308,13 +308,19 @@ class NetCollector:
         self.ipv4_http_latency = [None, None]
         self.ipv6_http_latency = [None, None]
 
-        self.latency_index_max = 256
+        self.latency_index_max = 240
+        self.bucket_count = 12
+        self.latency_bucket_size = 20
+
+        self.tcp_dyn_masking_threshold = 10
 
     def start_capture(self):
         bpf_code_path = os.path.dirname(os.path.abspath(__file__)) \
                         + "/bpf/tcp_monitor.c"
 
-        cflags = ["-DLATENCY_SAMPLES=%d" % self.latency_index_max]
+        cflags = ["-DLATENCY_SAMPLES=%d" % self.latency_index_max, \
+                    "-DLATENCY_BUCKET_SIZE=%d" % self.latency_bucket_size, \
+                    "-DBUCKET_COUNT=%d" % self.bucket_count]
         if self.nat:
             cflags.append("-DBYPASS")
             cflags.append("-DREVERSE_BYPASS")
@@ -326,6 +332,7 @@ class NetCollector:
             cflags.append("-DSET_STATE_KPROBE")
         if self.dynamic_tcp_client_port_masking:
             cflags.append("-DDYN_TCP_CLIENT_PORT_MASKING")
+            cflags.append("-DDYN_TCP_CLIENT_PORT_MASKING_THRESHOLD=%d" % self.tcp_dyn_masking_threshold)
 
         print(cflags)
 
@@ -364,6 +371,8 @@ class NetCollector:
         host_byte_tx = 0
         host_byte_rx = 0
 
+        bucket_count = 0
+
         old_selector = self.selector
 
         if self.selector == 0:
@@ -390,8 +399,14 @@ class NetCollector:
             for key, value in transaction_latency.items():
                 formatted_key = get_session_key_by_type(key, transaction_type)
                 sketch = latency_data[formatted_key] = latency_data.get(formatted_key, DDSketch())
-                if value.value > 0:
-                    sketch.add(float(value.value) / 1000000)
+
+                for i in range(0, self.latency_bucket_size):
+                    if value.latency_vector[i] > 0:
+                        sketch.add(float(value.latency_vector[i]) / 1000000)
+                        bucket_count = bucket_count+1
+                # if value.latency_vector[0] > 0:
+                #     sketch.add(float(value.latency_vector[0]) / 1000000)
+                #     bucket_count = bucket_count+1
             # print(latency_data)
 
             for key, value in transaction_table.items():
@@ -442,7 +457,7 @@ class NetCollector:
         # print(len(self.ipv6_http_summary))
         print(len(self.ipv4_latency[old_selector]))
         print(len(self.ipv4_http_latency[old_selector]) + len(self.ipv4_latency[old_selector]) + len(self.ipv6_http_latency[old_selector]) + len(self.ipv6_latency[old_selector]))
-
+        print(bucket_count)
         try:
             # clear tables for next sample
             self.ipv4_summary[old_selector].clear()

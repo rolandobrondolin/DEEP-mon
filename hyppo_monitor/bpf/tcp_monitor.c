@@ -27,7 +27,10 @@
 // #define BYPASS
 // #define REVERSE_BYPASS
 
-#define DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD 10
+// #define DYN_TCP_CLIENT_PORT_MASKING
+// #define DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD 10
+// #define LATENCY_BUCKET_SIZE 8
+// #define BUCKET_COUNT 32
 
 
 //struct used to detect if a connection endpoint is server or client
@@ -112,6 +115,10 @@ struct summary_data_t {
   int16_t status;
 };
 
+struct latency_data_t {
+  u64 latency_vector[LATENCY_BUCKET_SIZE];
+};
+
 struct msg_t {
   struct msghdr *msg;
 };
@@ -131,20 +138,20 @@ BPF_HASH(ipv4_summary, struct ipv4_key_t, struct summary_data_t);
 BPF_HASH(ipv6_summary, struct ipv6_key_t, struct summary_data_t);
 BPF_HASH(ipv4_http_summary, struct ipv4_http_key_t, struct summary_data_t);
 BPF_HASH(ipv6_http_summary, struct ipv6_http_key_t, struct summary_data_t);
-BPF_HASH(ipv4_latency, struct ipv4_key_t, u64, 60000);
-BPF_HASH(ipv6_latency, struct ipv6_key_t, u64, 60000);
-BPF_HASH(ipv4_http_latency, struct ipv4_http_key_t, u64, 60000);
-BPF_HASH(ipv6_http_latency, struct ipv6_http_key_t, u64, 60000);
+BPF_HASH(ipv4_latency, struct ipv4_key_t, struct latency_data_t, 60000);
+BPF_HASH(ipv6_latency, struct ipv6_key_t, struct latency_data_t, 60000);
+BPF_HASH(ipv4_http_latency, struct ipv4_http_key_t, struct latency_data_t, 60000);
+BPF_HASH(ipv6_http_latency, struct ipv6_http_key_t, struct latency_data_t, 60000);
 
 // selector 1
 BPF_HASH(ipv4_summary_1, struct ipv4_key_t, struct summary_data_t);
 BPF_HASH(ipv6_summary_1, struct ipv6_key_t, struct summary_data_t);
 BPF_HASH(ipv4_http_summary_1, struct ipv4_http_key_t, struct summary_data_t);
 BPF_HASH(ipv6_http_summary_1, struct ipv6_http_key_t, struct summary_data_t);
-BPF_HASH(ipv4_latency_1, struct ipv4_key_t, u64, 60000);
-BPF_HASH(ipv6_latency_1, struct ipv6_key_t, u64, 60000);
-BPF_HASH(ipv4_http_latency_1, struct ipv4_http_key_t, u64, 60000);
-BPF_HASH(ipv6_http_latency_1, struct ipv6_http_key_t, u64, 60000);
+BPF_HASH(ipv4_latency_1, struct ipv4_key_t, struct latency_data_t, 60000);
+BPF_HASH(ipv6_latency_1, struct ipv6_key_t, struct latency_data_t, 60000);
+BPF_HASH(ipv4_http_latency_1, struct ipv4_http_key_t, struct latency_data_t, 60000);
+BPF_HASH(ipv6_http_latency_1, struct ipv6_http_key_t, struct latency_data_t, 60000);
 
 
 BPF_HASH(set_state_cache, struct sock *, struct endpoint_data_t);
@@ -178,14 +185,24 @@ BPF_HASH(iptables6_rewrite_cache_out, u64, struct iptables6_data_t);
 BPF_HASH(rewritten_rules_6, struct ipv6_endpoint_key_t, struct ipv6_endpoint_key_t);
 
 
-// static void safe_array_write(u32 idx, u64* array, u64 value) {
-//   #pragma clang loop unroll(full)
-//   for(int array_index = 0; array_index<LATENCY_SAMPLES; array_index++) {
-//     if(array_index == idx) {
-//       array[array_index] = value;
-//     }
-//   }
-// }
+static void safe_array_write(u32 idx, u64* array, u64 value) {
+  #pragma clang loop unroll(full)
+  for(int array_index = 0; array_index<LATENCY_BUCKET_SIZE; array_index++) {
+    if(array_index == idx) {
+      array[array_index] = value;
+    }
+  }
+}
+
+// compute the slot for the latency storage
+static inline u64 row_index(u32 transaction_count) {
+  return transaction_count / LATENCY_BUCKET_SIZE;
+}
+
+static inline u8 col_index(u32 transaction_count) {
+  return transaction_count % LATENCY_BUCKET_SIZE;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
@@ -211,6 +228,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 
 #endif
 
+  struct latency_data_t latency_zero = {};
   int write_config = BPF_SELECTOR_INDEX;
   u64 ts = bpf_ktime_get_ns();
   //get dport and lport
@@ -329,18 +347,28 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
 
+                u8 col = 0;
                 // store latency data in the proper hashmap
-                u64 idx = summary_data.transaction_count;
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                  http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                } else {
+                  http_key.slot = row_index(summary_data.transaction_count);
+                  col = col_index(summary_data.transaction_count);
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
                 // write to the table pointed by the selector
                 if(selector_value == BPF_SELECTOR_ONE) {
-                  ipv4_http_latency_1.update(&http_key, &delta);
+                  struct latency_data_t * row = ipv4_http_latency_1.lookup_or_init(&http_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 } else {
-                  ipv4_http_latency.update(&http_key, &delta);
+                  struct latency_data_t * row = ipv4_http_latency.lookup_or_init(&http_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 }
                 http_key.slot = 0;
 
@@ -348,20 +376,32 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 //measuring latencies (overall time for client)
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
+
+                u8 col = 0;
                 // store latency data in the proper hashmap
-                u64 idx = summary_data.transaction_count;
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                  http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                } else {
+                  http_key.slot = row_index(summary_data.transaction_count);
+                  col = col_index(summary_data.transaction_count);
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
                 // write to the table pointed by the selector
                 if(selector_value == BPF_SELECTOR_ONE) {
-                  ipv4_http_latency_1.update(&http_key, &delta);
+                  struct latency_data_t * row = ipv4_http_latency_1.lookup_or_init(&http_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 } else {
-                  ipv4_http_latency.update(&http_key, &delta);
+                  struct latency_data_t * row = ipv4_http_latency.lookup_or_init(&http_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 }
                 http_key.slot = 0;
+
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -485,41 +525,61 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
 
+                u8 col = 0;
                 // store latency data in the proper hashmap
-                u64 idx = summary_data.transaction_count;
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                  connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                } else {
+                  connection_key.slot = row_index(summary_data.transaction_count);
+                  col = col_index(summary_data.transaction_count);
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
                 // write to the table pointed by the selector
                 if(selector_value == BPF_SELECTOR_ONE) {
-                  ipv4_latency_1.update(&connection_key, &delta);
+                  struct latency_data_t * row = ipv4_latency_1.lookup_or_init(&connection_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 } else {
-                  ipv4_latency.update(&connection_key, &delta);
+                  struct latency_data_t * row = ipv4_latency.lookup_or_init(&connection_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 }
-
                 connection_key.slot = 0;
+
               } else if (endpoint_data->status == STATUS_CLIENT){
                 //measuring latencies (overall time for client)
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
 
+                u8 col = 0;
                 // store latency data in the proper hashmap
-                u64 idx = summary_data.transaction_count;
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                  connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                } else {
+                  connection_key.slot = row_index(summary_data.transaction_count);
+                  col = col_index(summary_data.transaction_count);
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
                 // write to the table pointed by the selector
                 if(selector_value == BPF_SELECTOR_ONE) {
-                  ipv4_latency_1.update(&connection_key, &delta);
+                  struct latency_data_t * row = ipv4_latency_1.lookup_or_init(&connection_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 } else {
-                  ipv4_latency.update(&connection_key, &delta);
+                  struct latency_data_t * row = ipv4_latency.lookup_or_init(&connection_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 }
-
                 connection_key.slot = 0;
+
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -737,20 +797,30 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
 
+
+                u8 col = 0;
                 // store latency data in the proper hashmap
-                u64 idx = summary_data.transaction_count;
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                  http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                } else {
+                  http_key.slot = row_index(summary_data.transaction_count);
+                  col = col_index(summary_data.transaction_count);
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
                 // write to the table pointed by the selector
                 if(selector_value == BPF_SELECTOR_ONE) {
-                  ipv6_http_latency_1.update(&http_key, &delta);
+                  struct latency_data_t * row = ipv6_http_latency_1.lookup_or_init(&http_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 } else {
-                  ipv6_http_latency.update(&http_key, &delta);
+                  struct latency_data_t * row = ipv6_http_latency.lookup_or_init(&http_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 }
-
                 http_key.slot = 0;
 
               } else if (endpoint_data->status == STATUS_CLIENT){
@@ -758,21 +828,31 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
 
+                u8 col = 0;
                 // store latency data in the proper hashmap
-                u64 idx = summary_data.transaction_count;
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                  http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                } else {
+                  http_key.slot = row_index(summary_data.transaction_count);
+                  col = col_index(summary_data.transaction_count);
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
                 // write to the table pointed by the selector
                 if(selector_value == BPF_SELECTOR_ONE) {
-                  ipv6_http_latency_1.update(&http_key, &delta);
+                  struct latency_data_t * row = ipv6_http_latency_1.lookup_or_init(&http_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 } else {
-                  ipv6_http_latency.update(&http_key, &delta);
+                  struct latency_data_t * row = ipv6_http_latency.lookup_or_init(&http_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 }
-
                 http_key.slot = 0;
+
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -897,20 +977,29 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
                 summary_data.status = STATUS_SERVER;
 
+                u8 col = 0;
                 // store latency data in the proper hashmap
-                u64 idx = summary_data.transaction_count;
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                  connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                } else {
+                  connection_key.slot = row_index(summary_data.transaction_count);
+                  col = col_index(summary_data.transaction_count);
                 }
                 u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
                 // write to the table pointed by the selector
                 if(selector_value == BPF_SELECTOR_ONE) {
-                  ipv6_latency_1.update(&connection_key, &delta);
+                  struct latency_data_t * row = ipv6_latency_1.lookup_or_init(&connection_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 } else {
-                  ipv6_latency.update(&connection_key, &delta);
+                  struct latency_data_t * row = ipv6_latency.lookup_or_init(&connection_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 }
-
                 connection_key.slot = 0;
 
               } else if (endpoint_data->status == STATUS_CLIENT){
@@ -918,21 +1007,31 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
                 summary_data.status = STATUS_CLIENT;
 
+                u8 col = 0;
                 // store latency data in the proper hashmap
-                u64 idx = summary_data.transaction_count;
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                  connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                } else {
+                  connection_key.slot = row_index(summary_data.transaction_count);
+                  col = col_index(summary_data.transaction_count);
                 }
                 u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
                 // write to the table pointed by the selector
                 if(selector_value == BPF_SELECTOR_ONE) {
-                  ipv6_latency_1.update(&connection_key, &delta);
+                  struct latency_data_t * row = ipv6_latency_1.lookup_or_init(&connection_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 } else {
-                  ipv6_latency.update(&connection_key, &delta);
+                  struct latency_data_t * row = ipv6_latency.lookup_or_init(&connection_key, &latency_zero);
+                  if(row != NULL) {
+                    safe_array_write(col, row->latency_vector, delta);
+                  }
                 }
-
                 connection_key.slot = 0;
+
               }
               summary_data.transaction_count+= 1;
               summary_data.byte_rx += connection_data->byte_rx;
@@ -1047,7 +1146,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 
 int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg, size_t size) {
   u64 ts = bpf_ktime_get_ns();
-
+  struct latency_data_t latency_zero = {};
   int write_config = BPF_SELECTOR_INDEX;
 
   u16 lport = sk->__sk_common.skc_num;
@@ -1139,20 +1238,29 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
+              u8 col = 0;
               // store latency data in the proper hashmap
-              u64 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+              } else {
+                http_key.slot = row_index(summary_data.transaction_count);
+                col = col_index(summary_data.transaction_count);
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
               // write to the table pointed by the selector
               if(selector_value == BPF_SELECTOR_ONE) {
-                ipv4_http_latency_1.update(&http_key, &delta);
+                struct latency_data_t * row = ipv4_http_latency_1.lookup_or_init(&http_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               } else {
-                ipv4_http_latency.update(&http_key, &delta);
+                struct latency_data_t * row = ipv4_http_latency.lookup_or_init(&http_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               }
-
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1239,20 +1347,29 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
+              u8 col = 0;
               // store latency data in the proper hashmap
-              u64 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+              } else {
+                connection_key.slot = row_index(summary_data.transaction_count);
+                col = col_index(summary_data.transaction_count);
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
               // write to the table pointed by the selector
               if(selector_value == BPF_SELECTOR_ONE) {
-                ipv4_latency_1.update(&connection_key, &delta);
+                struct latency_data_t * row = ipv4_latency_1.lookup_or_init(&connection_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               } else {
-                ipv4_latency.update(&connection_key, &delta);
+                struct latency_data_t * row = ipv4_latency.lookup_or_init(&connection_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               }
-
               connection_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1488,20 +1605,29 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
+              u8 col = 0;
               // store latency data in the proper hashmap
-              u64 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+              } else {
+                http_key.slot = row_index(summary_data.transaction_count);
+                col = col_index(summary_data.transaction_count);
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
               // write to the table pointed by the selector
               if(selector_value == BPF_SELECTOR_ONE) {
-                ipv6_http_latency_1.update(&http_key, &delta);
+                struct latency_data_t * row = ipv6_http_latency_1.lookup_or_init(&http_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               } else {
-                ipv6_http_latency.update(&http_key, &delta);
+                struct latency_data_t * row = ipv6_http_latency.lookup_or_init(&http_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               }
-
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1588,20 +1714,30 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 
               summary_data.time += connection_data->last_ts_in - connection_data->first_ts_out;
 
+
+              u8 col = 0;
               // store latency data in the proper hashmap
-              u64 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+              } else {
+                connection_key.slot = row_index(summary_data.transaction_count);
+                col = col_index(summary_data.transaction_count);
               }
               u64 delta = (connection_data->last_ts_in - connection_data->first_ts_out);
 
               // write to the table pointed by the selector
               if(selector_value == BPF_SELECTOR_ONE) {
-                ipv6_latency_1.update(&connection_key, &delta);
+                struct latency_data_t * row = ipv6_latency_1.lookup_or_init(&connection_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               } else {
-                ipv6_latency.update(&connection_key, &delta);
+                struct latency_data_t * row = ipv6_latency.lookup_or_init(&connection_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               }
-
               connection_key.slot = 0;
 
               //measuring overall transaction time for client
@@ -1767,7 +1903,7 @@ int kprobe__tcp_recvmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
 }
 
 int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
-
+  struct latency_data_t latency_zero = {};
   struct msg_t * cache_item = recv_cache.lookup(&sk);
   if(cache_item == NULL) {
     return 0;
@@ -1853,20 +1989,29 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
+              u8 col = 0;
               // store latency data in the proper hashmap
-              u64 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+              } else {
+                http_key.slot = row_index(summary_data.transaction_count);
+                col = col_index(summary_data.transaction_count);
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
               // write to the table pointed by the selector
               if(selector_value == BPF_SELECTOR_ONE) {
-                ipv4_http_latency_1.update(&http_key, &delta);
+                struct latency_data_t * row = ipv4_http_latency_1.lookup_or_init(&http_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               } else {
-                ipv4_http_latency.update(&http_key, &delta);
+                struct latency_data_t * row = ipv4_http_latency.lookup_or_init(&http_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               }
-
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -1951,20 +2096,29 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
+              u8 col = 0;
               // store latency data in the proper hashmap
-              u64 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+              } else {
+                connection_key.slot = row_index(summary_data.transaction_count);
+                col = col_index(summary_data.transaction_count);
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
               // write to the table pointed by the selector
               if(selector_value == BPF_SELECTOR_ONE) {
-                ipv4_latency_1.update(&connection_key, &delta);
+                struct latency_data_t * row = ipv4_latency_1.lookup_or_init(&connection_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               } else {
-                ipv4_latency.update(&connection_key, &delta);
+                struct latency_data_t * row = ipv4_latency.lookup_or_init(&connection_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               }
-
               connection_key.slot = 0;
 
               //measuring just response time for server
@@ -2203,20 +2357,29 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
+              u8 col = 0;
               // store latency data in the proper hashmap
-              u64 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                http_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+              } else {
+                http_key.slot = row_index(summary_data.transaction_count);
+                col = col_index(summary_data.transaction_count);
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
               // write to the table pointed by the selector
               if(selector_value == BPF_SELECTOR_ONE) {
-                ipv6_http_latency_1.update(&http_key, &delta);
+                struct latency_data_t * row = ipv6_http_latency_1.lookup_or_init(&http_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               } else {
-                ipv6_http_latency.update(&http_key, &delta);
+                struct latency_data_t * row = ipv6_http_latency.lookup_or_init(&http_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               }
-
               http_key.slot = 0;
 
               // measuring overall transaction time for client
@@ -2299,20 +2462,29 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
 
               summary_data.time += connection_data->first_ts_out - connection_data->last_ts_in;
 
+              u8 col = 0;
               // store latency data in the proper hashmap
-              u64 idx = summary_data.transaction_count;
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                connection_key.slot = bpf_get_prandom_u32() % LATENCY_SAMPLES;
+                connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
+                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+              } else {
+                connection_key.slot = row_index(summary_data.transaction_count);
+                col = col_index(summary_data.transaction_count);
               }
               u64 delta = (connection_data->first_ts_out - connection_data->last_ts_in);
 
               // write to the table pointed by the selector
               if(selector_value == BPF_SELECTOR_ONE) {
-                ipv6_latency_1.update(&connection_key, &delta);
+                struct latency_data_t * row = ipv6_latency_1.lookup_or_init(&connection_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               } else {
-                ipv6_latency.update(&connection_key, &delta);
+                struct latency_data_t * row = ipv6_latency.lookup_or_init(&connection_key, &latency_zero);
+                if(row != NULL) {
+                  safe_array_write(col, row->latency_vector, delta);
+                }
               }
-
               connection_key.slot = 0;
 
               //measuring just response time for server transaction
