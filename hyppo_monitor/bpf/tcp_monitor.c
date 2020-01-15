@@ -26,6 +26,7 @@
 #define KILL_CONNECTION_DATA
 // #define BYPASS
 // #define REVERSE_BYPASS
+#define DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD 10
 
 
 //struct used to detect if a connection endpoint is server or client
@@ -76,6 +77,7 @@ struct connection_data_t {
   u64 last_ts_out; // ts of the last outgoing packet of the transaction
   u64 byte_tx; // bytes transmitted during the transaction
   u64 byte_rx; // bytes received during transaction
+  u64 dyn_port_masking_count;
   char http_payload[PAYLOAD_LEN]; // String representation of the http request if available
 };
 
@@ -263,6 +265,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
         connection_data.last_ts_in = ts;
         connection_data.first_ts_out = ts;
         connection_data.last_ts_out = ts;
+        connection_data.dyn_port_masking_count = 0;
         connection_data.transaction_flow = T_UNKNOWN;
         connection_data.transaction_state = T_STATUS_OFF;
 
@@ -456,6 +459,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                if(endpoint_data->status == STATUS_SERVER) {
+                  connection_key.dport = 0;
+                } else if (endpoint_data->status == STATUS_CLIENT){
+                  connection_key.lport = 0;
+                }
+              }
+#endif
+
               if(selector_value == BPF_SELECTOR_ZERO) {
                 ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
               } else if(selector_value == BPF_SELECTOR_ONE) {
@@ -517,6 +530,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               } else {
                 ipv4_summary.update(&connection_key, &summary_data);
               }
+
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                if(endpoint_data->status == STATUS_SERVER) {
+                  connection_key.dport = dport;
+                } else if (endpoint_data->status == STATUS_CLIENT){
+                  connection_key.lport = lport;
+                }
+              }
+#endif
 
 #ifdef BYPASS
               //
@@ -648,6 +671,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
         connection_data.last_ts_in = ts;
         connection_data.first_ts_out = ts;
         connection_data.last_ts_out = ts;
+        connection_data.dyn_port_masking_count = 0;
         connection_data.transaction_flow = T_UNKNOWN;
         connection_data.transaction_state = T_STATUS_OFF;
 
@@ -848,6 +872,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                if(endpoint_data->status == STATUS_SERVER) {
+                  connection_key.dport = 0;
+                } else if (endpoint_data->status == STATUS_CLIENT){
+                  connection_key.lport = 0;
+                }
+              }
+#endif
+
               if(selector_value == BPF_SELECTOR_ZERO) {
                 ret = bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
               } else if(selector_value == BPF_SELECTOR_ONE) {
@@ -909,6 +943,16 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               } else {
                 ipv6_summary.update(&connection_key, &summary_data);
               }
+
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                if(endpoint_data->status == STATUS_SERVER) {
+                  connection_key.dport = 0;
+                } else if (endpoint_data->status == STATUS_CLIENT){
+                  connection_key.lport = 0;
+                }
+              }
+#endif
 
 #ifdef BYPASS
               //
@@ -1177,6 +1221,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                connection_key.lport = 0;
+              }
+#endif
+
               if(selector_value == BPF_SELECTOR_ZERO) {
                 bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
               } else if(selector_value == BPF_SELECTOR_ONE) {
@@ -1217,6 +1267,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 ipv4_summary.update(&connection_key, &summary_data);
               }
 
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                connection_key.lport = lport;
+              }
+#endif
 #ifdef BYPASS
               //
               //If there is a NAT in between, create an unknown transaction info with the mappings and the same key/value pairs
@@ -1273,6 +1328,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
             connection_data->last_ts_out = ts;
             connection_data->transaction_flow = T_OUTGOING;
             connection_data->transaction_state = T_STATUS_ON;
+            connection_data->dyn_port_masking_count = connection_data->dyn_port_masking_count + 1;
 
 //            endpoint_data->open_transactions++;
 
@@ -1514,6 +1570,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                connection_key.lport = 0;
+              }
+#endif
+
               if(selector_value == BPF_SELECTOR_ZERO) {
                 bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
               } else if(selector_value == BPF_SELECTOR_ONE) {
@@ -1553,6 +1615,12 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               } else {
                 ipv6_summary.update(&connection_key, &summary_data);
               }
+
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                connection_key.lport = lport;
+              }
+#endif
 
 #ifdef BYPASS
               //
@@ -1610,6 +1678,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
             connection_data->last_ts_out = ts;
             connection_data->transaction_flow = T_OUTGOING;
             connection_data->transaction_state = T_STATUS_ON;
+            connection_data->dyn_port_masking_count = connection_data->dyn_port_masking_count + 1;
 
 //            endpoint_data->open_transactions++;
 
@@ -1865,6 +1934,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                connection_key.dport = 0;
+              }
+#endif
+
               if(selector_value == BPF_SELECTOR_ZERO) {
                 bpf_probe_read(&summary_data, sizeof(summary_data), ipv4_summary.lookup(&connection_key));
               } else if(selector_value == BPF_SELECTOR_ONE) {
@@ -1903,6 +1978,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               } else {
                 ipv4_summary.update(&connection_key, &summary_data);
               }
+
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                connection_key.dport = dport;
+              }
+#endif
 
 #ifdef BYPASS
               //
@@ -1960,6 +2041,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
             connection_data->last_ts_out = 0;
             connection_data->transaction_flow = T_INCOMING;
             connection_data->transaction_state = T_STATUS_ON;
+            connection_data->dyn_port_masking_count = connection_data->dyn_port_masking_count + 1;
 
 //            endpoint_data->open_transactions++;
 
@@ -2200,6 +2282,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                connection_key.dport = 0;
+              }
+#endif
+
               if(selector_value == BPF_SELECTOR_ZERO) {
                 bpf_probe_read(&summary_data, sizeof(summary_data), ipv6_summary.lookup(&connection_key));
               } else if(selector_value == BPF_SELECTOR_ONE) {
@@ -2238,6 +2326,12 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               } else {
                 ipv6_summary.update(&connection_key, &summary_data);
               }
+
+#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+              if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
+                connection_key.dport = dport;
+              }
+#endif
 
 #ifdef BYPASS
               //
@@ -2294,6 +2388,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
             connection_data->last_ts_out = 0;
             connection_data->transaction_flow = T_INCOMING;
             connection_data->transaction_state = T_STATUS_ON;
+            connection_data->dyn_port_masking_count = connection_data->dyn_port_masking_count + 1;
 
 //            endpoint_data->open_transactions++;
 
