@@ -31,8 +31,9 @@ CONTEXT_SETTINGS = dict(
 @click.option('--net_monitor', '-n')
 @click.option('--nat_trace')
 @click.option('--print_net_details')
-def deepmon(kube_config, window_mode, output_format, debug_mode, net_monitor, nat_trace, print_net_details):
-    monitor = MonitorMain(output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details)
+@click.option('--dynamic_tcp_client_port_masking')
+def deepmon(kube_config, window_mode, output_format, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking):
+    monitor = MonitorMain(output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking)
     if output_format == 'snap':
         monitor.snap_monitor_loop()
     else:

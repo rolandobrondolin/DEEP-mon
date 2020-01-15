@@ -20,7 +20,7 @@ except ImportError:
 
 class MonitorMain():
 
-    def __init__(self, output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details):
+    def __init__(self, output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking):
         self.output_format = output_format
         self.window_mode = window_mode
         # TODO: Don't hardcode the frequency
@@ -35,9 +35,10 @@ class MonitorMain():
 
         self.print_net_details = print_net_details
         self.net_monitor = net_monitor
+        self.dynamic_tcp_client_port_masking = dynamic_tcp_client_port_masking
         self.net_collector = None
         if self.net_monitor:
-            self.net_collector = NetCollector(trace_nat = nat_trace)
+            self.net_collector = NetCollector(trace_nat = nat_trace, dynamic_tcp_client_port_masking=dynamic_tcp_client_port_masking)
 
 
     def _start_bpf_program(self, window_mode):
@@ -184,5 +185,5 @@ class MonitorMain():
 
             # print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
 if __name__ == "__main__":
-    monitor = MonitorMain("console", "fixed", False, True, False, False)
+    monitor = MonitorMain("console", "fixed", False, True, False, False, True)
     monitor.monitor_loop()

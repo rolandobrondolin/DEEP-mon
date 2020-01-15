@@ -289,9 +289,10 @@ class NetSample:
 
 class NetCollector:
 
-    def __init__(self, trace_nat=False):
+    def __init__(self, trace_nat=False, dynamic_tcp_client_port_masking=False):
         self.ebpf_tcp_monitor = None
         self.nat = trace_nat
+        self.dynamic_tcp_client_port_masking = dynamic_tcp_client_port_masking
 
         # define hash tables, skip endpoints and connections for now
         # as they self manage and self clean in eBPF code
@@ -323,6 +324,8 @@ class NetCollector:
             cflags.append("-DSET_STATE_4_15")
         else:
             cflags.append("-DSET_STATE_KPROBE")
+        if self.dynamic_tcp_client_port_masking:
+            cflags.append("-DDYN_TCP_CLIENT_PORT_MASKING")
 
         print(cflags)
 

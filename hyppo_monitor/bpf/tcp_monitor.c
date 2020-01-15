@@ -26,6 +26,7 @@
 #define KILL_CONNECTION_DATA
 // #define BYPASS
 // #define REVERSE_BYPASS
+
 #define DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD 10
 
 
@@ -459,7 +460,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 if(endpoint_data->status == STATUS_SERVER) {
                   connection_key.dport = 0;
@@ -531,7 +532,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 ipv4_summary.update(&connection_key, &summary_data);
               }
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 if(endpoint_data->status == STATUS_SERVER) {
                   connection_key.dport = dport;
@@ -872,7 +873,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 if(endpoint_data->status == STATUS_SERVER) {
                   connection_key.dport = 0;
@@ -944,7 +945,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 ipv6_summary.update(&connection_key, &summary_data);
               }
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 if(endpoint_data->status == STATUS_SERVER) {
                   connection_key.dport = 0;
@@ -1221,7 +1222,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 connection_key.lport = 0;
               }
@@ -1267,7 +1268,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 ipv4_summary.update(&connection_key, &summary_data);
               }
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 connection_key.lport = lport;
               }
@@ -1570,7 +1571,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 connection_key.lport = 0;
               }
@@ -1616,7 +1617,7 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
                 ipv6_summary.update(&connection_key, &summary_data);
               }
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 connection_key.lport = lport;
               }
@@ -1934,7 +1935,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 connection_key.dport = 0;
               }
@@ -1979,7 +1980,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 ipv4_summary.update(&connection_key, &summary_data);
               }
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 connection_key.dport = dport;
               }
@@ -2282,7 +2283,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               unsigned int selector_value = 0;
               bpf_probe_read(&selector_value, sizeof(selector_value), conf.lookup(&write_config));
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 connection_key.dport = 0;
               }
@@ -2327,7 +2328,7 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
                 ipv6_summary.update(&connection_key, &summary_data);
               }
 
-#ifdef DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD
+#ifdef DYN_TCP_CLIENT_PORT_MASKING
               if(connection_data->dyn_port_masking_count < DYN_TCP_CLIENT_PORT_MASKING_THRESHOLD) {
                 connection_key.dport = dport;
               }
