@@ -18,6 +18,7 @@ data:
     net_monitor:      True
     nat_trace:        False
     print_net_details: False
+    dynamic_tcp_client_port_masking: True
 ---
 apiVersion: apps/v1
 kind: DaemonSet
