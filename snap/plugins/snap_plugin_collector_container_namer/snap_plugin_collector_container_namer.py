@@ -163,6 +163,28 @@ class ContainerNamer(snap.Collector):
             except Exception:
                 LOG.debug("exception while reading k8s service data")
 
+        # list nodes and ip addresses
+        for node in self.v1.list_node(watch=False).items:
+            for address in node.status.addresses:
+
+                metric = snap.Metric(
+                    namespace=[
+                        snap.NamespaceElement(value="hyppo"),
+                        snap.NamespaceElement(value="hyppo-container-namer"),
+                        snap.NamespaceElement(value="node-ip"),
+                        snap.NamespaceElement(value=self.customer_id),
+                        snap.NamespaceElement(value=node.metadata.name),
+                        snap.NamespaceElement(value="ip")
+                    ],
+                    version=1,
+                    tags={"mtype": "gauge"},
+                    description="pod ip address",
+                    data=address.address,
+                    timestamp=ts
+                )
+                metrics_to_stream.append(metric)
+
+
         return metrics_to_stream
 
     def update_catalog(self, config):
@@ -234,6 +256,21 @@ class ContainerNamer(snap.Collector):
             version=1,
             tags={"mtype": "gauge"},
             description="pod attached to service",
+        )
+        metrics.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-container-namer"),
+                snap.NamespaceElement(value="node-ip"),
+                snap.NamespaceElement.dynamic_namespace_element(name="customer_id", description="Customer ID"),
+                snap.NamespaceElement.dynamic_namespace_element(name="node_name", description="Kubernetes Node Name"),
+                snap.NamespaceElement(value="ip"),
+                      ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="node ip address",
         )
         metrics.append(metric)
 

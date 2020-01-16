@@ -11,7 +11,8 @@
         "/hyppo/hyppo-container-namer/container-name/*/*/*/*/*/container_id": {},
         "/hyppo/hyppo-container-namer/pod-ip/*/*/*/*/ip": {},
         "/hyppo/hyppo-container-namer/service-ip/*/*/*/ip": {},
-        "/hyppo/hyppo-container-namer/service-pod/*/*/*/*/pod": {}
+        "/hyppo/hyppo-container-namer/service-pod/*/*/*/*/pod": {},
+        "/hyppo/hyppo-container-namer/node-ip/*/*/ip": {}
       },
       "publish": [
         {
