@@ -89,39 +89,43 @@ class HyppoStreamCollector(snap.StreamCollector):
             time.sleep(self.time_to_sleep)
         start_time = time.time()
 
-        sample_array = self.hyppo_monitor.get_sample()
-        sample = sample_array[0]
-        container_list = sample_array[1]
-        # proc_dict = sample_array[2]
+        try:
+            sample_array = self.hyppo_monitor.get_sample()
+            sample = sample_array[0]
+            container_list = sample_array[1]
+            # proc_dict = sample_array[2]
 
-        #add general metrics
-        metrics_to_stream.extend(sample.to_snap(start_time, self.customer_id, self.hostname))
+            #add general metrics
+            metrics_to_stream.extend(sample.to_snap(start_time, self.customer_id, self.hostname))
 
-        #here wrap up things to match snap format
-        for key, value in container_list.iteritems():
-            metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname, self.net_monitor))
+            #here wrap up things to match snap format
+            for key, value in container_list.iteritems():
+                metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname, self.net_monitor))
 
-        #add threads from proc_table
-        if self.send_thread_data == True:
-            for key, value in proc_dict.iteritems():
-                metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname))
+            #add threads from proc_table
+            if self.send_thread_data == True:
+                for key, value in proc_dict.iteritems():
+                    metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname))
 
-        # put timestamp
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value=self.customer_id),
-                snap.NamespaceElement(value=self.hostname),
-                snap.NamespaceElement(value="ts"),
-            ],
-            version=1,
-            description="timestamp",
-            data=int(start_time),
-            timestamp=start_time
-        )
-        metrics_to_stream.append(metric)
+            # put timestamp
+            metric = snap.Metric(
+                namespace=[
+                    snap.NamespaceElement(value="hyppo"),
+                    snap.NamespaceElement(value="hyppo-monitor"),
+                    snap.NamespaceElement(value=self.customer_id),
+                    snap.NamespaceElement(value=self.hostname),
+                    snap.NamespaceElement(value="ts"),
+                ],
+                version=1,
+                description="timestamp",
+                data=int(start_time),
+                timestamp=start_time
+            )
+            metrics_to_stream.append(metric)
 
+        except Exception:
+            LOG.error("exception while collecting data")
+        
         if self.config["window_mode"] == "dynamic":
             self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time() \
                 - (time.time() - start_time)

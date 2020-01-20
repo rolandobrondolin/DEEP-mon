@@ -64,34 +64,38 @@ class ContainerNamer(snap.Collector):
         ts = time.time()
 
         for pod in self.v1.list_pod_for_all_namespaces(watch=False).items:
-            for container in pod.spec.containers:
-                # Get the container id filtering container
-                # statuses with current container name
-                container_id = next((cstat.container_id
-                    for cstat in pod.status.container_statuses
-                    if cstat.name == container.name))
-                # Clean the id and take only 12 characters
-                if container_id is not None and "/" in container_id:
-                    container_id = container_id.split("/")[-1][0:12]
-                    metric = snap.Metric(
-                        namespace=[
-                            snap.NamespaceElement(value="hyppo"),
-                            snap.NamespaceElement(value="hyppo-container-namer"),
-                            snap.NamespaceElement(value="container-name"),
-                            snap.NamespaceElement(value=self.customer_id),
-                            snap.NamespaceElement(value=pod.metadata.namespace),
-                            snap.NamespaceElement(value=pod.spec.node_name),
-                            snap.NamespaceElement(value=pod.metadata.name),
-                            snap.NamespaceElement(value=container.name),
-                            snap.NamespaceElement(value="container_id")
-                        ],
-                        version=1,
-                        tags={"mtype": "gauge"},
-                        description="Name of the container",
-                        data=container_id,
-                        timestamp=ts
-                    )
-                    metrics_to_stream.append(metric)
+            try:
+                for container in pod.spec.containers:
+                    # Get the container id filtering container
+                    # statuses with current container name
+                    container_id = next((cstat.container_id
+                        for cstat in pod.status.container_statuses
+                        if cstat.name == container.name))
+                    # Clean the id and take only 12 characters
+                    if container_id is not None and "/" in container_id:
+                        container_id = container_id.split("/")[-1][0:12]
+                        metric = snap.Metric(
+                            namespace=[
+                                snap.NamespaceElement(value="hyppo"),
+                                snap.NamespaceElement(value="hyppo-container-namer"),
+                                snap.NamespaceElement(value="container-name"),
+                                snap.NamespaceElement(value=self.customer_id),
+                                snap.NamespaceElement(value=pod.metadata.namespace),
+                                snap.NamespaceElement(value=pod.spec.node_name),
+                                snap.NamespaceElement(value=pod.metadata.name),
+                                snap.NamespaceElement(value=container.name),
+                                snap.NamespaceElement(value="container_id")
+                            ],
+                            version=1,
+                            tags={"mtype": "gauge"},
+                            description="Name of the container",
+                            data=container_id,
+                            timestamp=ts
+                        )
+                        metrics_to_stream.append(metric)
+
+            except Exception:
+                Log.error("Error collecting container names")
 
             if pod.status.pod_ip != None:
                 metric = snap.Metric(
