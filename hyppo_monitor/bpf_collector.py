@@ -30,13 +30,14 @@ class bcolors:
 class BpfSample:
 
     def __init__(self, max_ts, total_time, sched_switch_count, timeslice,
-                 total_active_power, pid_dict):
+                 total_active_power, pid_dict, cpu_cores):
         self.max_ts = max_ts
         self.total_execution_time = total_time
         self.sched_switch_count = sched_switch_count
         self.timeslice = timeslice
         self.total_active_power = total_active_power
         self.pid_dict = pid_dict
+        self.cpu_cores = cpu_cores
 
     def get_max_ts(self):
         return self.max_ts
@@ -55,6 +56,9 @@ class BpfSample:
 
     def get_pid_dict(self):
         return self.pid_dict
+
+    def get_cpu_cores(self):
+        return self.cpu_cores
 
     def __str__(self):
         str_representation = ""
@@ -188,6 +192,22 @@ class BpfSample:
             version=1,
             description="DRAM power",
             data=self.total_active_power["dram"],
+            timestamp=request_time
+        )
+        metrics_to_be_returned.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="host"),
+                snap.NamespaceElement(value="cpu_cores"),
+            ],
+            version=1,
+            description="CPU cores",
+            data=self.cpu_cores,
             timestamp=request_time
         )
         metrics_to_be_returned.append(metric)
@@ -463,7 +483,7 @@ class BpfCollector:
                 proc_info.set_power(self._get_pid_power(proc_info, total_weighted_cycles, core_power))
                 proc_info.compute_cpu_usage_millis(float(total_execution_time), multiprocessing.cpu_count())
 
-        return BpfSample(tsmax, total_execution_time, sched_switch_count, self.timeslice, total_power, pid_dict)
+        return BpfSample(tsmax, total_execution_time, sched_switch_count, self.timeslice, total_power, pid_dict, self.topology.get_hyperthread_count())
 
     def _get_pid_power(self, pid, total_cycles, core_power):
 

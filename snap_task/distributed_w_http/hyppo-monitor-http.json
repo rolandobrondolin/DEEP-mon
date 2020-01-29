@@ -31,7 +31,8 @@
         "/hyppo/hyppo-monitor/*/*/host/dram_power": {},
         "/hyppo/hyppo-monitor/*/*/host/execution_time": {},
         "/hyppo/hyppo-monitor/*/*/host/switch_count": {},
-        "/hyppo/hyppo-monitor/*/*/host/timeslice": {}
+        "/hyppo/hyppo-monitor/*/*/host/timeslice": {},
+        "/hyppo/hyppo-monitor/*/*/host/cpu_cores": {}
       },
       "publish": [
         {
