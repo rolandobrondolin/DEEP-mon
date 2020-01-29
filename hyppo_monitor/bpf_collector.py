@@ -105,7 +105,7 @@ class BpfSample:
             "timeslice": {"value": self.timeslice, "strategy": "sum", "type": "int64"},
             "package_power": {"value": self.total_active_power["package"], "strategy": "sum", "type": "int64"},
             "core_power": {"value": self.total_active_power["core"], "strategy": "sum", "type": "int64"},
-            "dram_power": {"value": self.total_active_power["dram"], "strategy": "sum", "type": "double"},
+            "dram_power": {"value": self.total_active_power["dram"], "strategy": "sum", "type": "int64"},
             "cpu_cores": {"value": self.cpu_cores, "strategy": "sum", "type": "int64"}
         }
         metric = snap.Metric(
