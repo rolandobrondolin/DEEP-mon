@@ -97,121 +97,37 @@ class BpfSample:
              }
         return json.dumps(d, indent=4)
 
+
+    def _get_summary(self, request_time, snap_namespace):
+        perf_summary = {
+            "execution_time": {"value": self.total_execution_time, "strategy": "sum", "type": "int64"},
+            "switch_count": {"value": self.sched_switch_count, "strategy": "sum", "type": "int64"},
+            "timeslice": {"value": self.timeslice, "strategy": "sum", "type": "int64"},
+            "package_power": {"value": self.total_active_power["package"], "strategy": "sum", "type": "int64"},
+            "core_power": {"value": self.total_active_power["core"], "strategy": "sum", "type": "int64"},
+            "dram_power": {"value": self.total_active_power["dram"], "strategy": "sum", "type": "double"},
+            "cpu_cores": {"value": self.cpu_cores, "strategy": "sum", "type": "int64"}
+        }
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="Performance summary",
+            data=json.dumps(perf_summary),
+            timestamp=request_time
+        )
+        return metric
+
     def to_snap(self, request_time, user_id, hostname):
         metrics_to_be_returned = []
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value=user_id),
-                snap.NamespaceElement(value=hostname),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="execution_time"),
-            ],
-            version=1,
-            description="Total execution time",
-            data=self.total_execution_time,
-            timestamp=request_time
-        )
-        metrics_to_be_returned.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value=user_id),
-                snap.NamespaceElement(value=hostname),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="switch_count"),
-            ],
-            version=1,
-            description="Sched switch count",
-            data=self.sched_switch_count,
-            timestamp=request_time
-        )
-        metrics_to_be_returned.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value=user_id),
-                snap.NamespaceElement(value=hostname),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="timeslice"),
-            ],
-            version=1,
-            description="Timeslice",
-            data=self.timeslice,
-            timestamp=request_time
-        )
-        metrics_to_be_returned.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value=user_id),
-                snap.NamespaceElement(value=hostname),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="package_power"),
-            ],
-            version=1,
-            description="Package power",
-            data=self.total_active_power["package"],
-            timestamp=request_time
-        )
-        metrics_to_be_returned.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value=user_id),
-                snap.NamespaceElement(value=hostname),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="core_power"),
-            ],
-            version=1,
-            description="Core power",
-            data=self.total_active_power["core"],
-            timestamp=request_time
-        )
-        metrics_to_be_returned.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value=user_id),
-                snap.NamespaceElement(value=hostname),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="dram_power"),
-            ],
-            version=1,
-            description="DRAM power",
-            data=self.total_active_power["dram"],
-            timestamp=request_time
-        )
-        metrics_to_be_returned.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement(value=user_id),
-                snap.NamespaceElement(value=hostname),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="cpu_cores"),
-            ],
-            version=1,
-            description="CPU cores",
-            data=self.cpu_cores,
-            timestamp=request_time
-        )
-        metrics_to_be_returned.append(metric)
-
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
+            snap.NamespaceElement(value="host"),
+            snap.NamespaceElement(value="summary"),
+        ]
+        metrics_to_be_returned.append(self._get_summary(request_time, namespace))
         return metrics_to_be_returned
 
 

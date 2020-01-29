@@ -164,126 +164,36 @@ class HyppoStreamCollector(snap.StreamCollector):
                 snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
                 snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
                 snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="execution_time"),
+                snap.NamespaceElement(value="summary"),
             ],
             version=1,
             tags={"mtype": "gauge"},
-            description="Total execution time",
-        )
-        metrics.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
-                snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="switch_count"),
-            ],
-            version=1,
-            tags={"mtype": "gauge"},
-            description="Sched switch count",
-        )
-        metrics.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
-                snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="timeslice"),
-            ],
-            version=1,
-            tags={"mtype": "gauge"},
-            description="Timeslice",
-        )
-        metrics.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
-                snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="package_power"),
-            ],
-            version=1,
-            tags={"mtype": "gauge"},
-            description="Package power",
-        )
-        metrics.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
-                snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="core_power"),
-            ],
-            version=1,
-            tags={"mtype": "gauge"},
-            description="Core power",
-        )
-        metrics.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
-                snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="dram_power"),
-            ],
-            version=1,
-            tags={"mtype": "gauge"},
-            description="DRAM power",
-        )
-        metrics.append(metric)
-
-        metric = snap.Metric(
-            namespace=[
-                snap.NamespaceElement(value="hyppo"),
-                snap.NamespaceElement(value="hyppo-monitor"),
-                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
-                snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
-                snap.NamespaceElement(value="host"),
-                snap.NamespaceElement(value="cpu_cores"),
-            ],
-            version=1,
-            tags={"mtype": "gauge"},
-            description="CPU cores",
+            description="Host summary",
         )
         metrics.append(metric)
 
         #pid related metrics
         # skipping pid: for key in ("pid", "cycles", "instructions", "time_ns", "power", "cpu"):
-        for key in ("cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "cache_refs"):
-            metric = snap.Metric(
-                namespace=[
-                    snap.NamespaceElement(value="hyppo"),
-                    snap.NamespaceElement(value="hyppo-monitor"),
-                    snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
-                    snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
-                    snap.NamespaceElement(value="thread"),
-                    snap.NamespaceElement.dynamic_namespace_element(name="container_id", description="container id"),
-                    snap.NamespaceElement.dynamic_namespace_element(name="pid", description="pid of the process"),
-                    snap.NamespaceElement(value=key)
-                ],
-                version=1,
-                tags={"mtype": "gauge"},
-                description=key,
-            )
-            metrics.append(metric)
+        #for key in ("perf_summary"):
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
+                snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
+                snap.NamespaceElement(value="thread"),
+                snap.NamespaceElement.dynamic_namespace_element(name="container_id", description="container id"),
+                snap.NamespaceElement.dynamic_namespace_element(name="pid", description="pid of the process"),
+                snap.NamespaceElement(value="perf_summary")
+            ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="perf_summary",
+        )
+        metrics.append(metric)
         #container related metrics
         #skipping container id: for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
-        for key in ("cycles", "weighted_cycles", "instructions", "time_ns", "power", "cpu", "cache_misses", "thread_count", "cache_refs", "net_summary", "net_detail"):
+        for key in ("perf_summary", "net_summary", "net_detail"):
             metric = snap.Metric(
                 namespace=[
                     snap.NamespaceElement(value="hyppo"),

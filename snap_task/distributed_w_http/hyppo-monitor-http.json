@@ -8,31 +8,11 @@
     "collect": {
       "metrics": {
         "/hyppo/hyppo-monitor/*/*/ts": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/*/cpu": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/*/cycles": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/*/instructions": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/*/cache_misses": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/*/cache_refs": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/*/power": {},
-        "/hyppo/hyppo-monitor/*/*/thread/*/*/time_ns": {},
-        "/hyppo/hyppo-monitor/*/*/container/*/cpu": {},
-        "/hyppo/hyppo-monitor/*/*/container/*/cycles": {},
-        "/hyppo/hyppo-monitor/*/*/container/*/weighted_cycles": {},
-        "/hyppo/hyppo-monitor/*/*/container/*/instructions": {},
-        "/hyppo/hyppo-monitor/*/*/container/*/cache_misses": {},
-        "/hyppo/hyppo-monitor/*/*/container/*/cache_refs": {},
-        "/hyppo/hyppo-monitor/*/*/container/*/power": {},
-        "/hyppo/hyppo-monitor/*/*/container/*/thread_count": {},
-        "/hyppo/hyppo-monitor/*/*/container/*/time_ns": {},
+        "/hyppo/hyppo-monitor/*/*/thread/*/*/perf_summary": {},
+        "/hyppo/hyppo-monitor/*/*/container/*/perf_summary": {},
         "/hyppo/hyppo-monitor/*/*/container/*/net_summary": {},
         "/hyppo/hyppo-monitor/*/*/container/*/net_detail": {},
-        "/hyppo/hyppo-monitor/*/*/host/package_power": {},
-        "/hyppo/hyppo-monitor/*/*/host/core_power": {},
-        "/hyppo/hyppo-monitor/*/*/host/dram_power": {},
-        "/hyppo/hyppo-monitor/*/*/host/execution_time": {},
-        "/hyppo/hyppo-monitor/*/*/host/switch_count": {},
-        "/hyppo/hyppo-monitor/*/*/host/timeslice": {},
-        "/hyppo/hyppo-monitor/*/*/host/cpu_cores": {}
+        "/hyppo/hyppo-monitor/*/*/host/summary": {}
       },
       "publish": [
         {

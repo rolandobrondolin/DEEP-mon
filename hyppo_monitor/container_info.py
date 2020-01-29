@@ -225,135 +225,57 @@ class ContainerInfo:
         d['pid_set'] = list(d['pid_set'])
         return json.dumps(d, indent=4)
 
-    def _get_snap_container_id(self, request_time, snap_namespace):
+    def _get_perf_summary(self, request_time, snap_namespace):
+        perf_summary = {
+            "cycles": {"value": self.cycles, "strategy": "sum", "type": "int64"},
+            "weighted_cycles": {"value": self.weighted_cycles, "strategy": "sum", "type": "int64"},
+            "instructions": {"value": self.instruction_retired, "strategy": "sum", "type": "int64"},
+            "cache_misses": {"value": self.cache_misses, "strategy": "sum", "type": "int64"},
+            "cache_refs": {"value": self.cache_refs, "strategy": "sum", "type": "int64"},
+            "power": {"value": self.power, "strategy": "sum", "type": "double"},
+            "time_ns": {"value": self.time_ns, "strategy": "sum", "type": "int64"},
+            "cpu": {"value": self.cpu_usage, "strategy": "sum", "type": "double"},
+            "thread_count": {"value": len(self.pid_set), "strategy": "sum", "type": "int64"}
+        }
         metric = snap.Metric(
             namespace=snap_namespace,
             version=1,
-            description="Container ID",
-            data=self.container_id,
+            description="Performance summary",
+            data=json.dumps(perf_summary),
             timestamp=request_time
         )
         return metric
 
-    def _get_snap_cycles(self, request_time, snap_namespace):
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="Cycles",
-            data=self.cycles,
-            timestamp=request_time
-        )
-        return metric
-
-    def _get_snap_weighted_cycles(self, request_time, snap_namespace):
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="Weighted cycles",
-            data=self.weighted_cycles,
-            timestamp=request_time
-        )
-        return metric
-
-    def _get_snap_instructions(self, request_time, snap_namespace):
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="Thread instruction retired",
-            data=self.instruction_retired,
-            timestamp=request_time
-        )
-        return metric
-
-    def _get_snap_cache_misses(self, request_time, snap_namespace):
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="LLC Cache misses",
-            data=self.cache_misses,
-            timestamp=request_time
-        )
-        return metric
-
-    def _get_snap_cache_refs(self, request_time, snap_namespace):
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="LLC Cache references",
-            data=self.cache_refs,
-            timestamp=request_time
-        )
-        return metric
-
-    def _get_snap_power(self, request_time, snap_namespace):
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="Total active power in watt",
-            data=self.power,
-            timestamp=request_time
-        )
-        return metric
-
-    def _get_snap_cpu(self, request_time, snap_namespace):
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="Total cpu usage",
-            data=self.cpu_usage,
-            timestamp=request_time
-        )
-        return metric
-
-    def _get_thread_count(self, request_time, snap_namespace):
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="Thread count per container",
-            data=len(self.pid_set),
-            timestamp=request_time
-        )
-        return metric
-
-    def _get_time_ns(self, request_time, snap_namespace):
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="Total execution time",
-            data=self.time_ns,
-            timestamp=request_time
-        )
-        return metric
 
     def _get_net_summary(self, request_time, snap_namespace):
         net_summary = {}
         if self.tcp_transaction_count > 0:
             net_summary["tcp"] = {
-                "t_count": {"value": self.tcp_transaction_count, "strategy": "sum"},
-                "byte_sent": {"value": self.tcp_byte_tx, "strategy": "sum"},
-                "byte_recv": {"value": self.tcp_byte_rx, "strategy": "sum"},
-                "avg_lat": {"value": self.tcp_avg_latency, "strategy": "avg", "weight": "t_count"},
-                "50p": {"value": self.tcp_percentiles[0], "strategy": "max"},
-                "75p": {"value": self.tcp_percentiles[1], "strategy": "max"},
-                "90p": {"value": self.tcp_percentiles[2], "strategy": "max"},
-                "99p": {"value": self.tcp_percentiles[3], "strategy": "max"},
-                "99.9p": {"value": self.tcp_percentiles[4], "strategy": "max"},
-                "99.99p": {"value": self.tcp_percentiles[5], "strategy": "max"},
-                "99.999p": {"value": self.tcp_percentiles[6], "strategy": "max"}
+                "t_count": {"value": self.tcp_transaction_count, "strategy": "sum", "type": "double"},
+                "byte_sent": {"value": self.tcp_byte_tx, "strategy": "sum", "type": "double"},
+                "byte_recv": {"value": self.tcp_byte_rx, "strategy": "sum", "type": "double"},
+                "avg_lat": {"value": self.tcp_avg_latency, "strategy": "avg", "weight": "t_count", "type": "double"},
+                "50p": {"value": self.tcp_percentiles[0], "strategy": "max", "type": "double"},
+                "75p": {"value": self.tcp_percentiles[1], "strategy": "max", "type": "double"},
+                "90p": {"value": self.tcp_percentiles[2], "strategy": "max", "type": "double"},
+                "99p": {"value": self.tcp_percentiles[3], "strategy": "max", "type": "double"},
+                "99.9p": {"value": self.tcp_percentiles[4], "strategy": "max", "type": "double"},
+                "99.99p": {"value": self.tcp_percentiles[5], "strategy": "max", "type": "double"},
+                "99.999p": {"value": self.tcp_percentiles[6], "strategy": "max", "type": "double"}
             }
         if self.http_transaction_count > 0:
             net_summary["http"] = {
-                "t_count": {"value": self.http_transaction_count, "strategy": "sum"},
-                "byte_sent": {"value": self.http_byte_tx, "strategy": "sum"},
-                "byte_recv": {"value": self.http_byte_rx, "strategy": "sum"},
-                "avg_lat": {"value": self.http_avg_latency, "strategy": "avg", "weight": "t_count"},
-                "50p": {"value": self.http_percentiles[0], "strategy": "max"},
-                "75p": {"value": self.http_percentiles[1], "strategy": "max"},
-                "90p": {"value": self.http_percentiles[2], "strategy": "max"},
-                "99p": {"value": self.http_percentiles[3], "strategy": "max"},
-                "99.9p": {"value": self.http_percentiles[4], "strategy": "max"},
-                "99.99p": {"value": self.http_percentiles[5], "strategy": "max"},
-                "99.999p": {"value": self.http_percentiles[6], "strategy": "max"}
+                "t_count": {"value": self.http_transaction_count, "strategy": "sum", "type": "double"},
+                "byte_sent": {"value": self.http_byte_tx, "strategy": "sum", "type": "double"},
+                "byte_recv": {"value": self.http_byte_rx, "strategy": "sum", "type": "double"},
+                "avg_lat": {"value": self.http_avg_latency, "strategy": "avg", "weight": "t_count", "type": "double"},
+                "50p": {"value": self.http_percentiles[0], "strategy": "max", "type": "double"},
+                "75p": {"value": self.http_percentiles[1], "strategy": "max", "type": "double"},
+                "90p": {"value": self.http_percentiles[2], "strategy": "max", "type": "double"},
+                "99p": {"value": self.http_percentiles[3], "strategy": "max", "type": "double"},
+                "99.9p": {"value": self.http_percentiles[4], "strategy": "max", "type": "double"},
+                "99.99p": {"value": self.http_percentiles[5], "strategy": "max", "type": "double"},
+                "99.999p": {"value": self.http_percentiles[6], "strategy": "max", "type": "double"}
             }
 
         metric = snap.Metric(
@@ -411,17 +333,17 @@ class ContainerInfo:
                 "protocol": transaction.get_type_str_no_ip(),
                 "role": transaction.get_role_str(),
                 "metrics": {
-                    "t_count": {"value": transaction.get_transaction_count(), "strategy": "sum"},
-                    "byte_sent": {"value": transaction.get_byte_tx(), "strategy": "sum"},
-                    "byte_recv": {"value": transaction.get_byte_rx(), "strategy": "sum"},
-                    "avg_lat": {"value": transaction.get_avg_latency(), "strategy": "avg", "weight": "t_count"},
-                    "50p": {"value": transaction.get_percentiles()[0], "strategy": "max"},
-                    "75p": {"value": transaction.get_percentiles()[1], "strategy": "max"},
-                    "90p": {"value": transaction.get_percentiles()[2], "strategy": "max"},
-                    "99p": {"value": transaction.get_percentiles()[3], "strategy": "max"},
-                    "99.9p": {"value": transaction.get_percentiles()[4], "strategy": "max"},
-                    "99.99p": {"value": transaction.get_percentiles()[5], "strategy": "max"},
-                    "99.999p": {"value": transaction.get_percentiles()[6], "strategy": "max"}
+                    "t_count": {"value": transaction.get_transaction_count(), "strategy": "sum", "type": "double"},
+                    "byte_sent": {"value": transaction.get_byte_tx(), "strategy": "sum", "type": "double"},
+                    "byte_recv": {"value": transaction.get_byte_rx(), "strategy": "sum", "type": "double"},
+                    "avg_lat": {"value": transaction.get_avg_latency(), "strategy": "avg", "weight": "t_count", "type": "double"},
+                    "50p": {"value": transaction.get_percentiles()[0], "strategy": "max", "type": "double"},
+                    "75p": {"value": transaction.get_percentiles()[1], "strategy": "max", "type": "double"},
+                    "90p": {"value": transaction.get_percentiles()[2], "strategy": "max", "type": "double"},
+                    "99p": {"value": transaction.get_percentiles()[3], "strategy": "max", "type": "double"},
+                    "99.9p": {"value": transaction.get_percentiles()[4], "strategy": "max", "type": "double"},
+                    "99.99p": {"value": transaction.get_percentiles()[5], "strategy": "max", "type": "double"},
+                    "99.999p": {"value": transaction.get_percentiles()[6], "strategy": "max", "type": "double"}
                 }
             }
 
@@ -446,97 +368,9 @@ class ContainerInfo:
             snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="container"),
             snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value="cycles")
+            snap.NamespaceElement(value="perf_summary")
         ]
-        metrics_to_be_returned.append(self._get_snap_cycles(request_time, namespace))
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value="weighted_cycles")
-        ]
-        metrics_to_be_returned.append(self._get_snap_weighted_cycles(request_time, namespace))
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value="instructions")
-        ]
-        metrics_to_be_returned.append(self._get_snap_instructions(request_time, namespace))
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value="cache_misses")
-        ]
-        metrics_to_be_returned.append(self._get_snap_cache_misses(request_time, namespace))
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value="cache_refs")
-        ]
-        metrics_to_be_returned.append(self._get_snap_cache_refs(request_time, namespace))
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value="power")
-        ]
-        metrics_to_be_returned.append(self._get_snap_power(request_time, namespace))
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value="cpu")
-        ]
-        metrics_to_be_returned.append(self._get_snap_cpu(request_time, namespace))
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value="thread_count")
-        ]
-        metrics_to_be_returned.append(self._get_thread_count(request_time, namespace))
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="container"),
-            snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value="time_ns")
-        ]
-        metrics_to_be_returned.append(self._get_time_ns(request_time, namespace))
+        metrics_to_be_returned.append(self._get_perf_summary(request_time, namespace))
 
 
         if send_net_data == True and self.http_transaction_count > 0 or self.tcp_transaction_count > 0:
