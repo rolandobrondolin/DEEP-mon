@@ -146,15 +146,22 @@ class BPFErrors:
 
 class BpfCollector:
 
-    def __init__(self, topology, debug):
+    def __init__(self, topology, debug, power_measure):
         self.topology = topology
         self.debug = debug
+        self.power_measure = power_measure
         bpf_code_path = os.path.dirname(os.path.abspath(__file__)) \
                         + "/bpf/bpf_monitor.c"
         if debug is False:
-            self.bpf_program = BPF(src_file=bpf_code_path, \
-                cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
-                "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets())])
+            if self.power_measure == True:
+                self.bpf_program = BPF(src_file=bpf_code_path, \
+                    cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
+                    "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets()), \
+                    "-DPERFORMANCE_COUNTERS"])
+            else:
+                self.bpf_program = BPF(src_file=bpf_code_path, \
+                    cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
+                    "-DNUM_SOCKETS=%d" % len(self.topology.get_sockets())])
         else:
             self.bpf_program = BPF(src_file=bpf_code_path, \
                 cflags=["-DNUM_CPUS=%d" % multiprocessing.cpu_count(), \
@@ -177,11 +184,12 @@ class BpfCollector:
         # int("73003c",16) is the hex for UNHALTED_CORE_CYCLES for any thread
         # int("53003c",16) is the hex for UNHALTED_CORE_CYCLES
         # int("5300c0",16) is the hex for INSTRUCTION_RETIRED
-        self.bpf_program["cycles_core"].open_perf_event(4, int("73003c",16))
-        self.bpf_program["cycles_thread"].open_perf_event(4, int("53003c",16))
-        self.bpf_program["instr_thread"].open_perf_event(4, int("5300c0",16))
-        self.bpf_program["cache_misses"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CACHE_MISSES)
-        self.bpf_program["cache_refs"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CACHE_REFERENCES)
+        if self.power_measure == True:
+            self.bpf_program["cycles_core"].open_perf_event(4, int("73003c",16))
+            self.bpf_program["cycles_thread"].open_perf_event(4, int("53003c",16))
+            self.bpf_program["instr_thread"].open_perf_event(4, int("5300c0",16))
+            self.bpf_program["cache_misses"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CACHE_MISSES)
+            self.bpf_program["cache_refs"].open_perf_event(PerfType.HARDWARE, PerfHWConfig.CACHE_REFERENCES)
 
 
     def print_event(self, cpu, data, size):
@@ -292,12 +300,17 @@ class BpfCollector:
             self.selector = 0
             read_selector = 1
 
-        # Get new sample from rapl right before changing selector in eBPF
-        rapl_measurement = rapl_monitor.get_rapl_measure()
+        rapl_measurement = []
+        package_diff = 0
+        core_diff = 0
+        dram_diff = 0
+        if self.power_measure == True:
+            # Get new sample from rapl right before changing selector in eBPF
+            rapl_measurement = rapl_monitor.get_rapl_measure()
 
-        package_diff = rapl_measurement["package"]
-        core_diff = rapl_measurement["core"]
-        dram_diff = rapl_measurement["dram"]
+            package_diff = rapl_measurement["package"]
+            core_diff = rapl_measurement["core"]
+            dram_diff = rapl_measurement["dram"]
 
         # Propagate the update of the selector to the eBPF program
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)
@@ -306,17 +319,19 @@ class BpfCollector:
 
         tsmax = self.bpf_global_timestamps[ct.c_int(read_selector)].value
 
+
         # Add the count of clock cycles for each active process to the total
         # number of clock cycles of the socket
         for key, data in self.pids.items():
             if data.ts[read_selector] + self.timeslice > tsmax:
                 total_execution_time = total_execution_time + float(data.time_ns[read_selector])/1000000
 
-            for multisocket_selector in range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # Compute the number of total weighted cycles per socket
-                cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
-                if data.ts[read_selector] + self.timeslice > tsmax:
-                    total_weighted_cycles[cycles_index] = total_weighted_cycles[cycles_index] + data.weighted_cycles[multisocket_selector]
+            if self.power_measure == True:
+                for multisocket_selector in range(read_selector, total_slots_length, self.SELECTOR_DIM):
+                    # Compute the number of total weighted cycles per socket
+                    cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
+                    if data.ts[read_selector] + self.timeslice > tsmax:
+                        total_weighted_cycles[cycles_index] = total_weighted_cycles[cycles_index] + data.weighted_cycles[multisocket_selector]
 
         # Add the count of clock cycles for each idle process to the total
         # number of clock cycles of the socket
@@ -324,25 +339,32 @@ class BpfCollector:
             if data.ts[read_selector] + self.timeslice > tsmax:
                 total_execution_time = total_execution_time + float(data.time_ns[read_selector])/1000000
 
-            for multisocket_selector in range(read_selector, total_slots_length, self.SELECTOR_DIM):
-                # Compute the number of total weighted cycles per socket
-                cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
-                if data.ts[read_selector] + self.timeslice > tsmax:
-                    total_weighted_cycles[cycles_index] = total_weighted_cycles[cycles_index] + data.weighted_cycles[multisocket_selector]
+            if self.power_measure == True:
+                for multisocket_selector in range(read_selector, total_slots_length, self.SELECTOR_DIM):
+                    # Compute the number of total weighted cycles per socket
+                    cycles_index = int(multisocket_selector/self.SELECTOR_DIM)
+                    if data.ts[read_selector] + self.timeslice > tsmax:
+                        total_weighted_cycles[cycles_index] = total_weighted_cycles[cycles_index] + data.weighted_cycles[multisocket_selector]
 
-
-        # Compute package/core/dram power in mW from RAPL samples
-        package_power = [package_diff[skt].power_milliw()
-                         for skt in self.topology.get_sockets()]
-        core_power = [core_diff[skt].power_milliw()
-                      for skt in self.topology.get_sockets()]
-        dram_power = [dram_diff[skt].power_milliw()
-                      for skt in self.topology.get_sockets()]
-        total_power = {
-                "package": sum(package_power),
-                "core": sum(core_power),
-                "dram": sum(dram_power)
-                }
+        if self.power_measure == True:
+            # Compute package/core/dram power in mW from RAPL samples
+            package_power = [package_diff[skt].power_milliw()
+                             for skt in self.topology.get_sockets()]
+            core_power = [core_diff[skt].power_milliw()
+                          for skt in self.topology.get_sockets()]
+            dram_power = [dram_diff[skt].power_milliw()
+                          for skt in self.topology.get_sockets()]
+            total_power = {
+                    "package": sum(package_power),
+                    "core": sum(core_power),
+                    "dram": sum(dram_power)
+                    }
+        else:
+            total_power = {
+                    "package": 0,
+                    "core": 0,
+                    "dram": 0
+                    }
 
         for key, data in self.pids.items():
 
@@ -368,7 +390,11 @@ class BpfCollector:
 
             if add_proc:
                 pid_dict[data.pid] = proc_info
-                proc_info.set_power(self._get_pid_power(proc_info, total_weighted_cycles, core_power))
+
+                if self.power_measure == True:
+                    proc_info.set_power(self._get_pid_power(proc_info, total_weighted_cycles, core_power))
+                else:
+                    proc_info.set_power(0)
                 proc_info.compute_cpu_usage_millis(float(total_execution_time), multiprocessing.cpu_count())
 
         for key, data in self.idles.items():
@@ -396,7 +422,10 @@ class BpfCollector:
 
             if add_proc:
                 pid_dict[-1 * (1 + int(key.value))] = proc_info
-                proc_info.set_power(self._get_pid_power(proc_info, total_weighted_cycles, core_power))
+                if self.power_measure == True:
+                    proc_info.set_power(self._get_pid_power(proc_info, total_weighted_cycles, core_power))
+                else:
+                    proc_info.set_power(0)
                 proc_info.compute_cpu_usage_millis(float(total_execution_time), multiprocessing.cpu_count())
 
         return BpfSample(tsmax, total_execution_time, sched_switch_count, self.timeslice, total_power, pid_dict, self.topology.get_hyperthread_count())

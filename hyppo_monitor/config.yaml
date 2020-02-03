@@ -8,3 +8,4 @@ net_monitor:      True
 nat_trace:        False
 print_net_details: False
 dynamic_tcp_client_port_masking: True
+power_measure: False

@@ -19,6 +19,7 @@ data:
     nat_trace:        False
     print_net_details: False
     dynamic_tcp_client_port_masking: True
+    power_measure: True
 ---
 apiVersion: apps/v1
 kind: DaemonSet
