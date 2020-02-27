@@ -33,13 +33,13 @@ build-standalone-no-cache: ## Build a standalone image, without snap and backend
 
 build-kube: ## Build DEEPmon and push it to GitLab Registry
 	sudo docker login registry.gitlab.com
-	sudo docker build -t registry.gitlab.com/projecthyppo/monitor:ipdps .
-	sudo docker push registry.gitlab.com/projecthyppo/monitor:ipdps
+	sudo docker build -t registry.gitlab.com/projecthyppo/monitor .
+	sudo docker push registry.gitlab.com/projecthyppo/monitor
 
 build-kube-no-cache:
 	sudo docker login registry.gitlab.com
-	sudo docker build -t registry.gitlab.com/projecthyppo/monitor:ipdps . --no-cache
-	sudo docker push registry.gitlab.com/projecthyppo/monitor:ipdps
+	sudo docker build -t registry.gitlab.com/projecthyppo/monitor . --no-cache
+	sudo docker push registry.gitlab.com/projecthyppo/monitor
 
 run-kube: ## Run DEEPmon in Kubernetes as a DaemonSet
 	kubectl apply -f hyppo-monitor-daemonset.yaml

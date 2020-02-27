@@ -18,7 +18,7 @@
         {
           "plugin_name": "hyppo-publisher",
           "config": {
-            "remote_collector": "ipdps.collector.deepmon.necst.it"
+            "remote_collector": "collector.deepmon.necst.it"
           }
         }
       ]

@@ -39,7 +39,7 @@ spec:
       - name: gitlab-registry
       containers:
       - name: monitor
-        image: registry.gitlab.com/projecthyppo/monitor:ipdps
+        image: registry.gitlab.com/projecthyppo/monitor
         # resources:
         #   limits:
         #     memory: 1000Mi
