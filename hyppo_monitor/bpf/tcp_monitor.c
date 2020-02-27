@@ -350,8 +350,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u8 col = 0;
                 // store latency data in the proper hashmap
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                  u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                  if (slot < LATENCY_SAMPLES) {
+                    http_key.slot = row_index(slot);
+                    col = col_index(slot);
+                  }
                 } else {
                   http_key.slot = row_index(summary_data.transaction_count);
                   col = col_index(summary_data.transaction_count);
@@ -380,8 +383,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u8 col = 0;
                 // store latency data in the proper hashmap
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                  u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                  if (slot < LATENCY_SAMPLES) {
+                    http_key.slot = row_index(slot);
+                    col = col_index(slot);
+                  }
                 } else {
                   http_key.slot = row_index(summary_data.transaction_count);
                   col = col_index(summary_data.transaction_count);
@@ -528,8 +534,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u8 col = 0;
                 // store latency data in the proper hashmap
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                  u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                  if (slot < LATENCY_SAMPLES) {
+                    connection_key.slot = row_index(slot);
+                    col = col_index(slot);
+                  }
                 } else {
                   connection_key.slot = row_index(summary_data.transaction_count);
                   col = col_index(summary_data.transaction_count);
@@ -558,8 +567,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u8 col = 0;
                 // store latency data in the proper hashmap
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                  u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                  if (slot < LATENCY_SAMPLES) {
+                    connection_key.slot = row_index(slot);
+                    col = col_index(slot);
+                  }
                 } else {
                   connection_key.slot = row_index(summary_data.transaction_count);
                   col = col_index(summary_data.transaction_count);
@@ -801,8 +813,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u8 col = 0;
                 // store latency data in the proper hashmap
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                  u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                  if (slot < LATENCY_SAMPLES) {
+                    http_key.slot = row_index(slot);
+                    col = col_index(slot);
+                  }
                 } else {
                   http_key.slot = row_index(summary_data.transaction_count);
                   col = col_index(summary_data.transaction_count);
@@ -831,8 +846,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u8 col = 0;
                 // store latency data in the proper hashmap
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                  u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                  if (slot < LATENCY_SAMPLES) {
+                    http_key.slot = row_index(slot);
+                    col = col_index(slot);
+                  }
                 } else {
                   http_key.slot = row_index(summary_data.transaction_count);
                   col = col_index(summary_data.transaction_count);
@@ -980,8 +998,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u8 col = 0;
                 // store latency data in the proper hashmap
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                  u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                  if (slot < LATENCY_SAMPLES) {
+                    connection_key.slot = row_index(slot);
+                    col = col_index(slot);
+                  }
                 } else {
                   connection_key.slot = row_index(summary_data.transaction_count);
                   col = col_index(summary_data.transaction_count);
@@ -1010,8 +1031,11 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
                 u8 col = 0;
                 // store latency data in the proper hashmap
                 if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                  connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                  col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                  u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                  if (slot < LATENCY_SAMPLES) {
+                    connection_key.slot = row_index(slot);
+                    col = col_index(slot);
+                  }
                 } else {
                   connection_key.slot = row_index(summary_data.transaction_count);
                   col = col_index(summary_data.transaction_count);
@@ -1241,8 +1265,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               u8 col = 0;
               // store latency data in the proper hashmap
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                if (slot < LATENCY_SAMPLES) {
+                  http_key.slot = row_index(slot);
+                  col = col_index(slot);
+                }
               } else {
                 http_key.slot = row_index(summary_data.transaction_count);
                 col = col_index(summary_data.transaction_count);
@@ -1350,8 +1377,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               u8 col = 0;
               // store latency data in the proper hashmap
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                if (slot < LATENCY_SAMPLES) {
+                  connection_key.slot = row_index(slot);
+                  col = col_index(slot);
+                }
               } else {
                 connection_key.slot = row_index(summary_data.transaction_count);
                 col = col_index(summary_data.transaction_count);
@@ -1608,8 +1638,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               u8 col = 0;
               // store latency data in the proper hashmap
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                if (slot < LATENCY_SAMPLES) {
+                  http_key.slot = row_index(slot);
+                  col = col_index(slot);
+                }
               } else {
                 http_key.slot = row_index(summary_data.transaction_count);
                 col = col_index(summary_data.transaction_count);
@@ -1718,8 +1751,11 @@ int kprobe__tcp_sendmsg(struct pt_regs *ctx, struct sock *sk, struct msghdr *msg
               u8 col = 0;
               // store latency data in the proper hashmap
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                if (slot < LATENCY_SAMPLES) {
+                  connection_key.slot = row_index(slot);
+                  col = col_index(slot);
+                }
               } else {
                 connection_key.slot = row_index(summary_data.transaction_count);
                 col = col_index(summary_data.transaction_count);
@@ -1992,8 +2028,11 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               u8 col = 0;
               // store latency data in the proper hashmap
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                if (slot < LATENCY_SAMPLES) {
+                  http_key.slot = row_index(slot);
+                  col = col_index(slot);
+                }
               } else {
                 http_key.slot = row_index(summary_data.transaction_count);
                 col = col_index(summary_data.transaction_count);
@@ -2099,8 +2138,11 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               u8 col = 0;
               // store latency data in the proper hashmap
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                if (slot < LATENCY_SAMPLES) {
+                  connection_key.slot = row_index(slot);
+                  col = col_index(slot);
+                }
               } else {
                 connection_key.slot = row_index(summary_data.transaction_count);
                 col = col_index(summary_data.transaction_count);
@@ -2360,8 +2402,11 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               u8 col = 0;
               // store latency data in the proper hashmap
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                http_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                if (slot < LATENCY_SAMPLES) {
+                  http_key.slot = row_index(slot);
+                  col = col_index(slot);
+                }
               } else {
                 http_key.slot = row_index(summary_data.transaction_count);
                 col = col_index(summary_data.transaction_count);
@@ -2465,8 +2510,11 @@ int kprobe__tcp_cleanup_rbuf(struct pt_regs *ctx, struct sock *sk, int copied) {
               u8 col = 0;
               // store latency data in the proper hashmap
               if(summary_data.transaction_count > LATENCY_SAMPLES) {
-                connection_key.slot = bpf_get_prandom_u32() % BUCKET_COUNT;
-                col = bpf_get_prandom_u32() % LATENCY_BUCKET_SIZE;
+                u64 slot = bpf_get_prandom_u32() % summary_data.transaction_count;
+                if (slot < LATENCY_SAMPLES) {
+                  connection_key.slot = row_index(slot);
+                  col = col_index(slot);
+                }
               } else {
                 connection_key.slot = row_index(summary_data.transaction_count);
                 col = col_index(summary_data.transaction_count);

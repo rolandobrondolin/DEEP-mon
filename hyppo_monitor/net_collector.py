@@ -455,9 +455,9 @@ class NetCollector:
         # print(len(self.ipv6_summary))
         # print(len(self.ipv4_http_summary))
         # print(len(self.ipv6_http_summary))
-        print(len(self.ipv4_latency[old_selector]))
-        print(len(self.ipv4_http_latency[old_selector]) + len(self.ipv4_latency[old_selector]) + len(self.ipv6_http_latency[old_selector]) + len(self.ipv6_latency[old_selector]))
-        print(bucket_count)
+        # print(len(self.ipv4_latency[old_selector]))
+        # print(len(self.ipv4_http_latency[old_selector]) + len(self.ipv4_latency[old_selector]) + len(self.ipv6_http_latency[old_selector]) + len(self.ipv6_latency[old_selector]))
+        # print(bucket_count)
         try:
             # clear tables for next sample
             self.ipv4_summary[old_selector].clear()
