@@ -68,9 +68,13 @@ If kubernetes is not able to download the images:
 ```
 kubectl create secret -n "kube-system" docker-registry gitlab-registry --docker-server="https://registry.gitlab.com" --docker-username="GITLAB USERNAME HERE" --docker-password="GITLAB PASSWORD HERE" --docker-email="GITLAB EMAIL HERE" -o yaml --dry-run | sed 's/dockercfg/dockerconfigjson/g' | kubectl replace -n "kube-system" --force -f -
 ```
+
+If you are on k8s > 1.16 use this to create the secret
+```
+kubectl create secret docker-registry gitlab-registry -n kube-system --docker-server=https://registry.gitlab.com --docker-username="GITLAB USERNAME HERE" --docker-password="GITLAB PASSWORD HERE" --docker-email="GITLAB EMAIL HERE"
+```
 2. [Relaunch](#build-deep-mon-1) the monitor DaemonSet
 
 #### DEEP-mon is not able to extract information on Kubernetes
 To make data from Kubernates available inside the pod (Pod Name, Node, Namespace, etc.), it might be necessary to tweak RBAC rules:
 - `kubectl create clusterrolebinding --user system:serviceaccount:kube-system:default kube-system-cluster-admin --clusterrole cluster-admin`
-
