@@ -5,6 +5,7 @@ import snap_plugin.v1 as snap
 import time
 from net_collector import TransactionData
 from net_collector import TransactionType
+from net_collector import TransactionRole
 import numpy as np
 from ddsketch.ddsketch import DDSketch
 
@@ -38,16 +39,28 @@ class ContainerInfo:
         self.nat_rules = []
 
         self.tcp_transaction_count = 0
+        self.tcp_transaction_count_client = 0
+        self.tcp_transaction_count_server = 0
         self.tcp_byte_tx = 0
         self.tcp_byte_rx = 0
         self.tcp_avg_latency = 0
+        self.tcp_avg_latency_client = 0
+        self.tcp_avg_latency_server = 0
         self.tcp_percentiles = []
+        self.tcp_percentiles_client = []
+        self.tcp_percentiles_server = []
 
         self.http_transaction_count = 0
+        self.http_transaction_count_client = 0
+        self.http_transaction_count_server = 0
         self.http_byte_tx = 0
         self.http_byte_rx = 0
         self.http_avg_latency = 0
+        self.http_avg_latency_client = 0
+        self.http_avg_latency_server = 0
         self.http_percentiles = []
+        self.http_percentiles_client = []
+        self.http_percentiles_server = []
 
         self.pct = [50,75,90,99,99.9,99.99,99.999]
 
@@ -87,7 +100,12 @@ class ContainerInfo:
     def compute_aggregate_network_metrics(self):
         if self.network_transactions != []:
             http_transactions = DDSketch()
+            http_transactions_client = DDSketch()
+            http_transactions_server = DDSketch()
             tcp_transactions = DDSketch()
+            tcp_transactions_client = DDSketch()
+            tcp_transactions_server = DDSketch()
+
             for transaction in self.network_transactions:
                 if transaction.type == TransactionType.ipv4_http or transaction.type == TransactionType.ipv6_http:
                     self.http_transaction_count = self.http_transaction_count + transaction.get_transaction_count()
@@ -95,6 +113,16 @@ class ContainerInfo:
                     self.http_byte_tx = self.http_byte_tx + transaction.get_byte_tx()
                     self.http_avg_latency = self.http_avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
                     http_transactions.merge(transaction.get_samples())
+
+                    if transaction.role == TransactionRole.client:
+                        self.http_transaction_count_client = self.http_transaction_count_client + transaction.get_transaction_count()
+                        self.http_avg_latency_client = self.http_avg_latency_client + transaction.get_avg_latency() * transaction.get_transaction_count()
+                        http_transactions_client.merge(transaction.get_samples())
+                    else:
+                        self.http_transaction_count_server = self.http_transaction_count_server + transaction.get_transaction_count()
+                        self.http_avg_latency_server = self.http_avg_latency_server + transaction.get_avg_latency() * transaction.get_transaction_count()
+                        http_transactions_server.merge(transaction.get_samples())
+
                 else:
                     self.tcp_transaction_count = self.tcp_transaction_count + transaction.get_transaction_count()
                     self.tcp_byte_rx = self.tcp_byte_rx + transaction.get_byte_rx()
@@ -102,12 +130,36 @@ class ContainerInfo:
                     self.tcp_avg_latency = self.tcp_avg_latency + transaction.get_avg_latency() * transaction.get_transaction_count()
                     tcp_transactions.merge(transaction.get_samples())
 
+                    if transaction.role == TransactionRole.client:
+                        self.tcp_transaction_count_client = self.tcp_transaction_count_client + transaction.get_transaction_count()
+                        self.tcp_avg_latency_client = self.tcp_avg_latency_client + transaction.get_avg_latency() * transaction.get_transaction_count()
+                        tcp_transactions_client.merge(transaction.get_samples())
+                    else:
+                        self.tcp_transaction_count_server = self.tcp_transaction_count_server + transaction.get_transaction_count()
+                        self.tcp_avg_latency_server = self.tcp_avg_latency_server + transaction.get_avg_latency() * transaction.get_transaction_count()
+                        tcp_transactions_server.merge(transaction.get_samples())
+
             if self.http_transaction_count > 0:
                 self.http_avg_latency = self.http_avg_latency / float(self.http_transaction_count)
                 self.http_percentiles = self.compute_container_percentiles(http_transactions)
+
+                if self.http_transaction_count_client > 0:
+                    self.http_avg_latency_client = self.http_avg_latency_client / float(self.http_transaction_count_client)
+                    self.http_percentiles_client = self.compute_container_percentiles(http_transactions_client)
+                if self.http_transaction_count_server > 0:
+                    self.http_avg_latency_server = self.http_avg_latency_server / float(self.http_transaction_count_server)
+                    self.http_percentiles_server = self.compute_container_percentiles(http_transactions_server)
+
             if self.tcp_transaction_count > 0:
                 self.tcp_avg_latency = self.tcp_avg_latency / float(self.tcp_transaction_count)
                 self.tcp_percentiles = self.compute_container_percentiles(tcp_transactions)
+
+                if self.tcp_transaction_count_client > 0:
+                    self.tcp_avg_latency_client = self.tcp_avg_latency_client / float(self.tcp_transaction_count_client)
+                    self.tcp_percentiles_client = self.compute_container_percentiles(tcp_transactions_client)
+                if self.tcp_transaction_count_server > 0:
+                    self.tcp_avg_latency_server = self.tcp_avg_latency_server / float(self.tcp_transaction_count_server)
+                    self.tcp_percentiles_server = self.compute_container_percentiles(tcp_transactions_server)
 
     def compute_container_percentiles(self, latency_sketch):
         out = []
@@ -263,6 +315,39 @@ class ContainerInfo:
                 "99.99p": {"value": self.tcp_percentiles[5], "strategy": "max", "type": "double"},
                 "99.999p": {"value": self.tcp_percentiles[6], "strategy": "max", "type": "double"}
             }
+
+            if self.tcp_transaction_count_client > 0:
+
+                client_tcp = {
+                    "t_count_client": {"value": self.tcp_transaction_count_client, "strategy": "sum", "type": "double"},
+                    "avg_lat_client": {"value": self.tcp_avg_latency_client, "strategy": "avg", "weight": "t_count", "type": "double"},
+                    "50p_client": {"value": self.tcp_percentiles_client[0], "strategy": "max", "type": "double"},
+                    "75p_client": {"value": self.tcp_percentiles_client[1], "strategy": "max", "type": "double"},
+                    "90p_client": {"value": self.tcp_percentiles_client[2], "strategy": "max", "type": "double"},
+                    "99p_client": {"value": self.tcp_percentiles_client[3], "strategy": "max", "type": "double"},
+                    "99.9p_client": {"value": self.tcp_percentiles_client[4], "strategy": "max", "type": "double"},
+                    "99.99p_client": {"value": self.tcp_percentiles_client[5], "strategy": "max", "type": "double"},
+                    "99.999p_client": {"value": self.tcp_percentiles_client[6], "strategy": "max", "type": "double"}
+                }
+
+                net_summary["tcp"].update(client_tcp)
+
+            if self.tcp_transaction_count_server > 0:
+
+                server_tcp = {
+                    "t_count_server": {"value": self.tcp_transaction_count_server, "strategy": "sum", "type": "double"},
+                    "avg_lat_server": {"value": self.tcp_avg_latency_server, "strategy": "avg", "weight": "t_count", "type": "double"},
+                    "50p_server": {"value": self.tcp_percentiles_server[0], "strategy": "max", "type": "double"},
+                    "75p_server": {"value": self.tcp_percentiles_server[1], "strategy": "max", "type": "double"},
+                    "90p_server": {"value": self.tcp_percentiles_server[2], "strategy": "max", "type": "double"},
+                    "99p_server": {"value": self.tcp_percentiles_server[3], "strategy": "max", "type": "double"},
+                    "99.9p_server": {"value": self.tcp_percentiles_server[4], "strategy": "max", "type": "double"},
+                    "99.99p_server": {"value": self.tcp_percentiles_server[5], "strategy": "max", "type": "double"},
+                    "99.999p_server": {"value": self.tcp_percentiles_server[6], "strategy": "max", "type": "double"}
+                }
+
+                net_summary["tcp"].update(server_tcp)
+
         if self.http_transaction_count > 0:
             net_summary["http"] = {
                 "t_count": {"value": self.http_transaction_count, "strategy": "sum", "type": "double"},
@@ -277,6 +362,37 @@ class ContainerInfo:
                 "99.99p": {"value": self.http_percentiles[5], "strategy": "max", "type": "double"},
                 "99.999p": {"value": self.http_percentiles[6], "strategy": "max", "type": "double"}
             }
+
+            if self.http_transaction_count_client > 0:
+
+                client_http = {
+                    "t_count_client": {"value": self.http_transaction_count_client, "strategy": "sum", "type": "double"},
+                    "avg_lat_client": {"value": self.http_avg_latency_client, "strategy": "avg", "weight": "t_count", "type": "double"},
+                    "50p_client": {"value": self.http_percentiles_client[0], "strategy": "max", "type": "double"},
+                    "75p_client": {"value": self.http_percentiles_client[1], "strategy": "max", "type": "double"},
+                    "90p_client": {"value": self.http_percentiles_client[2], "strategy": "max", "type": "double"},
+                    "99p_client": {"value": self.http_percentiles_client[3], "strategy": "max", "type": "double"},
+                    "99.9p_client": {"value": self.http_percentiles_client[4], "strategy": "max", "type": "double"},
+                    "99.99p_client": {"value": self.http_percentiles_client[5], "strategy": "max", "type": "double"},
+                    "99.999p_client": {"value": self.http_percentiles_client[6], "strategy": "max", "type": "double"}
+                }
+                net_summary["http"].update(client_http)
+
+            if self.http_transaction_count_server > 0:
+
+                server_http = {
+                    "t_count_server": {"value": self.http_transaction_count_server, "strategy": "sum", "type": "double"},
+                    "avg_lat_server": {"value": self.http_avg_latency_server, "strategy": "avg", "weight": "t_count", "type": "double"},
+                    "50p_server": {"value": self.http_percentiles_server[0], "strategy": "max", "type": "double"},
+                    "75p_server": {"value": self.http_percentiles_server[1], "strategy": "max", "type": "double"},
+                    "90p_server": {"value": self.http_percentiles_server[2], "strategy": "max", "type": "double"},
+                    "99p_server": {"value": self.http_percentiles_server[3], "strategy": "max", "type": "double"},
+                    "99.9p_server": {"value": self.http_percentiles_server[4], "strategy": "max", "type": "double"},
+                    "99.99p_server": {"value": self.http_percentiles_server[5], "strategy": "max", "type": "double"},
+                    "99.999p_server": {"value": self.http_percentiles_server[6], "strategy": "max", "type": "double"}
+                }
+
+                net_summary["http"].update(server_http)
 
         metric = snap.Metric(
             namespace=snap_namespace,
