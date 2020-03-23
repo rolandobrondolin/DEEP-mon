@@ -27,8 +27,8 @@ RUN cd sketches-py && python setup.py install
 
 WORKDIR /home
 
-RUN curl -sL https://github.com/grafana/snap-plugin-collector-kubestate/releases/download/1/snap-plugin-collector-kubestate_linux_x86_64 \
-    -o /opt/snap/plugins/snap-plugin-collector-kubestate_linux_x86_64
+#RUN curl -sL https://github.com/grafana/snap-plugin-collector-kubestate/releases/download/1/snap-plugin-collector-kubestate_linux_x86_64 \
+#    -o /opt/snap/plugins/snap-plugin-collector-kubestate_linux_x86_64
 
 ADD hyppo_monitor /home/hyppo_monitor
 ADD snap /home/snap
@@ -46,7 +46,7 @@ RUN cp snap/plugins/snap_plugin_collector_container_namer/snap_plugin_collector_
 RUN cp snap/plugins/snap_plugin_publisher_kubernetes/snap_plugin_publisher_kubernetes.py /opt/snap/plugins
 
 RUN cp snap_task/distributed_w_http/hyppo-container-namer-http.json /opt/snap/tasks
-RUN cp snap_task/distributed_w_http/hyppo-kubestate-http.json /opt/snap/tasks
+#RUN cp snap_task/distributed_w_http/hyppo-kubestate-http.json /opt/snap/tasks
 RUN cp snap_task/distributed_w_http/hyppo-monitor-http.json /opt/snap/tasks
 
 RUN chmod 777 /opt/snap/plugins/*

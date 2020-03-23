@@ -89,11 +89,63 @@ class ContainerNamer(snap.Collector):
                                 ],
                                 version=1,
                                 tags={"mtype": "gauge"},
-                                description="Name of the container",
+                                description="Container ID",
                                 data=container_id,
                                 timestamp=ts
                             )
                             metrics_to_stream.append(metric)
+
+                            # get list of requests and limits
+                            try:
+                                for k,v in container.resources.requests.items():
+                                    if k == "cpu" or k == "memory":
+                                         metric = snap.Metric(
+                                             namespace=[
+                                                 snap.NamespaceElement(value="hyppo"),
+                                                 snap.NamespaceElement(value="hyppo-container-namer"),
+                                                 snap.NamespaceElement(value="container"),
+                                                 snap.NamespaceElement(value=pod.metadata.namespace),
+                                                 snap.NamespaceElement(value=pod.spec.node_name),
+                                                 snap.NamespaceElement(value=pod.metadata.name),
+                                                 snap.NamespaceElement(value=container.name),
+                                                 snap.NamespaceElement(value=k),
+                                                 snap.NamespaceElement(value="requests")
+                                             ],
+                                             version=1,
+                                             tags={"mtype": "gauge"},
+                                             description="Container request",
+                                             data=v,
+                                             timestamp=ts
+                                         )
+                                         metrics_to_stream.append(metric)
+                            except Exception:
+                                LOG.debug("Error collecting requests for " + str(container.name))
+
+                            try:
+                                for k,v in container.resources.limits.items():
+                                    if k == "cpu" or k == "memory":
+                                         metric = snap.Metric(
+                                             namespace=[
+                                                 snap.NamespaceElement(value="hyppo"),
+                                                 snap.NamespaceElement(value="hyppo-container-namer"),
+                                                 snap.NamespaceElement(value="container"),
+                                                 snap.NamespaceElement(value=pod.metadata.namespace),
+                                                 snap.NamespaceElement(value=pod.spec.node_name),
+                                                 snap.NamespaceElement(value=pod.metadata.name),
+                                                 snap.NamespaceElement(value=container.name),
+                                                 snap.NamespaceElement(value=k),
+                                                 snap.NamespaceElement(value="limits")
+                                             ],
+                                             version=1,
+                                             tags={"mtype": "gauge"},
+                                             description="Container limit",
+                                             data=v,
+                                             timestamp=ts
+                                         )
+                                         metrics_to_stream.append(metric)
+
+                            except Exception:
+                                LOG.debug("Error collecting limits for " + str(container.name))
 
                 except Exception:
                     LOG.error("Error collecting container names")
@@ -183,7 +235,7 @@ class ContainerNamer(snap.Collector):
                         ],
                         version=1,
                         tags={"mtype": "gauge"},
-                        description="pod ip address",
+                        description="host ip address",
                         data=address.address,
                         timestamp=ts
                     )
@@ -213,6 +265,42 @@ class ContainerNamer(snap.Collector):
             version=1,
             tags={"mtype": "gauge"},
             description="Container ID",
+        )
+        metrics.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-container-namer"),
+                snap.NamespaceElement(value="container"),
+                snap.NamespaceElement.dynamic_namespace_element(name="namespace", description="Kubernetes Namespace"),
+                snap.NamespaceElement.dynamic_namespace_element(name="node_name", description="Kubernetes Node Name"),
+                snap.NamespaceElement.dynamic_namespace_element(name="pod_name", description="Kubernetes Pod Name"),
+                snap.NamespaceElement.dynamic_namespace_element(name="container_id", description="Container id"),
+                snap.NamespaceElement.dynamic_namespace_element(name="resource", description="Resource"),
+                snap.NamespaceElement(value="requests"),
+                      ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="Container Request",
+        )
+        metrics.append(metric)
+
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-container-namer"),
+                snap.NamespaceElement(value="container"),
+                snap.NamespaceElement.dynamic_namespace_element(name="namespace", description="Kubernetes Namespace"),
+                snap.NamespaceElement.dynamic_namespace_element(name="node_name", description="Kubernetes Node Name"),
+                snap.NamespaceElement.dynamic_namespace_element(name="pod_name", description="Kubernetes Pod Name"),
+                snap.NamespaceElement.dynamic_namespace_element(name="container_id", description="Container name"),
+                snap.NamespaceElement.dynamic_namespace_element(name="resource", description="Resource"),
+                snap.NamespaceElement(value="limits"),
+                      ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="Container Limit",
         )
         metrics.append(metric)
 

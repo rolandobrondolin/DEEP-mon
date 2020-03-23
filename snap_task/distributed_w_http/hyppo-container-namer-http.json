@@ -9,6 +9,8 @@
     "collect": {
       "metrics": {
         "/hyppo/hyppo-container-namer/container-name/*/*/*/*/*/container_id": {},
+        "/hyppo/hyppo-container-namer/container/*/*/*/*/*/requests": {},
+        "/hyppo/hyppo-container-namer/container/*/*/*/*/*/limits": {},
         "/hyppo/hyppo-container-namer/pod-ip/*/*/*/*/ip": {},
         "/hyppo/hyppo-container-namer/service-ip/*/*/*/ip": {},
         "/hyppo/hyppo-container-namer/service-pod/*/*/*/*/pod": {},
