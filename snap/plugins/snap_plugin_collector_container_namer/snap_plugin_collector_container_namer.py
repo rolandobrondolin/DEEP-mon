@@ -98,51 +98,70 @@ class ContainerNamer(snap.Collector):
                             # get list of requests and limits
                             try:
                                 for k,v in container.resources.requests.items():
-                                    if k == "cpu" or k == "memory":
-                                         metric = snap.Metric(
-                                             namespace=[
-                                                 snap.NamespaceElement(value="hyppo"),
-                                                 snap.NamespaceElement(value="hyppo-container-namer"),
-                                                 snap.NamespaceElement(value="container"),
-                                                 snap.NamespaceElement(value=pod.metadata.namespace),
-                                                 snap.NamespaceElement(value=pod.spec.node_name),
-                                                 snap.NamespaceElement(value=pod.metadata.name),
-                                                 snap.NamespaceElement(value=container.name),
-                                                 snap.NamespaceElement(value=k),
-                                                 snap.NamespaceElement(value="requests")
-                                             ],
-                                             version=1,
-                                             tags={"mtype": "gauge"},
-                                             description="Container request",
-                                             data=v,
-                                             timestamp=ts
-                                         )
-                                         metrics_to_stream.append(metric)
+                                    if k == "cpu": # or k == "memory":
+
+                                        constraint = 0
+                                        if k == "cpu":
+                                            if "m" in v:
+                                                constraint = float(int(v[:-1]))
+                                            else:
+                                                constraint = float(int(v) * 1000)
+
+                                        metric = snap.Metric(
+                                            namespace=[
+                                                snap.NamespaceElement(value="hyppo"),
+                                                snap.NamespaceElement(value="hyppo-container-namer"),
+                                                snap.NamespaceElement(value="container"),
+                                                snap.NamespaceElement(value=pod.metadata.namespace),
+                                                snap.NamespaceElement(value=pod.spec.node_name),
+                                                snap.NamespaceElement(value=pod.metadata.name),
+                                                snap.NamespaceElement(value=container.name),
+                                                snap.NamespaceElement(value=k),
+                                                snap.NamespaceElement(value="requests")
+                                            ],
+                                            version=1,
+                                            tags={"mtype": "gauge"},
+                                            description="Container request",
+                                            data=constraint,
+                                            timestamp=ts
+                                        )
+                                        metrics_to_stream.append(metric)
+                                        # LOG.error("fajkrbvnbjkfbvkjeb fkajdsbvhf v jsBFNSKJBVJSKFAV " + container.name + " " + str(v) + " " + str(constraint))
+
                             except Exception:
                                 LOG.debug("Error collecting requests for " + str(container.name))
 
                             try:
                                 for k,v in container.resources.limits.items():
-                                    if k == "cpu" or k == "memory":
-                                         metric = snap.Metric(
-                                             namespace=[
-                                                 snap.NamespaceElement(value="hyppo"),
-                                                 snap.NamespaceElement(value="hyppo-container-namer"),
-                                                 snap.NamespaceElement(value="container"),
-                                                 snap.NamespaceElement(value=pod.metadata.namespace),
-                                                 snap.NamespaceElement(value=pod.spec.node_name),
-                                                 snap.NamespaceElement(value=pod.metadata.name),
-                                                 snap.NamespaceElement(value=container.name),
-                                                 snap.NamespaceElement(value=k),
-                                                 snap.NamespaceElement(value="limits")
-                                             ],
-                                             version=1,
-                                             tags={"mtype": "gauge"},
-                                             description="Container limit",
-                                             data=v,
-                                             timestamp=ts
-                                         )
-                                         metrics_to_stream.append(metric)
+                                    if k == "cpu": # or k == "memory":
+
+                                        constraint = 0
+                                        if k == "cpu":
+                                            if "m" in v:
+                                                constraint = float(int(v[:-1]))
+                                            else:
+                                                constraint = float(int(v) * 1000)
+
+                                        metric = snap.Metric(
+                                            namespace=[
+                                                snap.NamespaceElement(value="hyppo"),
+                                                snap.NamespaceElement(value="hyppo-container-namer"),
+                                                snap.NamespaceElement(value="container"),
+                                                snap.NamespaceElement(value=pod.metadata.namespace),
+                                                snap.NamespaceElement(value=pod.spec.node_name),
+                                                snap.NamespaceElement(value=pod.metadata.name),
+                                                snap.NamespaceElement(value=container.name),
+                                                snap.NamespaceElement(value=k),
+                                                snap.NamespaceElement(value="limits")
+                                            ],
+                                            version=1,
+                                            tags={"mtype": "gauge"},
+                                            description="Container limit",
+                                            data=constraint,
+                                            timestamp=ts
+                                        )
+                                        metrics_to_stream.append(metric)
+                                        # LOG.error("fajkrbvnbjkfbvkjeb fkajdsbvhf v jsBFNSKJBVJSKFAV " + container.name + " " + str(v) + " " + str(constraint))
 
                             except Exception:
                                 LOG.debug("Error collecting limits for " + str(container.name))
