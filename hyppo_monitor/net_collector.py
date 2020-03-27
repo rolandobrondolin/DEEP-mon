@@ -450,12 +450,16 @@ class NetCollector:
                     else:
                         pid_dict[int(value.pid)] = [data_item]
 
-        # print(len(self.ipv4_summary))
-        # # print(len(self.ebpf_tcp_monitor["ipv4_connections"]))
+        #print(len(self.ipv4_summary[old_selector]))
+        # print(len(self.ebpf_tcp_monitor["recv_cache"]))
+        # print(len(self.ebpf_tcp_monitor["ipv4_endpoints"]))
+        # print(len(self.ebpf_tcp_monitor["ipv4_connections"]))
+        #print(len(self.ebpf_tcp_monitor["ipv6_connections"]))
         # print(len(self.ipv6_summary))
         # print(len(self.ipv4_http_summary))
         # print(len(self.ipv6_http_summary))
         # print(len(self.ipv4_latency[old_selector]))
+        # print(len(self.ipv4_http_summary[old_selector]) + len(self.ipv4_summary[old_selector]) + len(self.ipv6_http_summary[old_selector]) + len(self.ipv6_summary[old_selector]))
         # print(len(self.ipv4_http_latency[old_selector]) + len(self.ipv4_latency[old_selector]) + len(self.ipv6_http_latency[old_selector]) + len(self.ipv6_latency[old_selector]))
         # print(bucket_count)
         try:

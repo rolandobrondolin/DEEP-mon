@@ -51,7 +51,7 @@ struct ipv6_endpoint_key_t {
 
 struct endpoint_data_t {
   int16_t status; // -1 -> client, 0 -> unkknown, 1 -> server;
-  int open_transactions; // count how many transactions are in flight
+  int open_connections; // count how many connections are open on this endpoint
 };
 
 struct ipv4_key_t {
@@ -128,10 +128,10 @@ struct msg_t {
 #define BPF_SELECTOR_ONE 1
 BPF_ARRAY(conf, u32, 2);
 
-BPF_HASH(ipv4_endpoints, struct ipv4_endpoint_key_t, struct endpoint_data_t);
-BPF_HASH(ipv6_endpoints, struct ipv6_endpoint_key_t, struct endpoint_data_t);
-BPF_HASH(ipv4_connections, struct ipv4_key_t, struct connection_data_t);
-BPF_HASH(ipv6_connections, struct ipv6_key_t, struct connection_data_t);
+BPF_HASH(ipv4_endpoints, struct ipv4_endpoint_key_t, struct endpoint_data_t, 100000);
+BPF_HASH(ipv6_endpoints, struct ipv6_endpoint_key_t, struct endpoint_data_t, 100000);
+BPF_HASH(ipv4_connections, struct ipv4_key_t, struct connection_data_t, 100000);
+BPF_HASH(ipv6_connections, struct ipv6_key_t, struct connection_data_t, 100000);
 
 // selector 0
 BPF_HASH(ipv4_summary, struct ipv4_key_t, struct summary_data_t);
@@ -246,7 +246,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 
     if(state == TCP_SYN_SENT) {
 
-      struct endpoint_data_t endpoint_value = {.status = STATUS_CLIENT, .open_transactions = 0};
+      struct endpoint_data_t endpoint_value = {.status = STATUS_CLIENT, .open_connections = 0};
       // I am a client trying to establish a connection
       set_state_cache.update(&sk, &endpoint_value);
     }
@@ -260,14 +260,17 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
       if(ret == 0) {
         // I was a client
         set_state_cache.delete(&sk);
+        endpoint_value.open_connections = 1;
       } else {
         // I was a server
         ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), ipv4_endpoints.lookup(&endpoint_key));
         if(ret != 0) {
           // I was a server never seen before
           endpoint_value.status = STATUS_SERVER;
-          endpoint_value.open_transactions = 0;
+          endpoint_value.open_connections = 1;
           ret = 0;
+        } else {
+          endpoint_value.open_connections += 1;
         }
       }
 
@@ -294,7 +297,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
     }
 
 
-    if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
+    if(state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
       // delete pending stuff on connection setup if still there
       set_state_cache.delete(&sk);
 
@@ -498,6 +501,18 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               endpoint_key.addr = connection_key.saddr;
               endpoint_key.port = connection_key.lport;
 #endif //BYPASS
+
+              // reset connection data so thatn it is not spourious in case of time_wait socket recycling
+              connection_data->byte_rx = 0;
+              connection_data->byte_tx = 0;
+              connection_data->first_ts_in = 0;
+              connection_data->last_ts_in = 0;
+              connection_data->first_ts_out = 0;
+              connection_data->last_ts_out = 0;
+              connection_data->dyn_port_masking_count = 0;
+              connection_data->transaction_flow = T_UNKNOWN;
+              connection_data->transaction_state = T_STATUS_OFF;
+
             } else {
 
               // choose the bpf table depending on the current selector
@@ -684,25 +699,57 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               connection_key.saddr = saddr;
               connection_key.daddr = daddr;
 #endif //BYPASS
+
+              // reset connection data so thatn it is not spourious in case of time_wait socket recycling
+              connection_data->byte_rx = 0;
+              connection_data->byte_tx = 0;
+              connection_data->first_ts_in = 0;
+              connection_data->last_ts_in = 0;
+              connection_data->first_ts_out = 0;
+              connection_data->last_ts_out = 0;
+              connection_data->dyn_port_masking_count = 0;
+              connection_data->transaction_flow = T_UNKNOWN;
+              connection_data->transaction_state = T_STATUS_OFF;
+
             }
           }
 //          endpoint_data->open_transactions = endpoint_data->open_transactions - 1;
-#ifdef KILL_CONNECTION_DATA
-            ipv4_endpoints.delete(&endpoint_key);
-#endif
         }
-#ifdef KILL_CONNECTION_DATA
-        ipv4_connections.delete(&connection_key);
-#endif
       }
+    }
 
+    if(state == TCP_CLOSE) {
+      //ok, here the connection is definitively closed, we can delete
+#ifdef KILL_CONNECTION_DATA
+      // delete pending stuff on connection setup if still there
+      set_state_cache.delete(&sk);
+      // socket closed, clean things
+      struct ipv4_key_t connection_key = {.saddr = saddr, .lport = lport, .daddr = daddr, .dport = dport};
+      struct connection_data_t * connection_data = ipv4_connections.lookup(&connection_key);
+      //update the last pending transaction before leaving
+
+      if(connection_data != NULL) {
+        struct ipv4_endpoint_key_t endpoint_key = {.addr = saddr, .port = lport};
+        struct endpoint_data_t * endpoint_data = ipv4_endpoints.lookup(&endpoint_key);
+
+        if(endpoint_data != NULL) {
+          // kill client endpoints and server endpoints that do not have other open connections
+          if(endpoint_data != NULL && endpoint_data->status == STATUS_SERVER && endpoint_data->open_connections > 1) {
+            endpoint_data->open_connections -= 1;
+          } else {
+            ipv4_endpoints.delete(&endpoint_key);
+          }
+        }
+        ipv4_connections.delete(&connection_key);
+      }
+#endif
     }
 
   } else if (family == AF_INET6) {
 
     if(state == TCP_SYN_SENT) {
 
-      struct endpoint_data_t endpoint_value = {.status = STATUS_CLIENT, .open_transactions = 0};
+      struct endpoint_data_t endpoint_value = {.status = STATUS_CLIENT, .open_connections = 0};
       // I am a client trying to establish a connection
       set_state_cache.update(&sk, &endpoint_value);
     }
@@ -718,14 +765,17 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
       if(ret == 0) {
         // I was a client
         set_state_cache.delete(&sk);
+        endpoint_value.open_connections = 1;
       } else {
         // I was a server
         ret = bpf_probe_read(&endpoint_value, sizeof(endpoint_value), ipv6_endpoints.lookup(&endpoint_key));
         if(ret != 0) {
           // I was a server never seen before
           endpoint_value.status = STATUS_SERVER;
-          endpoint_value.open_transactions = 0;
+          endpoint_value.open_connections = 1;
           ret = 0;
+        } else {
+          endpoint_value.open_connections += 1;
         }
       }
 
@@ -753,7 +803,7 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
 
     }
 
-    if(state == TCP_CLOSE || state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
+    if(state == TCP_FIN_WAIT1 || state == TCP_FIN_WAIT2 || state == TCP_CLOSING || state == TCP_TIME_WAIT || state == TCP_LAST_ACK || state == TCP_CLOSE_WAIT) {
       // delete pending stuff on connection setup if still there
       set_state_cache.delete(&sk);
 
@@ -963,6 +1013,17 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               endpoint_key.addr = connection_key.saddr;
               endpoint_key.port = connection_key.lport;
 #endif //BYPASS
+              // reset connection data so thatn it is not spourious in case of time_wait socket recycling
+              connection_data->byte_rx = 0;
+              connection_data->byte_tx = 0;
+              connection_data->first_ts_in = 0;
+              connection_data->last_ts_in = 0;
+              connection_data->first_ts_out = 0;
+              connection_data->last_ts_out = 0;
+              connection_data->dyn_port_masking_count = 0;
+              connection_data->transaction_flow = T_UNKNOWN;
+              connection_data->transaction_state = T_STATUS_OFF;
+
             } else {
 
               // choose the bpf table depending on the current selector
@@ -1145,17 +1206,53 @@ TRACEPOINT_PROBE(sock, inet_sock_set_state) {
               bpf_probe_read(&connection_key.saddr, sizeof(connection_key.saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
               bpf_probe_read(&connection_key.daddr, sizeof(connection_key.daddr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
 #endif //BYPASS
+
+              // reset connection data so thatn it is not spourious in case of time_wait socket recycling
+              connection_data->byte_rx = 0;
+              connection_data->byte_tx = 0;
+              connection_data->first_ts_in = 0;
+              connection_data->last_ts_in = 0;
+              connection_data->first_ts_out = 0;
+              connection_data->last_ts_out = 0;
+              connection_data->dyn_port_masking_count = 0;
+              connection_data->transaction_flow = T_UNKNOWN;
+              connection_data->transaction_state = T_STATUS_OFF;
+
             }
           }
 //          endpoint_data->open_transactions = endpoint_data->open_transactions - 1;
-#ifdef KILL_CONNECTION_DATA
-            ipv6_endpoints.delete(&endpoint_key);
-#endif
         }
-#ifdef KILL_CONNECTION_DATA
-        ipv6_connections.delete(&connection_key);
-#endif
       }
+    }
+
+    if(state == TCP_CLOSE) {
+      //ok, here the connection is definitively closed, we can delete
+#ifdef KILL_CONNECTION_DATA
+
+      // delete pending stuff on connection setup if still there
+      set_state_cache.delete(&sk);
+
+      // socket closed, clean things
+      struct ipv6_key_t connection_key = {.lport = lport, .dport = dport};
+      bpf_probe_read(&connection_key.saddr, sizeof(connection_key.saddr), sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr32);
+      bpf_probe_read(&connection_key.daddr, sizeof(connection_key.daddr), sk->__sk_common.skc_v6_daddr.in6_u.u6_addr32);
+
+      struct connection_data_t * connection_data = ipv6_connections.lookup(&connection_key);
+      //update the last pending transaction before leaving
+
+      if(connection_data != NULL) {
+        struct ipv6_endpoint_key_t endpoint_key = {.addr = connection_key.saddr, .port = lport};
+        struct endpoint_data_t * endpoint_data = ipv6_endpoints.lookup(&endpoint_key);
+
+        // kill client endpoints and server endpoints that do not have other open connections
+        if(endpoint_data != NULL && endpoint_data->status == STATUS_SERVER && endpoint_data->open_connections > 1) {
+          endpoint_data->open_connections -= 1;
+        } else {
+          ipv6_endpoints.delete(&endpoint_key);
+        }
+        ipv6_connections.delete(&connection_key);
+      }
+#endif
     }
   }
   return 0;
