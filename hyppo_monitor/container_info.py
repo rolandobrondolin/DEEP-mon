@@ -64,6 +64,10 @@ class ContainerInfo:
 
         self.pct = [50,75,90,99,99.9,99.99,99.999]
 
+        self.network_threads = 0
+        self.weighted_threads = 0
+        self.weighted_cpus = []
+
     def add_weighted_cycles(self, new_cycles):
         self.weighted_cycles = self.weighted_cycles + new_cycles
 
@@ -87,15 +91,36 @@ class ContainerInfo:
 
     def add_cpu_usage(self, cpu_usage):
         self.cpu_usage = self.cpu_usage + float(cpu_usage)
+        self.add_weighted_cpu_usage(cpu_usage)
 
     def add_pid(self, new_pid):
         self.pid_set.add(new_pid)
 
     def add_network_transactions(self, transaction_list):
         self.network_transactions.extend(transaction_list)
+        self.network_threads = self.network_threads + 1
 
     def add_nat_rules(self, nat_list):
         self.nat_rules.extend(nat_list)
+
+    def add_weighted_cpu_usage(self, cpu_usage):
+        self.weighted_cpus.append(cpu_usage)
+        max = 0
+        #compute max
+        for usage in self.weighted_cpus:
+            if max < usage:
+                max = usage
+
+        # how many max do we have here?
+        maxes = 0
+        bin = 0
+        for usage in self.weighted_cpus:
+            bin = bin + usage
+            if bin >= max:
+                maxes = maxes + 1
+                bin = bin - max
+
+        self.weighted_threads = maxes
 
     def compute_aggregate_network_metrics(self):
         if self.network_transactions != []:
@@ -287,7 +312,9 @@ class ContainerInfo:
             "power": {"value": self.power, "strategy": "sum", "type": "double"},
             "time_ns": {"value": self.time_ns, "strategy": "sum", "type": "int64"},
             "cpu": {"value": self.cpu_usage, "strategy": "sum", "type": "double"},
-            "thread_count": {"value": len(self.pid_set), "strategy": "sum", "type": "int64"}
+            "thread_count": {"value": len(self.pid_set), "strategy": "sum", "type": "int64"},
+            "network_threads": {"value": self.network_threads, "strategy": "sum", "type": "int64"},
+            "weighted_threads": {"value": self.weighted_threads, "strategy": "sum", "type": "int64"}
         }
         metric = snap.Metric(
             namespace=snap_namespace,
