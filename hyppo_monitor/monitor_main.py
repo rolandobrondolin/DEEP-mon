@@ -7,6 +7,8 @@ from proc_topology import ProcTopology
 from sample_controller import SampleController
 from process_table import ProcTable
 from net_collector import NetCollector
+from mem_collector import MemCollector
+from disk_collector import DiskCollector
 from rapl import rapl
 import os
 import socket
@@ -20,7 +22,7 @@ except ImportError:
 
 class MonitorMain():
 
-    def __init__(self, output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure):
+    def __init__(self, output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure, memory_measure, disk_measure):
         self.output_format = output_format
         self.window_mode = window_mode
         # TODO: Don't hardcode the frequency
