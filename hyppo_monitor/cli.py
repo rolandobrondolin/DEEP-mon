@@ -33,8 +33,10 @@ CONTEXT_SETTINGS = dict(
 @click.option('--print_net_details')
 @click.option('--dynamic_tcp_client_port_masking')
 @click.option('--power_measure')
-def deepmon(kube_config, window_mode, output_format, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure):
-    monitor = MonitorMain(output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure)
+@click.option('--memory_measure')
+@click.option('--disk_measure')
+def deepmon(kube_config, window_mode, output_format, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure, memory_measure, disk_measure):
+    monitor = MonitorMain(output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure, memory_measure, disk_measure)
     if output_format == 'snap':
         monitor.snap_monitor_loop()
     else:

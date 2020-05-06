@@ -38,6 +38,17 @@ class ContainerInfo:
         self.network_transactions = []
         self.nat_rules = []
 
+        #memory metrics
+        self.mem_RSS = 0
+        self.mem_PSS = 0
+        self.mem_USS = 0
+        #disk metrics
+        self.kb_r = 0
+        self.kb_w = 0
+        self.num_r = 0
+        self.num_w = 0
+        self.disk_avg_lat = 0
+
         self.tcp_transaction_count = 0
         self.tcp_transaction_count_client = 0
         self.tcp_transaction_count_server = 0
@@ -102,6 +113,30 @@ class ContainerInfo:
 
     def add_nat_rules(self, nat_list):
         self.nat_rules.extend(nat_list)
+
+    def set_mem_RSS(self, rss):
+        self.mem_RSS = rss
+    
+    def set_mem_PSS(self, pss):
+        self.mem_PSS = pss
+
+    def set_mem_USS(self, uss):
+        self.mem_USS = uss
+
+    def set_disk_kb_r(self, kb_r):
+        self.kb_r = kb_r
+
+    def set_disk_kb_w(self, kb_w):
+        self.kb_w = kb_w
+
+    def set_disk_num_r(self, num_r):
+        self.num_r = num_r
+
+    def set_disk_num_w(self, num_w):
+        self.num_w = num_w
+
+    def set_disk_avg_lat(self, avg_lat):
+        self.disk_avg_lat = avg_lat
 
     def add_weighted_cpu_usage(self, cpu_usage):
         self.weighted_cpus.append(cpu_usage)
@@ -228,6 +263,30 @@ class ContainerInfo:
 
     def get_network_transactions(self):
         return self.network_transactions
+
+    def get_mem_RSS(self):
+        return self.mem_RSS
+    
+    def get_mem_PSS(self):
+        return self.mem_PSS
+    
+    def get_mem_USS(self):
+        return self.mem_USS
+
+    def get_kb_r(self):
+        return self.kb_r
+    
+    def get_kb_w(self):
+        return self.kb_w
+    
+    def get_num_r(self):
+        return self.num_r
+    
+    def get_num_w(self):
+        return self.num_w
+    
+    def get_disk_avg_lat(self):
+        return self.disk_avg_lat
 
     def get_rewritten_network_transactions(self):
 
@@ -564,6 +623,35 @@ class ContainerInfo:
                 bcolors.GREEN + "TOTAL POWER (mW): " + bcolors.ENDC
                     + '{:.3f}'.format(self.power)
                 )
+
+        if self.mem_RSS > 0:
+            fmt = '{:<20} {:<23} {:<23} {:<23}'
+            output_line = output_line + "\n" + fmt.format(
+                    bcolors.GREEN + "\tMemory (kB): " + bcolors.ENDC,
+                    bcolors.BLUE + "RSS: " + bcolors.ENDC
+                        + str(self.mem_RSS),
+                    bcolors.BLUE + "PSS: " + bcolors.ENDC
+                        + str(self.mem_PSS),
+                    bcolors.BLUE + "USS: " + bcolors.ENDC
+                        + str(self.mem_USS)
+            )
+        
+        if (self.kb_r > 0 or self.kb_w > 0):
+            fmt = '{:<20} {:<23} {:<23} {:<23} {:<23} {:23}'
+            output_line = output_line + "\n" + fmt.format(
+                    bcolors.GREEN + "\tDisk Stats: " + bcolors.ENDC,
+                    bcolors.BLUE + "Kb R: " + bcolors.ENDC
+                        + str(self.kb_r),
+                    bcolors.BLUE + "Kb W: " + bcolors.ENDC
+                        + str(self.kb_w),
+                    bcolors.BLUE + "NUM R: " + bcolors.ENDC
+                        + str(self.num_r),
+                    bcolors.BLUE + "NUM W: " + bcolors.ENDC
+                        + str(self.num_w),
+                    bcolors.BLUE + "AVG LAT (ms): " + bcolors.ENDC
+                        + str(round(self.disk_avg_lat,3))
+            )  
+
         if self.http_transaction_count > 0:
             fmt = '{:<5} {:<32} {:<34} {:<34} {:<34}'
             output_line = output_line + "\n" + fmt.format(

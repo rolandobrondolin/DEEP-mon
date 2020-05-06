@@ -37,8 +37,21 @@ class MonitorMain():
         self.net_monitor = net_monitor
         self.dynamic_tcp_client_port_masking = dynamic_tcp_client_port_masking
         self.net_collector = None
+
+        self.mem_measure = memory_measure
+        self.mem_collector = None
+
+        self.disk_measure = disk_measure
+        self.disk_collector = None
+
         if self.net_monitor:
             self.net_collector = NetCollector(trace_nat = nat_trace, dynamic_tcp_client_port_masking=dynamic_tcp_client_port_masking)
+        
+        if self.mem_measure:
+            self.mem_collector = MemCollector()
+
+        if self.disk_measure:
+            self.disk_collector = DiskCollector()
 
 
     def _start_bpf_program(self, window_mode):
@@ -46,10 +59,14 @@ class MonitorMain():
             self.collector.start_capture(self.sample_controller.get_timeslice())
             if self.net_monitor:
                 self.net_collector.start_capture()
+            if self.disk_measure:
+                self.disk_collector.start_capture()
         elif window_mode == 'fixed':
             self.collector.start_timed_capture(frequency=self.frequency)
             if self.net_monitor:
                 self.net_collector.start_capture()
+            if self.disk_measure:
+                self.disk_collector.start_capture()
         else:
             print("Please provide a window mode")
 
@@ -64,6 +81,16 @@ class MonitorMain():
         self.process_table.reset_metrics_and_evict_stale_processes(sample.get_max_ts())
         # add stuff to cumulative process table
 
+        mem_dict = None
+        disk_dict = None
+
+        if self.net_monitor:
+            net_sample = self.net_collector.get_sample()
+        if self.mem_collector:
+            mem_dict = self.mem_collector.get_mem_dictionary()
+        if self.disk_collector:
+            disk_dict = self.disk_collector.get_sample()
+
         nat_data = []
         if self.net_monitor:
             net_sample = self.net_collector.get_sample()
@@ -74,7 +101,7 @@ class MonitorMain():
             self.process_table.add_process_from_sample(sample)
 
         # Now, extract containers!
-        container_list = self.process_table.get_container_dictionary()
+        container_list = self.process_table.get_container_dictionary(mem_dict, disk_dict)
 
         return [sample, container_list, self.process_table.get_proc_table(), nat_data]
 
@@ -185,5 +212,5 @@ class MonitorMain():
 
             # print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
 if __name__ == "__main__":
-    monitor = MonitorMain("console", "fixed", False, True, False, False, True, True)
+    monitor = MonitorMain("console", "fixed", False, True, False, False, True, True, False, False)
     monitor.monitor_loop()

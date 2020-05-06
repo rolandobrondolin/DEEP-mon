@@ -102,7 +102,7 @@ class ProcTable:
     def get_proc_table(self):
         return self.proc_table
 
-    def get_container_dictionary(self):
+    def get_container_dictionary(self, mem_dictionary = None, disk_dictionary = None):
         container_dict = {}
         # not_a_container = ContainerInfo("---others---")
         # idle = ContainerInfo("----idle----")
@@ -129,5 +129,22 @@ class ProcTable:
         # aggregate stuff at the container level
         for key, value in container_dict.items():
             value.compute_aggregate_network_metrics()
+        
+        if mem_dictionary:
+            for key,value in container_dict.items():
+                if key in mem_dictionary:
+                    value.set_mem_RSS(mem_dictionary[key]["RSS"])
+                    value.set_mem_PSS(mem_dictionary[key]["PSS"])
+                    value.set_mem_USS(mem_dictionary[key]["USS"])
+        
+        if disk_dictionary:
+            for key,value in container_dict.items():
+                if key in disk_dictionary:
+                    value.set_disk_kb_r(disk_dictionary[key]["kb_r"])
+                    value.set_disk_kb_w(disk_dictionary[key]["kb_w"])
+                    value.set_disk_num_r(disk_dictionary[key]["num_r"])
+                    value.set_disk_num_w(disk_dictionary[key]["num_w"])
+                    value.set_disk_avg_lat(disk_dictionary[key]["avg_lat"])
+
 
         return container_dict
