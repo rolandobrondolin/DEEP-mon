@@ -3,7 +3,11 @@ MAINTAINER Rolando Brondolin
 
 RUN apt-get clean
 RUN apt-get update
-RUN apt-get install -y python python-pip wget curl apt-transport-https git make golang-1.10
+RUN apt-get install -y python python-pip wget curl apt-transport-https git make
+
+RUN wget https://dl.google.com/go/go1.13.3.linux-amd64.tar.gz
+RUN tar -xvf go1.13.3.linux-amd64.tar.gz
+RUN mv go /usr/local
 
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D4284CDD
 RUN echo "deb https://repo.iovisor.org/apt/xenial xenial main" | tee /etc/apt/sources.list.d/iovisor.list
@@ -11,7 +15,7 @@ RUN apt-get update
 
 RUN apt-get install -y libelf1 bcc-tools libbcc-examples
 ENV GOPATH /go
-ENV PATH /go/bin:/usr/lib/go-1.10/bin:$PATH
+ENV PATH /go/bin:/usr/local/go/bin:$PATH
 
 RUN go get -d github.com/intelsdi-x/snap && cd $GOPATH/src/github.com/intelsdi-x/snap && make && make install
 RUN mkdir /opt/snap && mkdir /opt/snap/plugins && mkdir /opt/snap/tasks
