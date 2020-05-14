@@ -67,6 +67,7 @@ class MemCollector:
                                 pid_dict[pid]["USS"] += int(s[1][:-2])       
                 except IOError:
                     continue
+            #assign container ID from proc
             if (os.path.exists(os.path.join(self.proc_path,str(pid),"cgroup"))):
                 try:
                     with open(os.path.join(self.proc_path, str(pid), 'cgroup'), 'rb') as f:
@@ -75,9 +76,22 @@ class MemCollector:
                             if len(line_array) > 1 and \
                                 len(line_array[len(line_array) -1]) == 65:
                                 pid_dict[pid]["container_ID"] = line_array[len(line_array) -1][:-1]
-                                break
                 except IOError:
                     continue
-        return pid_dict
+                # systemd Docker
+                try:
+                    with open(os.path.join(self.proc_path, str(pid), 'cgroup'), 'rb') as f:
+                        for line in f:
+                            line_array = line.split("/")
+                            if len(line_array) > 1 \
+                                and "docker-" in line_array[len(line_array) -1] \
+                                and ".scope" in line_array[len(line_array) -1]:
 
-    
+                                new_id = line_array[len(line_array) -1].replace("docker-", "")
+                                new_id = new_id.replace(".scope", "")
+                                if len(new_id) == 65:
+                                    pid_dict[pid]["container_ID"] = new_id
+                except IOError:
+                    continue
+                
+        return pid_dict

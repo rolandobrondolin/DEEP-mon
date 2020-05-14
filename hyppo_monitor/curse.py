@@ -15,7 +15,6 @@ class Curse:
         curses.wrapper(self.main)
 
     def initialize_metrics(self, power, memory, disk):
-        #TODO add default page when all attributes are false. Refactor power metrics accordingly
         self.pages.append('default')
         if power:
             self.pages.append("power")
@@ -31,8 +30,8 @@ class Curse:
         title_win = curses.newwin(1,cx,0,0)
 
         title_str = "HYPPO Standalone Monitor"
-        title_win.bkgd(" ", curses.color_pair(1) | curses.A_REVERSE)
-        title_win.addstr(0,cx/2-len(title_str)/2, title_str,  curses.color_pair(1) | curses.A_REVERSE)
+        title_win.bkgd(" ", curses.color_pair(9))
+        title_win.addstr(0,cx/2-len(title_str)/2, title_str,  curses.color_pair(9))
         title_win.noutrefresh()
 
     def last_line(self, cx,cy):
@@ -76,20 +75,20 @@ class Curse:
         label_win.addstr(0,cx-10, "Page %d/%d" %(self.pages.index(self.displayed_metric)+1, len(self.pages)))
 
         if (self.displayed_metric == 'default'):
-            label_win.addstr(1,0, "%-12s %-12s %-12s" % (
+            label_win.addstr(1,0, "%12s %12s %12s" % (
             "CONTAINER_ID", "EXEC TIME(s)", "CPU USAGE"
             )) 
         elif (self.displayed_metric == 'power'):
-            label_win.addstr(1,0, "%-12s %-11s %-11s %-10s %-10s %-9s %-10s" % (
+            label_win.addstr(1,0, "%12s %11s %11s %10s %10s %9s %10s" % (
             "CONTAINER_ID", "CYCLES", "W_CYCLES", "INSTR_RET", "CACHE_MISS", "CACHE_REF", "TOT_POWER"
             )) 
         elif (self.displayed_metric == 'memory'):
-            label_win.addstr(1,0, "%-12s %-11s %-11s %-11s" % (
+            label_win.addstr(1,0, "%12s %11s %11s %11s" % (
             "CONTAINER_ID", "RSS (Kb)", "PSS (Kb)", "USS (Kb)"
             )) 
         elif (self.displayed_metric == 'disk'):
-            label_win.addstr(1,0, "%-12s %-11s %-11s %-11s %-11s %-11s" % (
-            "CONTAINER_ID", "Kb_R", "Kb_W", "Num_R", "Num_W", "Avg Lat (ms)"
+            label_win.addstr(1,0, "%12s %11s %11s %11s %11s %11s" % (
+            "CONTAINER_ID", "Kb_R", "Kb_W", "Num_R", "Num_W", "Avg_Lat(ms)"
             )) 
 
         label_win.noutrefresh()
@@ -107,13 +106,13 @@ class Curse:
             metrics_win.addstr(counter, 0, "%12s " %key, color)
 
             if self.displayed_metric == 'default':
-                metrics_win.addstr(counter, 13, str.ljust("%-12s %-12s " % (
+                metrics_win.addstr(counter, 13, str.ljust("%12s %12s " % (
                 '{:.5f}'.format(value.get_time_ns() / 1000000000.0),
                 '{:.2f}'.format(value.get_cpu_usage())
                 ),cx-13), color)
 
             elif self.displayed_metric == 'power':
-                metrics_win.addstr(counter, 13, str.ljust("%-11d %-11d %-10d %-10s %-9s %-8smW" % (
+                metrics_win.addstr(counter, 13, str.ljust("%11d %11d %10d %10s %9s %8smW" % (
                 value.get_cycles(), value.get_weighted_cycles(),
                 value.get_instruction_retired(),
                 value.get_cache_misses(), value.get_cache_refs(),
@@ -121,12 +120,12 @@ class Curse:
                 ),cx-13), color)
 
             elif self.displayed_metric == 'memory':
-                metrics_win.addstr(counter, 13, str.ljust("%-11s %-11s %-11s" % (
+                metrics_win.addstr(counter, 13, str.ljust("%11s %11s %11s" % (
                 str(value.get_mem_RSS()), str(value.get_mem_PSS()), str(value.get_mem_USS())
                 ),cx-13), color)
             
             elif self.displayed_metric == 'disk':
-                metrics_win.addstr(counter, 13, str.ljust("%-11s %-11s %-11s %-11s %-11s" % (
+                metrics_win.addstr(counter, 13, str.ljust("%11s %11s %11s %11s %11s" % (
                 str(value.get_kb_r()), str(value.get_kb_w()),
                 str(value.get_num_r()), str(value.get_num_w()),
                 '{:.3f}'.format(value.get_disk_avg_lat())
@@ -157,6 +156,7 @@ class Curse:
             curses.init_pair(6, curses.COLOR_YELLOW, bg_color)
             curses.init_pair(7, curses.COLOR_CYAN, bg_color)
             curses.init_pair(8, curses.COLOR_WHITE, bg_color)
+            curses.init_pair(9, curses.COLOR_WHITE, curses.COLOR_RED)
 
         previous_time = time.time()
         sample_array = self.monitor.get_sample()

@@ -565,9 +565,9 @@ class ContainerInfo:
 
     def _get_mem_summary(self, request_time, snap_namespace):
         mem_summary = {
-            "RSS": {"value": self.cycles, "strategy": "sum", "type": "int64"},
-            "PSS": {"value": self.weighted_cycles, "strategy": "sum", "type": "int64"},
-            "USS": {"value": self.instruction_retired, "strategy": "sum", "type": "int64"}
+            "RSS": {"value": self.mem_RSS, "strategy": "sum", "type": "int64"},
+            "PSS": {"value": self.mem_PSS, "strategy": "sum", "type": "int64"},
+            "USS": {"value": self.mem_USS, "strategy": "sum", "type": "int64"}
         }
 
         metric = snap.Metric(
@@ -579,7 +579,25 @@ class ContainerInfo:
         )
         return metric
 
-    def to_snap(self, request_time, user_id, hostname, send_net_data, send_mem_data=False):
+    def _get_disk_summary(self, request_time, snap_namespace):
+        mem_summary = {
+            "kb_r": {"value": self.kb_r, "strategy": "sum", "type": "int64"},
+            "kb_w": {"value": self.kb_w, "strategy": "sum", "type": "int64"},
+            "num_r": {"value": self.num_r, "strategy": "sum", "type": "int64"},
+            "num_w": {"value": self.num_w, "strategy": "sum", "type": "int64"},
+            "avg_lat": {"value": self.disk_avg_lat, "strategy": "avg", "type": "double"}
+        }
+
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="Memory summary",
+            data=json.dumps(mem_summary),
+            timestamp=request_time
+        )
+        return metric
+
+    def to_snap(self, request_time, user_id, hostname, send_net_data, send_mem_data=False, send_disk_data=False):
         metrics_to_be_returned = []
 
         namespace=[
@@ -628,6 +646,18 @@ class ContainerInfo:
                 snap.NamespaceElement(value="net_summary")
             ]
             metrics_to_be_returned.append(self._get_mem_summary(request_time, namespace))
+
+        if send_disk_data and (self.kb_r > 0 or self.kb_w > 0):
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="container"),
+                snap.NamespaceElement(value=str(self.container_id)),
+                snap.NamespaceElement(value="net_summary")
+            ]
+            metrics_to_be_returned.append(self._get_disk_summary(request_time, namespace))
 
         return metrics_to_be_returned
 

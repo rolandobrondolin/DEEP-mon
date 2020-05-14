@@ -1,9 +1,8 @@
 FROM ubuntu:16.04
-MAINTAINER Rolando Brondolin
+LABEL maintainer="Rolando Brondolin"
 
 RUN apt-get clean
-RUN apt-get update
-RUN apt-get install -y python python-pip wget curl apt-transport-https git make
+RUN apt-get update && apt-get install -y python python-pip wget curl apt-transport-https git make
 
 RUN wget https://dl.google.com/go/go1.13.3.linux-amd64.tar.gz
 RUN tar -xvf go1.13.3.linux-amd64.tar.gz

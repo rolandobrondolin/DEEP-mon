@@ -1,5 +1,5 @@
 FROM ubuntu:16.04
-MAINTAINER Tommaso Sardelli
+LABEL maintainer="Tommaso Sardelli"
 
 RUN apt-get clean
 RUN apt-get update

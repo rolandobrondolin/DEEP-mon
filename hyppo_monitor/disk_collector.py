@@ -173,6 +173,22 @@ class DiskCollector:
                                 break
                 except IOError:
                     continue
+                # systemd Docker
+                try:
+                    with open(os.path.join(self.proc_path, str(v.pid), 'cgroup'), 'rb') as f:
+                        for line in f:
+                            line_array = line.split("/")
+                            if len(line_array) > 1 \
+                                and "docker-" in line_array[len(line_array) -1] \
+                                and ".scope" in line_array[len(line_array) -1]:
+
+                                new_id = line_array[len(line_array) -1].replace("docker-", "")
+                                new_id = new_id.replace(".scope", "")
+                                if len(new_id) == 65:
+                                    d[key]["container_ID"] = new_id
+                                    break
+                except IOError:
+                    continue
 
         counts.clear()
         return self._aggregate_metrics_by_container(d)
