@@ -70,6 +70,16 @@ class BpfSample:
 
         return str_representation
 
+    def get_log_dict(self):
+        d = {}
+        d["PROC TIME"] = "{:.3f}".format(self.total_execution_time)
+        d["SCHED SWITCH COUNT"] = str(self.sched_switch_count)
+        d["TIMESLICE"] = str(self.timeslice / 1000000000)
+        d["TOTAL PACKAGE ACTIVE POWER"] = "{:.3f}".format(self.total_active_power["package"])
+        d["TOTAL CORE ACTIVE POWER"] = "{:.3f}".format(self.total_active_power["core"])
+        d["TOTAL DRAM ACTIVE POWER"] = "{:.3f}".format(self.total_active_power["dram"])
+        return d
+
     def get_log_line(self):
         str_representation = (
                 bcolors.YELLOW + "PROC TIME: " + bcolors.ENDC

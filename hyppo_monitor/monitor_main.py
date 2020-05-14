@@ -55,6 +55,11 @@ class MonitorMain():
         if self.disk_measure:
             self.disk_collector = DiskCollector()
 
+    def get_window_mode(self):
+        return self.window_mode
+
+    def get_sample_controller(self):
+        return self.sample_controller
 
     def _start_bpf_program(self, window_mode):
         if window_mode == 'dynamic':
@@ -128,7 +133,6 @@ class MonitorMain():
             if self.output_format == "json":
                 for key, value in container_list.iteritems():
                     print(value.to_json())
-                print
                 print(sample.get_log_json())
 
             elif self.output_format == "console":

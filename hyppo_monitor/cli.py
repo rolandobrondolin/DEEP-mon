@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import click
 import yaml
+from curse import Curse
 try:
     from yaml import CLoader as Loader
 except ImportError:
@@ -39,5 +40,9 @@ def deepmon(kube_config, window_mode, output_format, debug_mode, net_monitor, na
     monitor = MonitorMain(output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure, memory_measure, disk_measure)
     if output_format == 'snap':
         monitor.snap_monitor_loop()
+    # Comment out the following elif to go back to the previous console display mode
+    elif output_format == 'console':
+        curse = Curse(monitor, power_measure, memory_measure, disk_measure)
+        curse.start()
     else:
         monitor.monitor_loop()

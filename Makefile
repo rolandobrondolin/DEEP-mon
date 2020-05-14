@@ -14,7 +14,7 @@ run: ## Run the monitor container
 	sudo docker run -d --privileged --name hyppo_monitor -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro -v $$PWD/snap_task/distributed_w_http:/opt/snap/tasks:ro --net host hyppo_monitor
 
 run-standalone: ## Run the standalone image, without snap and backend integration
-	sudo docker run --rm --privileged --name hyppo_monitor_standalone -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:rw -v /proc:/host/proc:ro --net host hyppo_monitor_standalone
+	sudo docker run -it --rm --privileged --name hyppo_monitor_standalone -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:rw -v /proc:/host/proc:ro --net host hyppo_monitor_standalone
 
 run-prod: ## Run the monitor container
 	sudo docker run -d --privileged --name hyppo_monitor -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:ro -v /proc:/host/proc:ro --net host hyppo_monitor

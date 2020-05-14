@@ -334,7 +334,7 @@ class NetCollector:
             cflags.append("-DDYN_TCP_CLIENT_PORT_MASKING")
             cflags.append("-DDYN_TCP_CLIENT_PORT_MASKING_THRESHOLD=%d" % self.tcp_dyn_masking_threshold)
 
-        print(cflags)
+        # print(cflags)
 
         self.ebpf_tcp_monitor = BPF(src_file=bpf_code_path, cflags=cflags)
 

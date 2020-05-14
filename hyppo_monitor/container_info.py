@@ -254,6 +254,9 @@ class ContainerInfo:
 
     def get_power(self):
         return self.power
+        
+    def get_cpu_usage(self):
+        return self.cpu_usage
 
     def get_pid_set(self):
         return self.pid_set
