@@ -563,7 +563,23 @@ class ContainerInfo:
         )
         return metric
 
-    def to_snap(self, request_time, user_id, hostname, send_net_data):
+    def _get_mem_summary(self, request_time, snap_namespace):
+        mem_summary = {
+            "RSS": {"value": self.cycles, "strategy": "sum", "type": "int64"},
+            "PSS": {"value": self.weighted_cycles, "strategy": "sum", "type": "int64"},
+            "USS": {"value": self.instruction_retired, "strategy": "sum", "type": "int64"}
+        }
+
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="Memory summary",
+            data=json.dumps(mem_summary),
+            timestamp=request_time
+        )
+        return metric
+
+    def to_snap(self, request_time, user_id, hostname, send_net_data, send_mem_data=False):
         metrics_to_be_returned = []
 
         namespace=[
@@ -600,6 +616,18 @@ class ContainerInfo:
                 snap.NamespaceElement(value="net_detail")
             ]
             metrics_to_be_returned.append(self._get_net_detail(request_time, namespace))
+
+        if send_mem_data and self.mem_RSS > 0:
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement(value=user_id),
+                snap.NamespaceElement(value=hostname),
+                snap.NamespaceElement(value="container"),
+                snap.NamespaceElement(value=str(self.container_id)),
+                snap.NamespaceElement(value="net_summary")
+            ]
+            metrics_to_be_returned.append(self._get_mem_summary(request_time, namespace))
 
         return metrics_to_be_returned
 

@@ -108,7 +108,7 @@ class HyppoStreamCollector(snap.StreamCollector):
 
             #here wrap up things to match snap format
             for key, value in container_list.iteritems():
-                metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname, self.net_monitor))
+                metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname, self.net_monitor, self.memory_measure))
 
             #add threads from proc_table
             if self.send_thread_data == True:
