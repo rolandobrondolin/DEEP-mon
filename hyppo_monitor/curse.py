@@ -9,6 +9,8 @@ class Curse:
         self.pages = []
         self.displayed_metric = 'default'
         self.highlighted_line_index = 0
+        self.start_display_index = 0
+        self.end_display_index = 0
         self.initialize_metrics(power_measure, net_monitor, memory_measure, disk_measure)
 
     def start(self):
@@ -37,6 +39,8 @@ class Curse:
         title_str = "HYPPO Standalone Monitor"
         title_win.bkgd(" ", curses.color_pair(9))
         title_win.addstr(0,cx/2-len(title_str)/2, title_str,  curses.color_pair(9))
+
+        title_win.addstr(0,0, str(self.start_display_index)+" "+str(self.end_display_index),  curses.color_pair(9))
         title_win.noutrefresh()
 
     def last_line(self, cx,cy):
@@ -125,73 +129,74 @@ class Curse:
             else:
                 color = curses.color_pair(8)
 
-            metrics_win.addstr(counter, 0, "%12s " %key, color)
+            if (self.start_display_index <= counter < self.end_display_index):
+                metrics_win.addstr(counter-self.start_display_index, 0, "%12s " %key, color)
 
-            if self.displayed_metric == 'default':
-                metrics_win.addstr(counter, 13, str.ljust("%12s %12s " % (
-                '{:.5f}'.format(value.get_time_ns() / 1000000000.0),
-                '{:.2f}'.format(value.get_cpu_usage())
-                ),cx-13), color)
-
-            elif self.displayed_metric == 'power':
-                metrics_win.addstr(counter, 13, str.ljust("%11d %11d %10d %10s %9s %8smW" % (
-                value.get_cycles(), value.get_weighted_cycles(),
-                value.get_instruction_retired(),
-                value.get_cache_misses(), value.get_cache_refs(),
-                '{:.2f}'.format(value.get_power())
-                ),cx-13), color)
-
-            elif self.displayed_metric == 'memory':
-                metrics_win.addstr(counter, 13, str.ljust("%11s %11s %11s" % (
-                str(value.get_mem_RSS()), str(value.get_mem_PSS()), str(value.get_mem_USS())
-                ),cx-13), color)
-            
-            elif self.displayed_metric == 'disk':
-                metrics_win.addstr(counter, 13, str.ljust("%11s %11s %11s %11s %11s" % (
-                str(value.get_kb_r()), str(value.get_kb_w()),
-                str(value.get_num_r()), str(value.get_num_w()),
-                '{:.3f}'.format(value.get_disk_avg_lat())
-                ),cx-13), color)
-
-            elif self.displayed_metric == 'http':
-                metrics_win.addstr(counter, 13, str.ljust("%13s %14s %14s %13s" % (
-                str(value.get_http_transaction_count()), str(value.get_http_byte_tx()),
-                str(value.get_http_byte_rx()), '{:.2f}'.format(value.get_http_avg_latency()),
-                ),cx-13), color)
-
-            elif self.displayed_metric == 'tcp':
-                metrics_win.addstr(counter, 13, str.ljust("%13s %14s %14s %13s" % (
-                str(value.get_tcp_transaction_count()), str(value.get_tcp_byte_tx()),
-                str(value.get_tcp_byte_rx()), '{:.2f}'.format(value.get_tcp_avg_latency()),
-                ),cx-13), color)
-
-            elif self.displayed_metric == 'http percentiles':
-                pct_val = value.get_http_percentiles()[1]
-                if len(pct_val) == 7:
-                    metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
-                    '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
-                    '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
-                    '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
-                    '{:.1f}'.format(pct_val[6]) 
-                    ),cx-13), color)
-                else:
-                    metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
-                    '0', '0', '0', '0', '0', '0', '0'
+                if self.displayed_metric == 'default':
+                    metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%12s %12s " % (
+                    '{:.5f}'.format(value.get_time_ns() / 1000000000.0),
+                    '{:.2f}'.format(value.get_cpu_usage())
                     ),cx-13), color)
 
-            elif self.displayed_metric == 'tcp percentiles':
-                pct_val = value.get_tcp_percentiles()[1]
-                if len(pct_val) == 7:
-                    metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
-                    '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
-                    '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
-                    '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
-                    '{:.1f}'.format(pct_val[6]) 
+                elif self.displayed_metric == 'power':
+                    metrics_win.addstr(counter, 13, str.ljust("%11d %11d %10d %10s %9s %8smW" % (
+                    value.get_cycles(), value.get_weighted_cycles(),
+                    value.get_instruction_retired(),
+                    value.get_cache_misses(), value.get_cache_refs(),
+                    '{:.2f}'.format(value.get_power())
                     ),cx-13), color)
-                else:
-                    metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
-                    '0', '0', '0', '0', '0', '0', '0'
+
+                elif self.displayed_metric == 'memory':
+                    metrics_win.addstr(counter, 13, str.ljust("%11s %11s %11s" % (
+                    str(value.get_mem_RSS()), str(value.get_mem_PSS()), str(value.get_mem_USS())
                     ),cx-13), color)
+                
+                elif self.displayed_metric == 'disk':
+                    metrics_win.addstr(counter, 13, str.ljust("%11s %11s %11s %11s %11s" % (
+                    str(value.get_kb_r()), str(value.get_kb_w()),
+                    str(value.get_num_r()), str(value.get_num_w()),
+                    '{:.3f}'.format(value.get_disk_avg_lat())
+                    ),cx-13), color)
+
+                elif self.displayed_metric == 'http':
+                    metrics_win.addstr(counter, 13, str.ljust("%13s %14s %14s %13s" % (
+                    str(value.get_http_transaction_count()), str(value.get_http_byte_tx()),
+                    str(value.get_http_byte_rx()), '{:.2f}'.format(value.get_http_avg_latency()),
+                    ),cx-13), color)
+
+                elif self.displayed_metric == 'tcp':
+                    metrics_win.addstr(counter, 13, str.ljust("%13s %14s %14s %13s" % (
+                    str(value.get_tcp_transaction_count()), str(value.get_tcp_byte_tx()),
+                    str(value.get_tcp_byte_rx()), '{:.2f}'.format(value.get_tcp_avg_latency()),
+                    ),cx-13), color)
+
+                elif self.displayed_metric == 'http percentiles':
+                    pct_val = value.get_http_percentiles()[1]
+                    if len(pct_val) == 7:
+                        metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                        '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
+                        '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
+                        '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
+                        '{:.1f}'.format(pct_val[6]) 
+                        ),cx-13), color)
+                    else:
+                        metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                        '0', '0', '0', '0', '0', '0', '0'
+                        ),cx-13), color)
+
+                elif self.displayed_metric == 'tcp percentiles':
+                    pct_val = value.get_tcp_percentiles()[1]
+                    if len(pct_val) == 7:
+                        metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                        '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
+                        '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
+                        '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
+                        '{:.1f}'.format(pct_val[6]) 
+                        ),cx-13), color)
+                    else:
+                        metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                        '0', '0', '0', '0', '0', '0', '0'
+                        ),cx-13), color)
 
             counter += 1
 
@@ -205,7 +210,7 @@ class Curse:
             time_to_sleep = 1
 
         stdscr.nodelay(True)
-        stdscr.timeout(0)
+        stdscr.timeout(100)
         curses.curs_set(False)
 
         bg_color = curses.COLOR_BLACK
@@ -224,6 +229,13 @@ class Curse:
         sample_array = self.monitor.get_sample()
         sample = sample_array[0]
         container_list = sample_array[1]
+
+        yx = stdscr.getmaxyx()
+        cx = yx[1]
+        cy = yx[0]
+
+        self.start_display_index = 0
+        self.end_display_index = cy-7
 
         while True:
             start_time = time.time()
@@ -244,7 +256,8 @@ class Curse:
             cx = yx[1]
             cy = yx[0]
 
-            if (cx >= 80 and cy >= 5):
+
+            if (cx >= 80 and cy >= 10):
                 self.title_line(cx)
                 self.persistent_info(cx,cy, sample.get_log_dict())
                 self.metrics_window(cx,cy, container_list)
@@ -264,10 +277,25 @@ class Curse:
                 self.displayed_metric = self.pages[(self.pages.index(self.displayed_metric)-1) % len(self.pages)]
             elif ch == curses.KEY_RIGHT:
                 self.displayed_metric = self.pages[(self.pages.index(self.displayed_metric)+1) % len(self.pages)]
+
             elif ch == curses.KEY_UP:
-                self.highlighted_line_index = (self.highlighted_line_index-1)%len(container_list)
+                if (self.highlighted_line_index > 0):
+                    self.highlighted_line_index -= 1
+                if self.highlighted_line_index == 0 and self.start_display_index > 0:
+                    self.start_display_index -= 1
+                    self.end_display_index -= 1
             elif ch == curses.KEY_DOWN:
-                self.highlighted_line_index = (self.highlighted_line_index+1)%len(container_list)
+                if (self.highlighted_line_index < min(self.end_display_index, len(container_list)-1)):
+                    self.highlighted_line_index += 1
+                if self.highlighted_line_index >= (cy-7) and self.end_display_index < len(container_list):
+                    self.start_display_index += 1
+                    self.end_display_index += 1
+            elif ch == curses.KEY_RESIZE:
+                yx = stdscr.getmaxyx()
+                cy = yx[0]
+                self.highlighted_line_index = 0
+                self.start_display_index = 0
+                self.end_display_index = cy-7
 
             curses.doupdate()
         
