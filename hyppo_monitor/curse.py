@@ -40,7 +40,7 @@ class Curse:
         title_win.bkgd(" ", curses.color_pair(9))
         title_win.addstr(0,cx/2-len(title_str)/2, title_str,  curses.color_pair(9))
 
-        title_win.addstr(0,0, str(self.start_display_index)+" "+str(self.end_display_index),  curses.color_pair(9))
+        #title_win.addstr(0,0, str(self.start_display_index)+" "+str(self.end_display_index)+" "+str(self.highlighted_line_index),  curses.color_pair(9))
         title_win.noutrefresh()
 
     def last_line(self, cx,cy):
@@ -139,7 +139,7 @@ class Curse:
                     ),cx-13), color)
 
                 elif self.displayed_metric == 'power':
-                    metrics_win.addstr(counter, 13, str.ljust("%11d %11d %10d %10s %9s %8smW" % (
+                    metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%11d %11d %10d %10s %9s %8smW" % (
                     value.get_cycles(), value.get_weighted_cycles(),
                     value.get_instruction_retired(),
                     value.get_cache_misses(), value.get_cache_refs(),
@@ -147,25 +147,25 @@ class Curse:
                     ),cx-13), color)
 
                 elif self.displayed_metric == 'memory':
-                    metrics_win.addstr(counter, 13, str.ljust("%11s %11s %11s" % (
+                    metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%11s %11s %11s" % (
                     str(value.get_mem_RSS()), str(value.get_mem_PSS()), str(value.get_mem_USS())
                     ),cx-13), color)
                 
                 elif self.displayed_metric == 'disk':
-                    metrics_win.addstr(counter, 13, str.ljust("%11s %11s %11s %11s %11s" % (
+                    metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%11s %11s %11s %11s %11s" % (
                     str(value.get_kb_r()), str(value.get_kb_w()),
                     str(value.get_num_r()), str(value.get_num_w()),
                     '{:.3f}'.format(value.get_disk_avg_lat())
                     ),cx-13), color)
 
                 elif self.displayed_metric == 'http':
-                    metrics_win.addstr(counter, 13, str.ljust("%13s %14s %14s %13s" % (
+                    metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%13s %14s %14s %13s" % (
                     str(value.get_http_transaction_count()), str(value.get_http_byte_tx()),
                     str(value.get_http_byte_rx()), '{:.2f}'.format(value.get_http_avg_latency()),
                     ),cx-13), color)
 
                 elif self.displayed_metric == 'tcp':
-                    metrics_win.addstr(counter, 13, str.ljust("%13s %14s %14s %13s" % (
+                    metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%13s %14s %14s %13s" % (
                     str(value.get_tcp_transaction_count()), str(value.get_tcp_byte_tx()),
                     str(value.get_tcp_byte_rx()), '{:.2f}'.format(value.get_tcp_avg_latency()),
                     ),cx-13), color)
@@ -173,28 +173,28 @@ class Curse:
                 elif self.displayed_metric == 'http percentiles':
                     pct_val = value.get_http_percentiles()[1]
                     if len(pct_val) == 7:
-                        metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                        metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
                         '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
                         '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
                         '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
                         '{:.1f}'.format(pct_val[6]) 
                         ),cx-13), color)
                     else:
-                        metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                        metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
                         '0', '0', '0', '0', '0', '0', '0'
                         ),cx-13), color)
 
                 elif self.displayed_metric == 'tcp percentiles':
                     pct_val = value.get_tcp_percentiles()[1]
                     if len(pct_val) == 7:
-                        metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                        metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
                         '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
                         '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
                         '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
                         '{:.1f}'.format(pct_val[6]) 
                         ),cx-13), color)
                     else:
-                        metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                        metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
                         '0', '0', '0', '0', '0', '0', '0'
                         ),cx-13), color)
 
@@ -257,7 +257,7 @@ class Curse:
             cy = yx[0]
 
 
-            if (cx >= 80 and cy >= 10):
+            if (cx >= 80 and cy >= 7):
                 self.title_line(cx)
                 self.persistent_info(cx,cy, sample.get_log_dict())
                 self.metrics_window(cx,cy, container_list)
@@ -279,9 +279,9 @@ class Curse:
                 self.displayed_metric = self.pages[(self.pages.index(self.displayed_metric)+1) % len(self.pages)]
 
             elif ch == curses.KEY_UP:
-                if (self.highlighted_line_index > 0):
+                if self.highlighted_line_index >= self.start_display_index and self.highlighted_line_index > 0:
                     self.highlighted_line_index -= 1
-                if self.highlighted_line_index == 0 and self.start_display_index > 0:
+                if self.highlighted_line_index == self.start_display_index-1 and self.start_display_index > 0:
                     self.start_display_index -= 1
                     self.end_display_index -= 1
             elif ch == curses.KEY_DOWN:
