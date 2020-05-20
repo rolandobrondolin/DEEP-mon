@@ -1,5 +1,5 @@
 kube_config:                      "~/.kube/config"
-window_mode:                      "dynamic"
+window_mode:                      "fixed"
 output_format:                    "console"
 customer_id:                      "not_registered"
 debug_mode:                       False

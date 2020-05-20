@@ -42,7 +42,7 @@ def deepmon(kube_config, window_mode, output_format, debug_mode, net_monitor, na
         monitor.snap_monitor_loop()
     # Comment out the following elif to go back to the previous console display mode
     elif output_format == 'console':
-        curse = Curse(monitor, power_measure, memory_measure, disk_measure)
+        curse = Curse(monitor, power_measure, net_monitor, memory_measure, disk_measure)
         curse.start()
     else:
         monitor.monitor_loop()

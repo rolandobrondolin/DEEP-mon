@@ -3,18 +3,18 @@ import time
 import locale
 
 class Curse:
-    def __init__(self, monitor, power_measure, memory_measure, disk_measure):
+    def __init__(self, monitor, power_measure, net_monitor, memory_measure, disk_measure):
         locale.setlocale(locale.LC_ALL, '')
         self.monitor = monitor
         self.pages = []
         self.displayed_metric = 'default'
         self.highlighted_line_index = 0
-        self.initialize_metrics(power_measure, memory_measure, disk_measure)
+        self.initialize_metrics(power_measure, net_monitor, memory_measure, disk_measure)
 
     def start(self):
         curses.wrapper(self.main)
 
-    def initialize_metrics(self, power, memory, disk):
+    def initialize_metrics(self, power, net, memory, disk):
         self.pages.append('default')
         if power:
             self.pages.append("power")
@@ -22,6 +22,11 @@ class Curse:
             self.pages.append("memory")
         if disk:
             self.pages.append("disk")
+        if net:
+            self.pages.append("tcp")
+            self.pages.append("tcp percentiles")
+            self.pages.append("http")
+            self.pages.append("http percentiles")
 
     def set_sample(self, sample):
         self.sample = sample
@@ -88,8 +93,25 @@ class Curse:
             )) 
         elif (self.displayed_metric == 'disk'):
             label_win.addstr(1,0, "%12s %11s %11s %11s %11s %11s" % (
-            "CONTAINER_ID", "Kb_R", "Kb_W", "Num_R", "Num_W", "Avg_Lat(ms)"
+            "CONTAINER_ID", "Kb_R", "Kb_W", "NUM_R", "NUM_W", "AVG_LAT(ms)"
             )) 
+        elif (self.displayed_metric == 'tcp'):
+            label_win.addstr(1,0, "%12s %13s %14s %14s %13s" % (
+            "CONTAINER_ID", "TCP_T_COUNT", "TCP_BYTE_SENT", "TCP_BYTE_RECV", "AVG_LAT(ms)"
+            ))
+        elif (self.displayed_metric == 'http'):
+            label_win.addstr(1,0, "%12s %13s %14s %14s %13s" % (
+            "CONTAINER_ID", "HTTP_T_COUNT", "HTTP_BYTE_SENT", "HTTP_BYTE_RECV", "AVG_LAT(ms)"
+            ))
+        elif (self.displayed_metric == 'tcp percentiles'):
+            label_win.addstr(1,0, "%12s %8s %8s %8s %8s %8s %8s %8s" % (
+            "CONTAINER_ID", "50p", "75p", "90p", "99p", "99.9p", "99.99p", "99.999p"
+            ))
+        elif (self.displayed_metric == 'http percentiles'):
+            label_win.addstr(1,0, "%12s %8s %8s %8s %8s %8s %8s %8s" % (
+            "CONTAINER_ID", "50p", "75p", "90p", "99p", "99.9p", "99.99p", "99.999p"
+            ))
+
 
         label_win.noutrefresh()
 
@@ -130,6 +152,46 @@ class Curse:
                 str(value.get_num_r()), str(value.get_num_w()),
                 '{:.3f}'.format(value.get_disk_avg_lat())
                 ),cx-13), color)
+
+            elif self.displayed_metric == 'http':
+                metrics_win.addstr(counter, 13, str.ljust("%13s %14s %14s %13s" % (
+                str(value.get_http_transaction_count()), str(value.get_http_byte_tx()),
+                str(value.get_http_byte_rx()), '{:.2f}'.format(value.get_http_avg_latency()),
+                ),cx-13), color)
+
+            elif self.displayed_metric == 'tcp':
+                metrics_win.addstr(counter, 13, str.ljust("%13s %14s %14s %13s" % (
+                str(value.get_tcp_transaction_count()), str(value.get_tcp_byte_tx()),
+                str(value.get_tcp_byte_rx()), '{:.2f}'.format(value.get_tcp_avg_latency()),
+                ),cx-13), color)
+
+            elif self.displayed_metric == 'http percentiles':
+                pct_val = value.get_http_percentiles()[1]
+                if len(pct_val) == 7:
+                    metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                    '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
+                    '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
+                    '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
+                    '{:.1f}'.format(pct_val[6]) 
+                    ),cx-13), color)
+                else:
+                    metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                    '0', '0', '0', '0', '0', '0', '0'
+                    ),cx-13), color)
+
+            elif self.displayed_metric == 'tcp percentiles':
+                pct_val = value.get_tcp_percentiles()[1]
+                if len(pct_val) == 7:
+                    metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                    '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
+                    '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
+                    '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
+                    '{:.1f}'.format(pct_val[6]) 
+                    ),cx-13), color)
+                else:
+                    metrics_win.addstr(counter, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
+                    '0', '0', '0', '0', '0', '0', '0'
+                    ),cx-13), color)
 
             counter += 1
 
@@ -182,7 +244,7 @@ class Curse:
             cx = yx[1]
             cy = yx[0]
 
-            if (cx >= 80 and cy >= 20):
+            if (cx >= 80 and cy >= 5):
                 self.title_line(cx)
                 self.persistent_info(cx,cy, sample.get_log_dict())
                 self.metrics_window(cx,cy, container_list)

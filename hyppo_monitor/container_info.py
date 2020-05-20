@@ -291,6 +291,30 @@ class ContainerInfo:
     def get_disk_avg_lat(self):
         return self.disk_avg_lat
 
+    def get_http_transaction_count(self):
+        return self.http_transaction_count
+
+    def get_http_byte_tx(self):
+        return self.http_byte_tx
+
+    def get_http_byte_rx(self):
+        return self.http_byte_rx
+
+    def get_http_avg_latency(self):
+        return self.http_avg_latency
+
+    def get_tcp_transaction_count(self):
+        return self.tcp_transaction_count
+
+    def get_tcp_byte_tx(self):
+        return self.tcp_byte_tx
+
+    def get_tcp_byte_rx(self):
+        return self.tcp_byte_rx
+
+    def get_tcp_avg_latency(self):
+        return self.tcp_avg_latency
+
     def get_rewritten_network_transactions(self):
 
         for index in range(len(self.network_transactions)):
@@ -580,19 +604,19 @@ class ContainerInfo:
         return metric
 
     def _get_disk_summary(self, request_time, snap_namespace):
-        mem_summary = {
+        disk_summary = {
             "kb_r": {"value": self.kb_r, "strategy": "sum", "type": "int64"},
             "kb_w": {"value": self.kb_w, "strategy": "sum", "type": "int64"},
             "num_r": {"value": self.num_r, "strategy": "sum", "type": "int64"},
             "num_w": {"value": self.num_w, "strategy": "sum", "type": "int64"},
-            "avg_lat": {"value": self.disk_avg_lat, "strategy": "avg", "type": "double"}
+            "avg_lat": {"value": self.disk_avg_lat, "strategy": "avg", "weight": "num_r", "type": "double"}
         }
 
         metric = snap.Metric(
             namespace=snap_namespace,
             version=1,
-            description="Memory summary",
-            data=json.dumps(mem_summary),
+            description="Disk summary",
+            data=json.dumps(disk_summary),
             timestamp=request_time
         )
         return metric
@@ -643,7 +667,7 @@ class ContainerInfo:
                 snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="container"),
                 snap.NamespaceElement(value=str(self.container_id)),
-                snap.NamespaceElement(value="net_summary")
+                snap.NamespaceElement(value="mem_summary")
             ]
             metrics_to_be_returned.append(self._get_mem_summary(request_time, namespace))
 
@@ -655,7 +679,7 @@ class ContainerInfo:
                 snap.NamespaceElement(value=hostname),
                 snap.NamespaceElement(value="container"),
                 snap.NamespaceElement(value=str(self.container_id)),
-                snap.NamespaceElement(value="net_summary")
+                snap.NamespaceElement(value="disk_summary")
             ]
             metrics_to_be_returned.append(self._get_disk_summary(request_time, namespace))
 
