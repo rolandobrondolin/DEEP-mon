@@ -20,8 +20,8 @@ data:
     print_net_details: False
     dynamic_tcp_client_port_masking: True
     power_measure: True
-    memory_measure: False
-    disk_measure: False
+    memory_measure: True 
+    disk_measure: True 
 ---
 apiVersion: apps/v1
 kind: DaemonSet

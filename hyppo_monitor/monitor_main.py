@@ -40,7 +40,7 @@ class MonitorMain():
         self.dynamic_tcp_client_port_masking = dynamic_tcp_client_port_masking
         self.net_collector = None
 
-        self.mem_measure = memory_measure
+        self.mem_measure = True 
         self.mem_collector = None
 
         self.disk_measure = disk_measure
@@ -91,8 +91,6 @@ class MonitorMain():
         mem_dict = None
         disk_dict = None
 
-        if self.net_monitor:
-            net_sample = self.net_collector.get_sample()
         if self.mem_collector:
             mem_dict = self.mem_collector.get_mem_dictionary()
         if self.disk_collector:

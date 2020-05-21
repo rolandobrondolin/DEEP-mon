@@ -589,9 +589,9 @@ class ContainerInfo:
 
     def _get_mem_summary(self, request_time, snap_namespace):
         mem_summary = {
-            "RSS": {"value": self.mem_RSS, "strategy": "sum", "type": "int64"},
-            "PSS": {"value": self.mem_PSS, "strategy": "sum", "type": "int64"},
-            "USS": {"value": self.mem_USS, "strategy": "sum", "type": "int64"}
+            "memory_RSS": {"value": self.mem_RSS, "strategy": "sum", "type": "int64"},
+            "memory_PSS": {"value": self.mem_PSS, "strategy": "sum", "type": "int64"},
+            "memory_USS": {"value": self.mem_USS, "strategy": "sum", "type": "int64"}
         }
 
         metric = snap.Metric(
@@ -605,11 +605,12 @@ class ContainerInfo:
 
     def _get_disk_summary(self, request_time, snap_namespace):
         disk_summary = {
-            "kb_r": {"value": self.kb_r, "strategy": "sum", "type": "int64"},
-            "kb_w": {"value": self.kb_w, "strategy": "sum", "type": "int64"},
-            "num_r": {"value": self.num_r, "strategy": "sum", "type": "int64"},
-            "num_w": {"value": self.num_w, "strategy": "sum", "type": "int64"},
-            "avg_lat": {"value": self.disk_avg_lat, "strategy": "avg", "weight": "num_r", "type": "double"}
+            "disk_kb_r": {"value": self.kb_r, "strategy": "sum", "type": "int64"},
+            "disk_kb_w": {"value": self.kb_w, "strategy": "sum", "type": "int64"},
+            "disk_num_r": {"value": self.num_r, "strategy": "sum", "type": "int64"},
+            "disk_num_w": {"value": self.num_w, "strategy": "sum", "type": "int64"},
+            "disk_num_operations": {"value": (self.num_r+self.num_w), "strategy": "sum", "type": "int64"},
+            "disk_avg_lat": {"value": self.disk_avg_lat, "strategy": "avg", "weight": "disk_num_operations", "type": "double"}
         }
 
         metric = snap.Metric(
@@ -659,7 +660,7 @@ class ContainerInfo:
             ]
             metrics_to_be_returned.append(self._get_net_detail(request_time, namespace))
 
-        if send_mem_data and self.mem_RSS > 0:
+        if send_mem_data == True and self.mem_RSS > 0: 
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
