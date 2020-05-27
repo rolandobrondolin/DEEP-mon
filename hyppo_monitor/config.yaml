@@ -11,3 +11,4 @@ dynamic_tcp_client_port_masking:  True
 power_measure:                    True
 memory_measure:                   True
 disk_measure:                     True
+file_measure:                     True

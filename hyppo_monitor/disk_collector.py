@@ -135,10 +135,14 @@ int trace_write_return(struct pt_regs *ctx) {
 """
 
 class DiskCollector:
-    def __init__(self):
+    def __init__(self, monitor_disk, monitor_file):
+        self.monitor_file = monitor_file
+        self.monitor_disk = monitor_disk
         self.disk_sample = None
         self.disk_monitor = None
         self.proc_path = "/host/proc"
+        self.proc_files = [f for f in os.listdir(self.proc_path) if os.path.isfile(os.path.join(self.proc_path, f))]
+        self.number_files_to_keep = 17
 
     def start_capture(self):
         global prog
@@ -150,48 +154,81 @@ class DiskCollector:
         self.disk_monitor.attach_kprobe(event="vfs_write", fn_name="trace_rw_entry")
         self.disk_monitor.attach_kretprobe(event="vfs_write", fn_name="trace_write_return")
 
+    def _include_file_path(self, file_name, file_parent, file_parent2):
+        if (file_parent == "/"):
+            if (file_name in self.proc_files or file_name.isdigit()):
+                return False
+            return "/"+file_name
+        if (file_parent2 == "/"):
+            if (file_parent in self.proc_files or file_parent.isdigit()):
+                return False
+            return "/"+file_parent+"/"+file_name
+        if (file_parent2 in self.proc_files or file_parent2.isdigit()):
+            return False
+        return file_parent2+"/"+file_parent+"/"+file_name
+
     def get_sample(self):
-        counts = self.disk_monitor["counts_by_pid"]
-        d = {}
-        for k,v in counts.items():
-            key = int(v.pid)
-            d[key] = {}
-            d[key]["kb_r"] = int(v.bytes_r/1024)
-            d[key]["kb_w"] = int(v.bytes_w/1024)
-            d[key]["num_r"] = int(v.num_r)
-            d[key]["num_w"] = int(v.num_w)
-            d[key]["avg_lat"] = float(v.sum_ts_deltas) / 1000 / (v.num_r+v.num_w)
-            d[key]["container_ID"] = "---others---"
-            if (os.path.exists(os.path.join(self.proc_path,str(v.pid),"cgroup"))):
-                try:
-                    with open(os.path.join(self.proc_path, str(v.pid), 'cgroup'), 'rb') as f:
-                        for line in f:
-                            line_array = line.split("/")
-                            if len(line_array) > 1 and \
-                                len(line_array[len(line_array) -1]) == 65:
-                                d[key]["container_ID"] = line_array[len(line_array) -1][:-1]
-                                break
-                except IOError:
-                    continue
-                # systemd Docker
-                try:
-                    with open(os.path.join(self.proc_path, str(v.pid), 'cgroup'), 'rb') as f:
-                        for line in f:
-                            line_array = line.split("/")
-                            if len(line_array) > 1 \
-                                and "docker-" in line_array[len(line_array) -1] \
-                                and ".scope" in line_array[len(line_array) -1]:
-
-                                new_id = line_array[len(line_array) -1].replace("docker-", "")
-                                new_id = new_id.replace(".scope", "")
-                                if len(new_id) == 65:
-                                    d[key]["container_ID"] = new_id
+        disk_dict = {}
+        if (self.disk_monitor):
+            disk_counts = self.disk_monitor["counts_by_pid"]
+            for k,v in disk_counts.items():
+                key = int(v.pid)
+                disk_dict[key] = {}
+                disk_dict[key]["kb_r"] = int(v.bytes_r/1024)
+                disk_dict[key]["kb_w"] = int(v.bytes_w/1024)
+                disk_dict[key]["num_r"] = int(v.num_r)
+                disk_dict[key]["num_w"] = int(v.num_w)
+                disk_dict[key]["avg_lat"] = float(v.sum_ts_deltas) / 1000 / (v.num_r+v.num_w)
+                disk_dict[key]["container_ID"] = "---others---"
+                if (os.path.exists(os.path.join(self.proc_path,str(v.pid),"cgroup"))):
+                    try:
+                        with open(os.path.join(self.proc_path, str(v.pid), 'cgroup'), 'rb') as f:
+                            for line in f:
+                                line_array = line.split("/")
+                                if len(line_array) > 1 and \
+                                    len(line_array[len(line_array) -1]) == 65:
+                                    disk_dict[key]["container_ID"] = line_array[len(line_array) -1][:-1]
                                     break
-                except IOError:
-                    continue
+                    except IOError:
+                        continue
+                    # systemd Docker
+                    try:
+                        with open(os.path.join(self.proc_path, str(v.pid), 'cgroup'), 'rb') as f:
+                            for line in f:
+                                line_array = line.split("/")
+                                if len(line_array) > 1 \
+                                    and "docker-" in line_array[len(line_array) -1] \
+                                    and ".scope" in line_array[len(line_array) -1]:
 
-        counts.clear()
-        return self._aggregate_metrics_by_container(d)
+                                    new_id = line_array[len(line_array) -1].replace("docker-", "")
+                                    new_id = new_id.replace(".scope", "")
+                                    if len(new_id) == 65:
+                                        disk_dict[key]["container_ID"] = new_id
+                                        break
+                    except IOError:
+                        continue
+
+            disk_counts.clear()
+            disk_dict =  self._aggregate_metrics_by_container(disk_dict)
+        
+        file_dict = {}
+        if (self.monitor_file):
+            counter = 0
+            file_counts = self.disk_monitor.get_table("counts_by_file")
+            for k, v in reversed(sorted(file_counts.items(), key=lambda counts_f: (counts_f[1].bytes_r+counts_f[1].bytes_w))):
+                if (self._include_file_path(k.name, k.parent1, k.parent2) != False) and counter < self.number_files_to_keep:
+                    counter += 1
+                    key = self._include_file_path(k.name, k.parent1, k.parent2)
+                    file_dict[key] = {}
+                    file_dict[key]["kb_r"] = int(v.bytes_r/1024)
+                    file_dict[key]["kb_w"] = int(v.bytes_w/1024)
+                    file_dict[key]["num_r"] = int(v.num_r)
+                    file_dict[key]["num_w"] = int(v.num_w)
+            file_counts.clear()
+        aggregate_dict = {}
+        aggregate_dict['file_sample'] = file_dict
+        aggregate_dict['disk_sample'] = disk_dict
+        return aggregate_dict
 
     def _aggregate_metrics_by_container(self, disk_sample):
         container_dict = dict()

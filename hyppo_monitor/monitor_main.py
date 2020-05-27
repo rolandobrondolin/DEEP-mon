@@ -22,7 +22,7 @@ except ImportError:
 
 class MonitorMain():
 
-    def __init__(self, output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure, memory_measure, disk_measure):
+    def __init__(self, output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure, memory_measure, disk_measure, file_measure):
         self.output_format = output_format
         self.window_mode = window_mode
         # TODO: Don't hardcode the frequency
@@ -40,10 +40,11 @@ class MonitorMain():
         self.dynamic_tcp_client_port_masking = dynamic_tcp_client_port_masking
         self.net_collector = None
 
-        self.mem_measure = True 
+        self.mem_measure = memory_measure
         self.mem_collector = None
 
         self.disk_measure = disk_measure
+        self.file_measure = file_measure
         self.disk_collector = None
 
         if self.net_monitor:
@@ -52,8 +53,8 @@ class MonitorMain():
         if self.mem_measure:
             self.mem_collector = MemCollector()
 
-        if self.disk_measure:
-            self.disk_collector = DiskCollector()
+        if self.disk_measure or self.file_measure:
+            self.disk_collector = DiskCollector(disk_measure, file_measure)
 
     def get_window_mode(self):
         return self.window_mode
@@ -90,11 +91,16 @@ class MonitorMain():
 
         mem_dict = None
         disk_dict = None
+        file_dict = {}
 
         if self.mem_collector:
             mem_dict = self.mem_collector.get_mem_dictionary()
-        if self.disk_collector:
-            disk_dict = self.disk_collector.get_sample()
+        if self.disk_collector or self.file_measure:
+            aggregate_disk_sample = self.disk_collector.get_sample()
+            if self.disk_collector:
+                disk_dict = aggregate_disk_sample['disk_sample']
+            if self.file_measure:
+                file_dict = aggregate_disk_sample['file_sample']
 
         nat_data = []
         if self.net_monitor:
@@ -108,7 +114,7 @@ class MonitorMain():
         # Now, extract containers!
         container_list = self.process_table.get_container_dictionary(mem_dict, disk_dict)
 
-        return [sample, container_list, self.process_table.get_proc_table(), nat_data]
+        return [sample, container_list, self.process_table.get_proc_table(), nat_data, file_dict]
 
 
     def monitor_loop(self):
@@ -126,7 +132,6 @@ class MonitorMain():
             sample_array = self.get_sample()
             sample = sample_array[0]
             container_list = sample_array[1]
-
 
             if self.output_format == "json":
                 for key, value in container_list.iteritems():
@@ -216,5 +221,5 @@ class MonitorMain():
 
             # print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
 if __name__ == "__main__":
-    monitor = MonitorMain("console", "fixed", False, True, False, False, True, True, False, False)
+    monitor = MonitorMain("console", "fixed", False, True, False, False, True, True, False, False, False)
     monitor.monitor_loop()

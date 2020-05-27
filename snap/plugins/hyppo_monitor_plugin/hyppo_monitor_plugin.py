@@ -35,6 +35,7 @@ class HyppoStreamCollector(snap.StreamCollector):
         self.power_measure = False
         self.memory_measure = False
         self.disk_measure = False
+        self.file_measure = False
 
         try:
             with open('/hyppo-config/config.yaml', 'r') as config_file:
@@ -64,6 +65,7 @@ class HyppoStreamCollector(snap.StreamCollector):
             self.power_measure = self.config["power_measure"]
             self.memory_measure = self.config["memory_measure"]
             self.disk_measure = self.config["disk_measure"]
+            self.file_measure = self.config["file_measure"]
         except KeyError as e:
             self.output_format = "console"
             self.window_mode = "fixed"
@@ -77,8 +79,9 @@ class HyppoStreamCollector(snap.StreamCollector):
             self.power_measure = False
             self.memory_measure = False
             self.disk_measure = False
+            self.file_measure = False
 
-        self.hyppo_monitor = MonitorMain(self.output_format, self.window_mode, self.debug_mode, self.net_monitor, self.nat_trace, self.print_net_details, self.dynamic_tcp_client_port_masking, self.power_measure, self.memory_measure, self.disk_measure)
+        self.hyppo_monitor = MonitorMain(self.output_format, self.window_mode, self.debug_mode, self.net_monitor, self.nat_trace, self.print_net_details, self.dynamic_tcp_client_port_masking, self.power_measure, self.memory_measure, self.disk_measure, self.file_measure)
 
         if self.window_mode == "dynamic":
             self.time_to_sleep = self.hyppo_monitor.sample_controller.get_sleep_time()
