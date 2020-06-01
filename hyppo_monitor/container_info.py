@@ -672,7 +672,7 @@ class ContainerInfo:
             ]
             metrics_to_be_returned.append(self._get_mem_summary(request_time, namespace))
 
-        if send_disk_data and (self.kb_r > 0 or self.kb_w > 0):
+        if send_disk_data == True and (self.kb_r > 0 or self.kb_w > 0):
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),

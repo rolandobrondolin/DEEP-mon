@@ -171,7 +171,7 @@ class DiskCollector:
 
     def get_sample(self):
         disk_dict = {}
-        if (self.disk_monitor):
+        if (self.monitor_disk):
             disk_counts = self.disk_monitor["counts_by_pid"]
             for k,v in disk_counts.items():
                 key = int(v.pid)
@@ -210,8 +210,8 @@ class DiskCollector:
                     except IOError:
                         continue
 
-            disk_counts.clear()
             disk_dict =  self._aggregate_metrics_by_container(disk_dict)
+            disk_counts.clear()
         
         file_dict = {}
         if (self.monitor_file):

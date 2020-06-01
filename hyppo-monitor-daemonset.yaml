@@ -22,7 +22,7 @@ data:
     power_measure: True
     memory_measure: True 
     disk_measure: True 
-    file_measure: False
+    file_measure: True
 ---
 apiVersion: apps/v1
 kind: DaemonSet

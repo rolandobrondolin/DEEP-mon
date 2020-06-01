@@ -67,13 +67,13 @@ class MonitorMain():
             self.collector.start_capture(self.sample_controller.get_timeslice())
             if self.net_monitor:
                 self.net_collector.start_capture()
-            if self.disk_measure:
+            if (self.disk_measure or self.file_measure):
                 self.disk_collector.start_capture()
         elif window_mode == 'fixed':
             self.collector.start_timed_capture(frequency=self.frequency)
             if self.net_monitor:
                 self.net_collector.start_capture()
-            if self.disk_measure:
+            if (self.disk_measure or self.file_measure):
                 self.disk_collector.start_capture()
         else:
             print("Please provide a window mode")
@@ -95,7 +95,7 @@ class MonitorMain():
 
         if self.mem_collector:
             mem_dict = self.mem_collector.get_mem_dictionary()
-        if self.disk_collector or self.file_measure:
+        if self.disk_measure or self.file_measure:
             aggregate_disk_sample = self.disk_collector.get_sample()
             if self.disk_collector:
                 disk_dict = aggregate_disk_sample['disk_sample']
