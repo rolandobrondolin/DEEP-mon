@@ -119,6 +119,12 @@ class HyppoStreamCollector(snap.StreamCollector):
                 for key, value in proc_dict.iteritems():
                     metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname))
 
+            #add file metrics
+            if self.file_measure == True:
+                file_dict = sample_array[4]
+                for key, value in file_dict.iteritems():
+                    metrics_to_stream.extend(value.to_snap(start_time. self.customer_id, self.hostname))
+
             # put timestamp
             metric = snap.Metric(
                 namespace=[
@@ -203,6 +209,24 @@ class HyppoStreamCollector(snap.StreamCollector):
             description="perf_summary",
         )
         metrics.append(metric)
+
+        #file metrics
+        metric = snap.Metric(
+            namespace=[
+                snap.NamespaceElement(value="hyppo"),
+                snap.NamespaceElement(value="hyppo-monitor"),
+                snap.NamespaceElement.dynamic_namespace_element(name="user_id", description="user id"),
+                snap.NamespaceElement.dynamic_namespace_element(name="host_id", description="host id"),
+                snap.NamespaceElement(value="file"),
+                snap.NamespaceElement.dynamic_namespace_element(name="file_path", description="file path"),
+                snap.NamespaceElement(value="file_summary")
+            ],
+            version=1,
+            tags={"mtype": "gauge"},
+            description="file_summary",
+        )
+        metrics.append(metric)
+
         #container related metrics
         #skipping container id: for key in ("ID", "cycles", "instructions", "time_ns", "power", "cpu"):
         for key in ("perf_summary", "net_summary", "net_detail", "mem_summary", "disk_summary"):

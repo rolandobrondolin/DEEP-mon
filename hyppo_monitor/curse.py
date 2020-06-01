@@ -205,7 +205,7 @@ class Curse:
                             ),cx-13), color)
                 counter += 1
         else:
-            for key, value in reversed(sorted(file_dict.items(), key=lambda counts: counts[1]['kb_r']+counts[1]['kb_w'])):
+            for key, value in reversed(sorted(file_dict.items(), key=lambda counts: counts[1].get_kb_r()+counts[1].get_kb_w())):
                 if (counter == self.highlighted_line_index):
                     color = curses.color_pair(4)
                 else:
@@ -213,10 +213,10 @@ class Curse:
                 if (self.start_display_index <= counter < self.end_display_index):
                     str_key = key
                     if (len(key)>cx-50):
-                        str_key= ".."+key[-50:]
+                        str_key= ".."+key[-(cx-50):]
                     metrics_win.addstr(counter-self.start_display_index, 0, str.ljust("%11s %11s %11s %11s %s" % (
-                        str(file_dict[key]['kb_r']), str(file_dict[key]['kb_w']),
-                        str(file_dict[key]['num_r']), str(file_dict[key]['num_w']),
+                        str(file_dict[key].get_kb_r()), str(file_dict[key].get_kb_w()),
+                        str(file_dict[key].get_num_r()), str(file_dict[key].get_num_w()),
                         str_key),cx), color)
                 counter += 1
 
@@ -228,8 +228,6 @@ class Curse:
         self.highlighted_line_index = 0
         self.start_display_index = 0
         self.end_display_index = cy-7
-
-
 
     def main(self, stdscr):
         if self.monitor.get_window_mode() == 'dynamic':

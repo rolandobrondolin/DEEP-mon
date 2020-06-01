@@ -1,6 +1,8 @@
 from __future__ import print_function
 from bcc import BPF
 import os
+import snap_plugin.v1 as snap
+import json
 
 prog = """
 #include <uapi/linux/ptrace.h>
@@ -142,7 +144,7 @@ class DiskCollector:
         self.disk_monitor = None
         self.proc_path = "/host/proc"
         self.proc_files = [f for f in os.listdir(self.proc_path) if os.path.isfile(os.path.join(self.proc_path, f))]
-        self.number_files_to_keep = 17
+        self.number_files_to_keep = 10
 
     def start_capture(self):
         global prog
@@ -219,12 +221,15 @@ class DiskCollector:
                 if (self._include_file_path(k.name, k.parent1, k.parent2) != False) and counter < self.number_files_to_keep:
                     counter += 1
                     key = self._include_file_path(k.name, k.parent1, k.parent2)
-                    file_dict[key] = {}
-                    file_dict[key]["kb_r"] = int(v.bytes_r/1024)
-                    file_dict[key]["kb_w"] = int(v.bytes_w/1024)
-                    file_dict[key]["num_r"] = int(v.num_r)
-                    file_dict[key]["num_w"] = int(v.num_w)
+                    file_dict[key] = FileInfo()
+                    file_dict[key].set_file_path(key)
+                    file_dict[key].set_kb_r(int(v.bytes_r/1024))
+                    file_dict[key].set_kb_w(int(v.bytes_w/1024))
+                    file_dict[key].set_num_w(int(v.num_r))
+                    file_dict[key].set_num_r(int(v.num_w))
             file_counts.clear()
+
+
         aggregate_dict = {}
         aggregate_dict['file_sample'] = file_dict
         aggregate_dict['disk_sample'] = disk_dict
@@ -253,3 +258,75 @@ class DiskCollector:
         container_dict[shortened_ID]["avg_lat"] = disk_sample[pid]["avg_lat"] /  len(container_dict[shortened_ID]["pids"])
 
         return container_dict 
+
+
+
+class FileInfo:
+    def __init__(self):
+        self.file_path = ""
+        self.kb_r = 0
+        self.kb_w = 0
+        self.num_r = 0
+        self.num_w = 0
+
+    def get_file_path(self):
+        return self.file_path
+
+    def get_kb_r(self):
+        return self.kb_r
+
+    def get_kb_w(self):
+        return self.kb_w
+
+    def get_num_r(self):
+        return self.num_r
+
+    def get_num_w(self):
+        return self.num_w
+
+    def set_file_path(self, file_path):
+        self.file_path = file_path
+    
+    def set_kb_r(self, kbr):
+        self.kb_r = kbr
+
+    def set_kb_w(self, kbw):
+        self.kb_w = kbw
+
+    def set_num_r(self, numr):
+        self.num_r = numr
+
+    def set_num_w(self, numw):
+        self.num_w = numw
+
+    def _get_file_summary(self, request_time, snap_namespace):
+        file_summary = {
+            "file_kb_r": {"value": self.get_kb_r(), "strategy": "sum", "type": "int64"},
+            "file_kb_w": {"value": self.get_kb_w(), "strategy": "sum", "type": "int64"},
+            "file_num_r": {"value": self.get_num_r(), "strategy": "sum", "type": "int64"},
+            "file_num_w": {"value": self.get_num_w(), "strategy": "sum", "type": "int64"},
+        }
+        metric = snap.Metric(
+            namespace=snap_namespace,
+            version=1,
+            description="Performance summary",
+            data=json.dumps(file_summary),
+            timestamp=request_time
+        )
+        return metric
+
+    def to_snap(self, request_time, user_id, hostname):
+        metrics_to_be_returned = []
+
+        namespace=[
+            snap.NamespaceElement(value="hyppo"),
+            snap.NamespaceElement(value="hyppo-monitor"),
+            snap.NamespaceElement(value=user_id),
+            snap.NamespaceElement(value=hostname),
+            snap.NamespaceElement(value="file"),
+            snap.NamespaceElement(value=str(self.file_path)),
+            snap.NamespaceElement(value="file_summary")
+        ]
+        metrics_to_be_returned.append(self._get_file_summary(request_time, namespace))
+        return metrics_to_be_returned
+    
