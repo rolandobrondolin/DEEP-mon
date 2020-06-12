@@ -123,7 +123,7 @@ class HyppoStreamCollector(snap.StreamCollector):
             if self.file_measure == True:
                 file_dict = sample_array[4]
                 for key, value in file_dict.iteritems():
-                    metrics_to_stream.extend(value.to_snap(start_time. self.customer_id, self.hostname))
+                    metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname))
 
             # put timestamp
             metric = snap.Metric(

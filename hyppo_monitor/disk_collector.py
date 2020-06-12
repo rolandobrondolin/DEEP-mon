@@ -309,7 +309,7 @@ class FileInfo:
         metric = snap.Metric(
             namespace=snap_namespace,
             version=1,
-            description="Performance summary",
+            description="File summary",
             data=json.dumps(file_summary),
             timestamp=request_time
         )
