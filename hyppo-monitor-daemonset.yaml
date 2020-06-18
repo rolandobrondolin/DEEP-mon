@@ -11,8 +11,8 @@ data:
   config.yaml: |
     kube_config: "~/.kube/config"
     window_mode: "fixed"
-    output_format: "console"
-    customer_id: "test"
+    output_format: "snap"
+    customer_id: "nags23"
     debug_mode: False
     send_thread_data: False
     net_monitor:      True
@@ -22,7 +22,7 @@ data:
     power_measure: True
     memory_measure: True 
     disk_measure: True 
-    file_measure: False 
+    file_measure: True 
 ---
 apiVersion: apps/v1
 kind: DaemonSet

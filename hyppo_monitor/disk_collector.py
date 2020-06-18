@@ -219,14 +219,16 @@ class DiskCollector:
             file_counts = self.disk_monitor.get_table("counts_by_file")
             for k, v in reversed(sorted(file_counts.items(), key=lambda counts_f: (counts_f[1].bytes_r+counts_f[1].bytes_w))):
                 if (self._include_file_path(k.name, k.parent1, k.parent2) != False) and counter < self.number_files_to_keep:
-                    counter += 1
                     key = self._include_file_path(k.name, k.parent1, k.parent2)
                     file_dict[key] = FileInfo()
                     file_dict[key].set_file_path(key)
                     file_dict[key].set_kb_r(int(v.bytes_r/1024))
                     file_dict[key].set_kb_w(int(v.bytes_w/1024))
-                    file_dict[key].set_num_w(int(v.num_r))
-                    file_dict[key].set_num_r(int(v.num_w))
+                    file_dict[key].set_num_r(int(v.num_r))
+                    file_dict[key].set_num_w(int(v.num_w))
+	            file_dict[key].set_file_id(counter)
+	            counter+=1
+
             file_counts.clear()
 
 
@@ -268,6 +270,7 @@ class FileInfo:
         self.kb_w = 0
         self.num_r = 0
         self.num_w = 0
+        self.file_id = 0
 
     def get_file_path(self):
         return self.file_path
@@ -283,6 +286,12 @@ class FileInfo:
 
     def get_num_w(self):
         return self.num_w
+
+    def get_file_id(self):
+	return self.file_id
+
+    def set_file_id(self, file_id):
+	self.file_id = file_id
 
     def set_file_path(self, file_path):
         self.file_path = file_path
@@ -325,6 +334,7 @@ class FileInfo:
             snap.NamespaceElement(value=hostname),
             snap.NamespaceElement(value="file"),
             snap.NamespaceElement(value=str(self.file_path)),
+	    snap.NamespaceElement(value=str(self.file_id)),
             snap.NamespaceElement(value="file_summary")
         ]
         metrics_to_be_returned.append(self._get_file_summary(request_time, namespace))

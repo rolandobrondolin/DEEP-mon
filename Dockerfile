@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y python python-pip wget curl apt-transpo
 RUN wget https://dl.google.com/go/go1.13.3.linux-amd64.tar.gz
 RUN tar -xvf go1.13.3.linux-amd64.tar.gz
 RUN mv go /usr/local
-
+RUN pip install --upgrade pip
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D4284CDD
 RUN echo "deb https://repo.iovisor.org/apt/xenial xenial main" | tee /etc/apt/sources.list.d/iovisor.list
 RUN apt-get update
