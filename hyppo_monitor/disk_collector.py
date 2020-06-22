@@ -176,8 +176,8 @@ class DiskCollector:
             for k,v in disk_counts.items():
                 key = int(v.pid)
                 disk_dict[key] = {}
-                disk_dict[key]["kb_r"] = int(v.bytes_r/1024)
-                disk_dict[key]["kb_w"] = int(v.bytes_w/1024)
+                disk_dict[key]["kb_r"] = int(v.bytes_r/1000)
+                disk_dict[key]["kb_w"] = int(v.bytes_w/1000)
                 disk_dict[key]["num_r"] = int(v.num_r)
                 disk_dict[key]["num_w"] = int(v.num_w)
                 disk_dict[key]["avg_lat"] = float(v.sum_ts_deltas) / 1000 / (v.num_r+v.num_w)
@@ -222,12 +222,12 @@ class DiskCollector:
                     key = self._include_file_path(k.name, k.parent1, k.parent2)
                     file_dict[key] = FileInfo()
                     file_dict[key].set_file_path(key)
-                    file_dict[key].set_kb_r(int(v.bytes_r/1024))
-                    file_dict[key].set_kb_w(int(v.bytes_w/1024))
+                    file_dict[key].set_kb_r(int(v.bytes_r/1000))
+                    file_dict[key].set_kb_w(int(v.bytes_w/1000))
                     file_dict[key].set_num_r(int(v.num_r))
                     file_dict[key].set_num_w(int(v.num_w))
-	            file_dict[key].set_file_id(counter)
-	            counter+=1
+                file_dict[key].set_file_id(counter)
+                counter+=1
 
             file_counts.clear()
 
@@ -257,7 +257,8 @@ class DiskCollector:
             container_dict[shortened_ID]["num_w"] += disk_sample[pid]["num_w"]
             container_dict[shortened_ID]["avg_lat"] += disk_sample[pid]["avg_lat"]
             container_dict[shortened_ID]["pids"].append(pid)
-        container_dict[shortened_ID]["avg_lat"] = disk_sample[pid]["avg_lat"] /  len(container_dict[shortened_ID]["pids"])
+        for k,v in container_dict:
+            container_dict[k]["avg_lat"] = container_dict[k]["avg_lat"] /  len(container_dict[k]["pids"])
 
         return container_dict 
 
@@ -288,10 +289,10 @@ class FileInfo:
         return self.num_w
 
     def get_file_id(self):
-	return self.file_id
+        return self.file_id
 
     def set_file_id(self, file_id):
-	self.file_id = file_id
+        self.file_id = file_id
 
     def set_file_path(self, file_path):
         self.file_path = file_path
