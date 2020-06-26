@@ -226,8 +226,8 @@ class DiskCollector:
                     file_dict[key].set_kb_w(int(v.bytes_w/1000))
                     file_dict[key].set_num_r(int(v.num_r))
                     file_dict[key].set_num_w(int(v.num_w))
-                file_dict[key].set_file_id(counter)
-                counter+=1
+                    file_dict[key].set_file_id(counter)
+                    counter+=1
 
             file_counts.clear()
 
@@ -257,7 +257,7 @@ class DiskCollector:
             container_dict[shortened_ID]["num_w"] += disk_sample[pid]["num_w"]
             container_dict[shortened_ID]["avg_lat"] += disk_sample[pid]["avg_lat"]
             container_dict[shortened_ID]["pids"].append(pid)
-        for k,v in container_dict:
+        for k,v in container_dict.iteritems():
             container_dict[k]["avg_lat"] = container_dict[k]["avg_lat"] /  len(container_dict[k]["pids"])
 
         return container_dict 
