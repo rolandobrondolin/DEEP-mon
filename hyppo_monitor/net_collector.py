@@ -1,4 +1,3 @@
-from __future__ import print_function
 from bcc import BPF
 import ctypes as ct
 import numpy as np
@@ -309,8 +308,8 @@ class NetCollector:
         self.ipv6_http_latency = [None, None]
 
         self.latency_index_max = 240
-        self.bucket_count = 12
-        self.latency_bucket_size = 20
+        self.bucket_count = 15
+        self.latency_bucket_size = 16
 
         self.tcp_dyn_masking_threshold = 10
 

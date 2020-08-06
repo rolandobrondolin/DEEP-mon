@@ -1,3 +1,4 @@
+from __future__ import print_function
 import multiprocessing
 import os
 import ctypes as ct
@@ -41,7 +42,7 @@ class ProcTopology:
                 if "core" in sp[0] and "id\t\t" in sp[1]:
                     core_id = int(sp[2])
                     found = False
-                    for key, value in self.coresDict.iteritems():
+                    for key, value in self.coresDict.items():
                         if value[2] == core_id and value[3] == processor_id:
                             found = True
                             value[1] = ht_id
@@ -53,7 +54,7 @@ class ProcTopology:
 
     def print_topology(self):
         for key, value in self.coresDict.items():
-            print value
+            print(value)
 
     def get_topology(self):
         return self.coresDict
@@ -66,7 +67,7 @@ class ProcTopology:
 
     def get_new_bpf_topology(self):
         bpf_dict = {}
-        for key,value in self.coresDict.iteritems():
+        for key,value in self.coresDict.items():
             core = BpfProcTopology(ct.c_ulonglong(value[0]), \
                                 ct.c_ulonglong(value[1]), \
                                 ct.c_ulonglong(value[2]), \

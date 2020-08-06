@@ -1,4 +1,3 @@
-from __future__ import print_function
 from bcc import BPF
 import os
 import snap_plugin.v1 as snap
@@ -71,11 +70,11 @@ int trace_rw_entry(struct pt_regs *ctx, struct file *file, char __user *buf, siz
         bpf_probe_read(&val.parent1, sizeof(val.parent1), parent_name.name);
 
         struct dentry *second_parent = parent->d_parent;
-        
+
         struct qstr second_parent_name = second_parent->d_name;
         bpf_probe_read(&val.parent2, sizeof(val.parent2), second_parent_name.name);
-    } 
-    
+    }
+
     entryinfo.update(&pid, &val);
     return 0;
 }
@@ -115,7 +114,7 @@ static int trace_rw_return(struct pt_regs *ctx, int type) {
 
     struct val_file_t *val_file, zero_file = {};
     val_file = counts_by_file.lookup_or_init(&file_key, &zero_file);
-    
+
     if (val_file) {
         if (type == 0) {
             val_file->num_r++;
@@ -157,6 +156,10 @@ class DiskCollector:
         self.disk_monitor.attach_kretprobe(event="vfs_write", fn_name="trace_write_return")
 
     def _include_file_path(self, file_name, file_parent, file_parent2):
+        file_name = file_name.decode("utf-8")
+        file_parent = file_parent.decode("utf-8")
+        file_parent2 = file_parent2.decode("utf-8")
+        
         if (file_parent == "/"):
             if (file_name in self.proc_files or file_name.isdigit()):
                 return False
@@ -184,7 +187,7 @@ class DiskCollector:
                 disk_dict[key]["container_ID"] = "---others---"
                 if (os.path.exists(os.path.join(self.proc_path,str(v.pid),"cgroup"))):
                     try:
-                        with open(os.path.join(self.proc_path, str(v.pid), 'cgroup'), 'rb') as f:
+                        with open(os.path.join(self.proc_path, str(v.pid), 'cgroup'), 'r') as f:
                             for line in f:
                                 line_array = line.split("/")
                                 if len(line_array) > 1 and \
@@ -195,7 +198,7 @@ class DiskCollector:
                         continue
                     # systemd Docker
                     try:
-                        with open(os.path.join(self.proc_path, str(v.pid), 'cgroup'), 'rb') as f:
+                        with open(os.path.join(self.proc_path, str(v.pid), 'cgroup'), 'r') as f:
                             for line in f:
                                 line_array = line.split("/")
                                 if len(line_array) > 1 \
@@ -212,7 +215,7 @@ class DiskCollector:
 
             disk_dict =  self._aggregate_metrics_by_container(disk_dict)
             disk_counts.clear()
-        
+
         file_dict = {}
         if (self.monitor_file):
             counter = 0
@@ -257,10 +260,10 @@ class DiskCollector:
             container_dict[shortened_ID]["num_w"] += disk_sample[pid]["num_w"]
             container_dict[shortened_ID]["avg_lat"] += disk_sample[pid]["avg_lat"]
             container_dict[shortened_ID]["pids"].append(pid)
-        for k,v in container_dict.iteritems():
+        for k,v in container_dict.items():
             container_dict[k]["avg_lat"] = container_dict[k]["avg_lat"] /  len(container_dict[k]["pids"])
 
-        return container_dict 
+        return container_dict
 
 
 
@@ -296,7 +299,7 @@ class FileInfo:
 
     def set_file_path(self, file_path):
         self.file_path = file_path
-    
+
     def set_kb_r(self, kbr):
         self.kb_r = kbr
 
@@ -340,4 +343,3 @@ class FileInfo:
         ]
         metrics_to_be_returned.append(self._get_file_summary(request_time, namespace))
         return metrics_to_be_returned
-    

@@ -1,14 +1,12 @@
-from __future__ import print_function
-
 import click
 import yaml
-from curse import Curse
 try:
     from yaml import CLoader as Loader
 except ImportError:
     from yaml import Loader
 
-from monitor_main import MonitorMain
+from .monitor_main import MonitorMain
+from .curse import Curse
 
 
 # Load config file with default values

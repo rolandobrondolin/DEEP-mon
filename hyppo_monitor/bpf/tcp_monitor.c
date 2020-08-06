@@ -1,7 +1,7 @@
 #include <uapi/linux/ptrace.h>
 #include <net/sock.h>
 #include <bcc/proto.h>
-#define KBUILD_MODNAME "foo"
+//#define KBUILD_MODNAME "foo"
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/tcp.h>

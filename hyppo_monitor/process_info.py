@@ -1,6 +1,6 @@
 import ctypes as ct
 import snap_plugin.v1 as snap
-from net_collector import TransactionData
+from .net_collector import TransactionData
 import json
 
 

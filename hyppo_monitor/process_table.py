@@ -1,6 +1,6 @@
-from process_info import ProcessInfo
-from bpf_collector import BpfSample
-from container_info import ContainerInfo
+from .process_info import ProcessInfo
+from .bpf_collector import BpfSample
+from .container_info import ContainerInfo
 import os
 
 class ProcTable:
@@ -12,7 +12,7 @@ class ProcTable:
     def reset_metrics_and_evict_stale_processes(self, ts):
         evicted_keys = []
 
-        for proc_table_key, proc_table_value in self.proc_table.iteritems():
+        for proc_table_key, proc_table_value in self.proc_table.items():
             if proc_table_value.get_last_ts() + 8000000000 < ts:
                 evicted_keys.append(proc_table_key)
             else:
@@ -31,7 +31,7 @@ class ProcTable:
 
     def add_process_from_sample(self, sample, net_dictionary=None, nat_dictionary=None):
         # reset counters for each entries
-        for key, value in sample.get_pid_dict().iteritems():
+        for key, value in sample.get_pid_dict().items():
             if key in self.proc_table:
                 # process already there, check if comm is the same
                 if value.get_comm() == self.proc_table[key].get_comm():
@@ -71,7 +71,7 @@ class ProcTable:
             for path in ['/host/proc', '/proc']:
                 try:
                     # Non-systemd Docker
-                    with open(os.path.join(path, str(id), 'cgroup'), 'rb') as f:
+                    with open(os.path.join(path, str(id), 'cgroup'), 'r') as f:
                         for line in f:
                             line_array = line.split("/")
                             if len(line_array) > 1 and \
@@ -83,7 +83,7 @@ class ProcTable:
             for path in ['/host/proc', '/proc']:
                 try:
                     # systemd Docker
-                    with open(os.path.join(path, str(id), 'cgroup'), 'rb') as f:
+                    with open(os.path.join(path, str(id), 'cgroup'), 'r') as f:
                         for line in f:
                             line_array = line.split("/")
                             if len(line_array) > 1 \
@@ -109,7 +109,7 @@ class ProcTable:
         # container_dict["---others---"] = not_a_container
         # container_dict["----idle----"] = idle
 
-        for key, value in self.proc_table.iteritems():
+        for key, value in self.proc_table.items():
             if value.container_id != "":
                 if value.container_id not in container_dict:
                     container_dict[value.container_id] = ContainerInfo(value.container_id)
@@ -129,14 +129,14 @@ class ProcTable:
         # aggregate stuff at the container level
         for key, value in container_dict.items():
             value.compute_aggregate_network_metrics()
-        
+
         if mem_dictionary:
             for key,value in container_dict.items():
                 if key in mem_dictionary:
                     value.set_mem_RSS(mem_dictionary[key]["RSS"])
                     value.set_mem_PSS(mem_dictionary[key]["PSS"])
                     value.set_mem_USS(mem_dictionary[key]["USS"])
-        
+
         if disk_dictionary:
             for key,value in container_dict.items():
                 if key in disk_dictionary:

@@ -40,7 +40,7 @@ class Curse:
 
         title_str = "HYPPO Standalone Monitor"
         title_win.bkgd(" ", curses.color_pair(9))
-        title_win.addstr(0,cx/2-len(title_str)/2, title_str,  curses.color_pair(9))
+        title_win.addstr(0,int(cx/2-len(title_str)/2), title_str,  curses.color_pair(9))
 
         #title_win.addstr(0,0, str(self.start_display_index)+" "+str(self.end_display_index)+" "+str(self.highlighted_line_index),  curses.color_pair(9))
         title_win.noutrefresh()
@@ -49,10 +49,10 @@ class Curse:
         locale.setlocale(locale.LC_ALL, '')
 
         last_line_win = curses.newwin(1,cx,cy-1,0)
-        last_line_str = ("Press 'q' to exit, "+unichr(8592)+" or "+unichr(8594)+" to change metrics page, "+unichr(8593)+" or "+unichr(8595)+" to change line.").encode("UTF-8")
+        last_line_str = ("Press 'q' to exit, "+chr(8592)+" or "+chr(8594)+" to change metrics page, "+chr(8593)+" or "+chr(8595)+" to change line.").encode("UTF-8")
         last_line_win.bkgd(" ", curses.color_pair(4))
         last_line_win.addstr(0,0, last_line_str, curses.color_pair(4))
-        last_line_win.addstr(0, cx-2, unichr(9731).encode('UTF-8'), curses.color_pair(4))
+        last_line_win.addstr(0, cx-2, chr(9731).encode('UTF-8'), curses.color_pair(4))
         last_line_win.noutrefresh()
 
     def persistent_info(self, cx, cy, log_dict):
@@ -68,13 +68,13 @@ class Curse:
         new_win.addstr(1, first_column_label_length, "%-9s" %(log_dict["SCHED SWITCH COUNT"]))
         new_win.addstr(2, first_column_label_length, "%-9s" %(log_dict["PROC TIME"]))
 
-        new_win.addstr(0,cx/2, "TOTAL PACKAGE ACTIVE POWER:", curses.color_pair(2))
-        new_win.addstr(1,cx/2, "TOTAL CORE ACTIVE POWER:", curses.color_pair(2))
-        new_win.addstr(2,cx/2, "TOTAL DRAM ACTIVE POWER:", curses.color_pair(2))
+        new_win.addstr(0,int(cx/2), "TOTAL PACKAGE ACTIVE POWER:", curses.color_pair(2))
+        new_win.addstr(1,int(cx/2), "TOTAL CORE ACTIVE POWER:", curses.color_pair(2))
+        new_win.addstr(2,int(cx/2), "TOTAL DRAM ACTIVE POWER:", curses.color_pair(2))
 
-        new_win.addstr(0, cx/2+second_column_label_length, "%-9s" %(log_dict["TOTAL PACKAGE ACTIVE POWER"]))
-        new_win.addstr(1, cx/2+second_column_label_length, "%-9s" %(log_dict["TOTAL CORE ACTIVE POWER"]))
-        new_win.addstr(2, cx/2+second_column_label_length, "%-9s" %(log_dict["TOTAL DRAM ACTIVE POWER"]))
+        new_win.addstr(0, int(cx/2+second_column_label_length), "%-9s" %(log_dict["TOTAL PACKAGE ACTIVE POWER"]))
+        new_win.addstr(1, int(cx/2+second_column_label_length), "%-9s" %(log_dict["TOTAL CORE ACTIVE POWER"]))
+        new_win.addstr(2, int(cx/2+second_column_label_length), "%-9s" %(log_dict["TOTAL DRAM ACTIVE POWER"]))
 
         new_win.noutrefresh()
 
@@ -88,19 +88,19 @@ class Curse:
         if (self.displayed_metric == 'default'):
             label_win.addstr(1,0, "%12s %12s %12s" % (
             "CONTAINER_ID", "EXEC TIME(s)", "CPU USAGE"
-            )) 
+            ))
         elif (self.displayed_metric == 'power'):
             label_win.addstr(1,0, "%12s %11s %11s %10s %10s %9s %10s" % (
             "CONTAINER_ID", "CYCLES", "W_CYCLES", "INSTR_RET", "CACHE_MISS", "CACHE_REF", "TOT_POWER"
-            )) 
+            ))
         elif (self.displayed_metric == 'memory'):
             label_win.addstr(1,0, "%12s %11s %11s %11s" % (
             "CONTAINER_ID", "RSS (Kb)", "PSS (Kb)", "USS (Kb)"
-            )) 
+            ))
         elif (self.displayed_metric == 'disk'):
             label_win.addstr(1,0, "%12s %11s %11s %11s %11s %11s" % (
             "CONTAINER_ID", "Kb_R", "Kb_W", "NUM_R", "NUM_W", "AVG_LAT(ms)"
-            )) 
+            ))
         elif (self.displayed_metric == 'tcp'):
             label_win.addstr(1,0, "%12s %13s %14s %14s %13s" % (
             "CONTAINER_ID", "TCP_T_COUNT", "TCP_BYTE_SENT", "TCP_BYTE_RECV", "AVG_LAT(ms)"
@@ -127,7 +127,7 @@ class Curse:
 
     def metrics_window(self, cx, cy, container_list, file_dict):
         metrics_win = curses.newwin(cy-6,cx,6,0)
-        
+
         counter = 0
         if self.displayed_metric != "file":
             for key, value in sorted(container_list.items()):
@@ -156,7 +156,7 @@ class Curse:
                         metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%11s %11s %11s" % (
                         str(value.get_mem_RSS()), str(value.get_mem_PSS()), str(value.get_mem_USS())
                         ),cx-13), color)
-                    
+
                     elif self.displayed_metric == 'disk':
                         metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%11s %11s %11s %11s %11s" % (
                         str(value.get_kb_r()), str(value.get_kb_w()),
@@ -183,7 +183,7 @@ class Curse:
                             '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
                             '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
                             '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
-                            '{:.1f}'.format(pct_val[6]) 
+                            '{:.1f}'.format(pct_val[6])
                             ),cx-13), color)
                         else:
                             metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
@@ -197,7 +197,7 @@ class Curse:
                             '{:.1f}'.format(pct_val[0]), '{:.1f}'.format(pct_val[1]),
                             '{:.1f}'.format(pct_val[2]), '{:.1f}'.format(pct_val[3]),
                             '{:.1f}'.format(pct_val[4]), '{:.1f}'.format(pct_val[5]),
-                            '{:.1f}'.format(pct_val[6]) 
+                            '{:.1f}'.format(pct_val[6])
                             ),cx-13), color)
                         else:
                             metrics_win.addstr(counter-self.start_display_index, 13, str.ljust("%8s %8s %8s %8s %8s %8s %8s" % (
@@ -266,7 +266,7 @@ class Curse:
         while True:
             start_time = time.time()
             curses.napms(10)
-            
+
             if (start_time - previous_time > time_to_sleep):
                 sample_array = self.monitor.get_sample()
                 sample = sample_array[0]
@@ -293,7 +293,7 @@ class Curse:
                 stdscr.clear()
                 stdscr.addstr(5,1, "Window too small, try to resize :(")
                 stdscr.refresh()
-                
+
             ch = stdscr.getch()
 
             if ch == ord('q'):
@@ -325,7 +325,6 @@ class Curse:
 
             elif ch == curses.KEY_RESIZE:
                 self._reset_window_indices(stdscr)
-                
+
 
             curses.doupdate()
-        

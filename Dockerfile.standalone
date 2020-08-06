@@ -1,13 +1,16 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 LABEL maintainer="Tommaso Sardelli"
 
 RUN apt-get clean
 RUN apt-get update
-RUN apt-get install -y python python-pip wget curl apt-transport-https git
+RUN apt-get install -y python python-pip python3 python3-pip wget curl apt-transport-https git
 
-RUN apt-get install -y bison build-essential cmake flex git libedit-dev libllvm3.7 llvm-3.7-dev libclang-3.7-dev python zlib1g-dev libelf-dev
+RUN apt-get install -y bison build-essential cmake flex git libedit-dev libllvm6.0 llvm-6.0-dev libclang-6.0-dev zlib1g-dev libelf-dev
 RUN git clone https://github.com/iovisor/bcc.git
-RUN mkdir bcc/build; cd bcc/build; cmake ..; make; make install
+#RUN mkdir bcc/build; cd bcc/build; cmake ..; make; make install
+#python 3 bindings
+RUN mkdir bcc/build; cd bcc/build; cmake -DPYTHON_CMD=python3 ..; pushd src/python/; make; make install
+
 
 #Needed by Curse to print unicode characters to the terminal
 RUN apt-get install -y locales locales-all
@@ -18,11 +21,12 @@ ENV LANGUAGE en_US.UTF-8
 
 # Install our mod of kubernetes client
 RUN git clone --recursive https://gitlab.com/projecthyppo/kubernetes-client-python.git
-RUN cd kubernetes-client-python && pip install --upgrade pip && pip install . && cd ../ && rm -r kubernetes-client-python
-RUN pip install snap-plugin-lib-py numpy==1.16
+RUN cd kubernetes-client-python && pip3 install . && cd ../ && rm -r kubernetes-client-python
+RUN pip3 install snap-plugin-lib-py numpy
+
 
 RUN git clone https://github.com/DataDog/sketches-py.git
-RUN cd sketches-py && python setup.py install
+RUN cd sketches-py && python3 setup.py install
 
 WORKDIR /home
 
@@ -30,10 +34,10 @@ ADD hyppo_monitor /home/hyppo_monitor
 ADD setup.py /home
 
 #Install plugin dependencies
-RUN pip install .
+RUN pip3 install .
 
 # "-u" forces the binary I/O layers of stdout and stderr to be unbuffered and
 # is needed to avoid truncated output in Docker
 ENV PYTHONUNBUFFERED="on"
-#CMD ["python", "-u", "hyppo_monitor/monitor_main.py", "--output-format", "console"]
+#CMD ["python3", "-u", "hyppo_monitor/monitor_main.py", "--output-format", "console"]
 CMD ["cli"]

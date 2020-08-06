@@ -1,11 +1,10 @@
-from __future__ import print_function
 from bcc import BPF, PerfType, PerfHWConfig, PerfSWConfig
-from proc_topology import BpfProcTopology
-from proc_topology import ProcTopology
-from process_info import BpfPidStatus
-from process_info import SocketProcessItem
-from process_info import ProcessInfo
-from sample_controller import SampleController
+from .proc_topology import BpfProcTopology
+from .proc_topology import ProcTopology
+from .process_info import BpfPidStatus
+from .process_info import SocketProcessItem
+from .process_info import ProcessInfo
+from .sample_controller import SampleController
 import snap_plugin.v1 as snap
 import ctypes as ct
 import json
@@ -63,7 +62,7 @@ class BpfSample:
     def __str__(self):
         str_representation = ""
 
-        for key, value in sorted(self.pid_dict.iteritems()):
+        for key, value in sorted(self.pid_dict.items()):
             str_representation = str_representation + str(value) + "\n"
 
         str_representation = str_representation + self.get_log_line()
@@ -213,7 +212,7 @@ class BpfCollector:
 
 
     def start_capture(self, timeslice):
-        for key, value in self.topology.get_new_bpf_topology().iteritems():
+        for key, value in self.topology.get_new_bpf_topology().items():
             self.processors[ct.c_ulonglong(key)] = value
 
         self.timed_capture = False
@@ -248,7 +247,7 @@ class BpfCollector:
 
         self.timed_capture = True
 
-        for key, value in self.topology.get_new_bpf_topology().iteritems():
+        for key, value in self.topology.get_new_bpf_topology().items():
             self.processors[ct.c_ulonglong(key)] = value
 
         self.bpf_config[ct.c_int(0)] = ct.c_uint(self.selector)     # current selector
@@ -395,7 +394,7 @@ class BpfCollector:
                     socket_info = SocketProcessItem()
                     socket_info.set_weighted_cycles(data.weighted_cycles[multisocket_selector])
                     socket_info.set_ts(data.ts[read_selector])
-                    proc_info.set_socket_data(multisocket_selector/self.SELECTOR_DIM, socket_info)
+                    proc_info.set_socket_data(int(multisocket_selector/self.SELECTOR_DIM), socket_info)
                     add_proc = True
 
             if add_proc:
@@ -427,7 +426,7 @@ class BpfCollector:
                     socket_info = SocketProcessItem()
                     socket_info.set_weighted_cycles(data.weighted_cycles[multisocket_selector])
                     socket_info.set_ts(data.ts[read_selector])
-                    proc_info.set_socket_data(multisocket_selector/self.SELECTOR_DIM, socket_info)
+                    proc_info.set_socket_data(int(multisocket_selector/self.SELECTOR_DIM), socket_info)
                     add_proc = True
 
             if add_proc:

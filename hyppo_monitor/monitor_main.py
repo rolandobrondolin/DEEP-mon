@@ -1,15 +1,11 @@
-# /usr/bin/env python2
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function, division
-from bpf_collector import BpfCollector
-from proc_topology import ProcTopology
-from sample_controller import SampleController
-from process_table import ProcTable
-from net_collector import NetCollector
-from mem_collector import MemCollector
-from disk_collector import DiskCollector
-from rapl import rapl
+from .bpf_collector import BpfCollector
+from .proc_topology import ProcTopology
+from .sample_controller import SampleController
+from .process_table import ProcTable
+from .net_collector import NetCollector
+from .mem_collector import MemCollector
+from .disk_collector import DiskCollector
+from .rapl import rapl
 import os
 import socket
 import snap_plugin.v1 as snap
@@ -49,7 +45,7 @@ class MonitorMain():
 
         if self.net_monitor:
             self.net_collector = NetCollector(trace_nat = nat_trace, dynamic_tcp_client_port_masking=dynamic_tcp_client_port_masking)
-        
+
         if self.mem_measure:
             self.mem_collector = MemCollector()
 
@@ -134,7 +130,7 @@ class MonitorMain():
             container_list = sample_array[1]
 
             if self.output_format == "json":
-                for key, value in container_list.iteritems():
+                for key, value in container_list.items():
                     print(value.to_json())
                 print(sample.get_log_json())
 
@@ -190,11 +186,11 @@ class MonitorMain():
             metrics_to_stream.extend(sample.to_snap(start_time, user_id, hostname))
 
             #here wrap up things to match snap format
-            for key, value in container_list.iteritems():
+            for key, value in container_list.items():
                 metrics_to_stream.extend(value.to_snap(start_time, user_id, hostname))
 
             #add threads from proc_table
-            #for key, value in proc_dict.iteritems():
+            #for key, value in proc_dict.items():
             #    metrics_to_stream.extend(value.to_snap(start_time, user_id, hostname))
 
             # put timestamp

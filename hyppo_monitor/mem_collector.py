@@ -1,4 +1,3 @@
-from __future__ import print_function
 import os
 
 class MemCollector:
@@ -28,9 +27,9 @@ class MemCollector:
             container_dict[shortened_ID]["RSS"] += mem_sample[pid]["RSS"]
             container_dict[shortened_ID]["PSS"] += mem_sample[pid]["PSS"]
             container_dict[shortened_ID]["USS"] += mem_sample[pid]["USS"]
-            container_dict[shortened_ID]["pids"].append(pid)   
-        return container_dict        
-    
+            container_dict[shortened_ID]["pids"].append(pid)
+        return container_dict
+
     def _get_sample(self):
         pid_dict = dict()
         for pid in self._get_pid_list():
@@ -42,7 +41,7 @@ class MemCollector:
             #USS and PSS from smaps_rollup
             if (os.path.exists(os.path.join(self.proc_path,str(pid),"smaps_rollup"))):
                 try:
-                    with open(os.path.join(self.proc_path,str(pid),"smaps_rollup"),"rb") as f:
+                    with open(os.path.join(self.proc_path,str(pid),"smaps_rollup"),"r") as f:
                         for line in f:
                             s = line.replace(" ","").replace("\n","").split(':')
                             if (s[0] == "Rss"):
@@ -54,9 +53,9 @@ class MemCollector:
                 except IOError:
                     continue
             #USS and PSS from smaps when smaps_rollup isn't in proc
-            else: 
+            else:
                 try:
-                    with open(os.path.join(self.proc_path,str(pid),"smaps"),"rb") as f:
+                    with open(os.path.join(self.proc_path,str(pid),"smaps"),"r") as f:
                         for line in f:
                             s = line.replace(" ","").replace("\n","").split(':')
                             if (s[0] == "Pss"):
@@ -64,13 +63,13 @@ class MemCollector:
                             elif (s[0] == "Pss"):
                                 pid_dict[pid]["PSS"] += int(s[1][:-2])
                             elif (s[0] == "Private_Clean" or s[0] == "Private_Dirty" or s[0] == "Private_Hugetlb"):
-                                pid_dict[pid]["USS"] += int(s[1][:-2])       
+                                pid_dict[pid]["USS"] += int(s[1][:-2])
                 except IOError:
                     continue
             #assign container ID from proc
             if (os.path.exists(os.path.join(self.proc_path,str(pid),"cgroup"))):
                 try:
-                    with open(os.path.join(self.proc_path, str(pid), 'cgroup'), 'rb') as f:
+                    with open(os.path.join(self.proc_path, str(pid), 'cgroup'), 'r') as f:
                         for line in f:
                             line_array = line.split("/")
                             if len(line_array) > 1 and \
@@ -80,7 +79,7 @@ class MemCollector:
                     continue
                 # systemd Docker
                 try:
-                    with open(os.path.join(self.proc_path, str(pid), 'cgroup'), 'rb') as f:
+                    with open(os.path.join(self.proc_path, str(pid), 'cgroup'), 'r') as f:
                         for line in f:
                             line_array = line.split("/")
                             if len(line_array) > 1 \
@@ -93,5 +92,5 @@ class MemCollector:
                                     pid_dict[pid]["container_ID"] = new_id
                 except IOError:
                     continue
-                
+
         return pid_dict

@@ -1,11 +1,9 @@
-from __future__ import division
-
 import json
 import snap_plugin.v1 as snap
 import time
-from net_collector import TransactionData
-from net_collector import TransactionType
-from net_collector import TransactionRole
+from .net_collector import TransactionData
+from .net_collector import TransactionType
+from .net_collector import TransactionRole
 import numpy as np
 from ddsketch.ddsketch import DDSketch
 
@@ -116,7 +114,7 @@ class ContainerInfo:
 
     def set_mem_RSS(self, rss):
         self.mem_RSS = rss
-    
+
     def set_mem_PSS(self, pss):
         self.mem_PSS = pss
 
@@ -254,7 +252,7 @@ class ContainerInfo:
 
     def get_power(self):
         return self.power
-        
+
     def get_cpu_usage(self):
         return self.cpu_usage
 
@@ -269,25 +267,25 @@ class ContainerInfo:
 
     def get_mem_RSS(self):
         return self.mem_RSS
-    
+
     def get_mem_PSS(self):
         return self.mem_PSS
-    
+
     def get_mem_USS(self):
         return self.mem_USS
 
     def get_kb_r(self):
         return self.kb_r
-    
+
     def get_kb_w(self):
         return self.kb_w
-    
+
     def get_num_r(self):
         return self.num_r
-    
+
     def get_num_w(self):
         return self.num_w
-    
+
     def get_disk_avg_lat(self):
         return self.disk_avg_lat
 
@@ -660,7 +658,7 @@ class ContainerInfo:
             ]
             metrics_to_be_returned.append(self._get_net_detail(request_time, namespace))
 
-        if send_mem_data == True and self.mem_RSS > 0: 
+        if send_mem_data == True and self.mem_RSS > 0:
             namespace=[
                 snap.NamespaceElement(value="hyppo"),
                 snap.NamespaceElement(value="hyppo-monitor"),
@@ -721,7 +719,7 @@ class ContainerInfo:
                     bcolors.BLUE + "USS: " + bcolors.ENDC
                         + str(self.mem_USS)
             )
-        
+
         if (self.kb_r > 0 or self.kb_w > 0):
             fmt = '{:<20} {:<23} {:<23} {:<23} {:<23} {:23}'
             output_line = output_line + "\n" + fmt.format(
@@ -736,7 +734,7 @@ class ContainerInfo:
                         + str(self.num_w),
                     bcolors.BLUE + "AVG LAT (ms): " + bcolors.ENDC
                         + str(round(self.disk_avg_lat,3))
-            )  
+            )
 
         if self.http_transaction_count > 0:
             fmt = '{:<5} {:<32} {:<34} {:<34} {:<34}'

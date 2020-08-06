@@ -110,19 +110,19 @@ class HyppoStreamCollector(snap.StreamCollector):
             metrics_to_stream.extend(sample.to_snap(start_time, self.customer_id, self.hostname))
 
             #here wrap up things to match snap format
-            for key, value in container_list.iteritems():
+            for key, value in container_list.items():
                 metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname, self.net_monitor, self.memory_measure, self.disk_measure))
 
             #add threads from proc_table
             if self.send_thread_data == True:
                 proc_dict = sample_array[2]
-                for key, value in proc_dict.iteritems():
+                for key, value in proc_dict.items():
                     metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname))
 
             #add file metrics
             if self.file_measure == True:
                 file_dict = sample_array[4]
-                for key, value in file_dict.iteritems():
+                for key, value in file_dict.items():
                     metrics_to_stream.extend(value.to_snap(start_time, self.customer_id, self.hostname))
 
             # put timestamp
