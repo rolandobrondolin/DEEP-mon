@@ -5,18 +5,16 @@ RUN apt-get clean
 RUN apt-get update
 RUN apt-get install -y python python-pip wget curl apt-transport-https git
 
+RUN apt-get install -y bison build-essential cmake flex git libedit-dev libllvm3.7 llvm-3.7-dev libclang-3.7-dev python zlib1g-dev libelf-dev
+RUN git clone https://github.com/iovisor/bcc.git
+RUN mkdir bcc/build; cd bcc/build; cmake ..; make; make install
+
 #Needed by Curse to print unicode characters to the terminal
 RUN apt-get install -y locales locales-all
 ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D4284CDD
-RUN echo "deb https://repo.iovisor.org/apt/xenial xenial main" | tee /etc/apt/sources.list.d/iovisor.list
-RUN apt-get update
-RUN pip install --upgrade pip
-
-RUN apt-get install -y libelf1 bcc-tools libbcc-examples
 
 # Install our mod of kubernetes client
 RUN git clone --recursive https://gitlab.com/projecthyppo/kubernetes-client-python.git
