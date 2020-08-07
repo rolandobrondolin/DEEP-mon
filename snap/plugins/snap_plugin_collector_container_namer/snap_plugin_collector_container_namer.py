@@ -1,4 +1,5 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
+
 import logging
 import os.path
 import snap_plugin.v1 as snap

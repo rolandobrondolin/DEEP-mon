@@ -1,9 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import json
 import logging
 import snap_plugin.v1 as snap
-import urllib2
 import os
 import time
 import yaml
@@ -11,6 +10,9 @@ try:
     from yaml import CLoader as Loader
 except ImportError:
     from yaml import Loader
+
+import urllib.request
+import urllib.parse
 
 from google.protobuf import json_format
 
@@ -62,9 +64,11 @@ class KubernetesPublisher(snap.Publisher):
         payload = {"customer_id": self.customer_id, "data": data}
 
         try:
-            req = urllib2.Request("http://" + config["remote_collector"] + "/send_kube")
+            req = urllib.request.Request("http://" + config["remote_collector"] + "/send_kube")
             req.add_header('Content-Type', 'application/json')
-            response = urllib2.urlopen(req, json.dumps(payload))
+            json_data = json.dumps(payload)
+            json_data_bytes = json_data.encode("utf-8")
+            response = urllib.request.urlopen(req, json_data_bytes)
         except Exception:
             import traceback
             LOG.error(traceback.format_exc())

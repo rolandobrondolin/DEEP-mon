@@ -12,7 +12,7 @@ data:
     kube_config: "~/.kube/config"
     window_mode: "fixed"
     output_format: "snap"
-    customer_id: "nags23"
+    customer_id: "test"
     debug_mode: False
     send_thread_data: False
     net_monitor:      True
@@ -20,9 +20,9 @@ data:
     print_net_details: False
     dynamic_tcp_client_port_masking: True
     power_measure: True
-    memory_measure: True 
+    memory_measure: True
     disk_measure: True 
-    file_measure: True 
+    file_measure: True
 ---
 apiVersion: apps/v1
 kind: DaemonSet

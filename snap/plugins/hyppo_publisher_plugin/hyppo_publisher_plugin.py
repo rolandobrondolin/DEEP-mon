@@ -1,9 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import json
 import logging
 import snap_plugin.v1 as snap
-import urllib2
+import urllib.request
+import urllib.parse
 
 from google.protobuf import json_format
 
@@ -32,9 +33,11 @@ class HyppoPublisher(snap.Publisher):
             data.append(json_format.MessageToDict(metric._pb, including_default_value_fields=True))
 
         try:
-            req = urllib2.Request("http://" + config["remote_collector"] + "/send_data")
+            req = urllib.request.Request("http://" + config["remote_collector"] + "/send_data")
             req.add_header('Content-Type', 'application/json')
-            response = urllib2.urlopen(req, json.dumps(data))
+            json_data = json.dumps(data)
+            json_data_bytes = json_data.encode("utf-8")
+            response = urllib.request.urlopen(req, json_data_bytes)
         except Exception:
             import traceback
             LOG.error(traceback.format_exc())
