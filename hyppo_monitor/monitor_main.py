@@ -1,11 +1,11 @@
-from .bpf_collector import BpfCollector
-from .proc_topology import ProcTopology
-from .sample_controller import SampleController
-from .process_table import ProcTable
-from .net_collector import NetCollector
-from .mem_collector import MemCollector
-from .disk_collector import DiskCollector
-from .rapl import rapl
+from hyppo_monitor.bpf_collector import BpfCollector
+from hyppo_monitor.proc_topology import ProcTopology
+from hyppo_monitor.sample_controller import SampleController
+from hyppo_monitor.process_table import ProcTable
+from hyppo_monitor.net_collector import NetCollector
+from hyppo_monitor.mem_collector import MemCollector
+from hyppo_monitor.disk_collector import DiskCollector
+from hyppo_monitor.rapl import rapl
 import os
 import socket
 import snap_plugin.v1 as snap

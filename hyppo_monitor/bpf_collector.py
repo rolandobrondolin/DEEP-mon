@@ -1,10 +1,10 @@
 from bcc import BPF, PerfType, PerfHWConfig, PerfSWConfig
-from .proc_topology import BpfProcTopology
-from .proc_topology import ProcTopology
-from .process_info import BpfPidStatus
-from .process_info import SocketProcessItem
-from .process_info import ProcessInfo
-from .sample_controller import SampleController
+from hyppo_monitor.proc_topology import BpfProcTopology
+from hyppo_monitor.proc_topology import ProcTopology
+from hyppo_monitor.process_info import BpfPidStatus
+from hyppo_monitor.process_info import SocketProcessItem
+from hyppo_monitor.process_info import ProcessInfo
+from hyppo_monitor.sample_controller import SampleController
 import snap_plugin.v1 as snap
 import ctypes as ct
 import json

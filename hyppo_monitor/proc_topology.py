@@ -1,4 +1,3 @@
-from __future__ import print_function
 import multiprocessing
 import os
 import ctypes as ct

@@ -5,8 +5,8 @@ try:
 except ImportError:
     from yaml import Loader
 
-from .monitor_main import MonitorMain
-from .curse import Curse
+from hyppo_monitor.monitor_main import MonitorMain
+from hyppo_monitor.curse import Curse
 
 
 # Load config file with default values
@@ -45,3 +45,6 @@ def deepmon(kube_config, window_mode, output_format, debug_mode, net_monitor, na
         curse.start()
     else:
         monitor.monitor_loop()
+
+if __name__ == '__main__':
+    deepmon()

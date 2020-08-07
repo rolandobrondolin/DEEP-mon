@@ -1,9 +1,9 @@
 import json
 import snap_plugin.v1 as snap
 import time
-from .net_collector import TransactionData
-from .net_collector import TransactionType
-from .net_collector import TransactionRole
+from hyppo_monitor.net_collector import TransactionData
+from hyppo_monitor.net_collector import TransactionType
+from hyppo_monitor.net_collector import TransactionRole
 import numpy as np
 from ddsketch.ddsketch import DDSketch
 

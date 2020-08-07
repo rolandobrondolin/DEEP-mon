@@ -1,6 +1,6 @@
-from .process_info import ProcessInfo
-from .bpf_collector import BpfSample
-from .container_info import ContainerInfo
+from hyppo_monitor.process_info import ProcessInfo
+from hyppo_monitor.bpf_collector import BpfSample
+from hyppo_monitor.container_info import ContainerInfo
 import os
 
 class ProcTable:
