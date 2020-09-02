@@ -1,11 +1,11 @@
-from userspace.bpf_collector import BpfCollector
-from userspace.proc_topology import ProcTopology
-from userspace.sample_controller import SampleController
-from userspace.process_table import ProcTable
-from userspace.net_collector import NetCollector
-from userspace.mem_collector import MemCollector
-from userspace.disk_collector import DiskCollector
-from userspace.rapl import rapl
+from .bpf_collector import BpfCollector
+from .proc_topology import ProcTopology
+from .sample_controller import SampleController
+from .process_table import ProcTable
+from .net_collector import NetCollector
+from .mem_collector import MemCollector
+from .disk_collector import DiskCollector
+from .rapl.rapl import RaplMonitor
 import os
 import socket
 import time
@@ -27,7 +27,7 @@ class MonitorMain():
         self.collector = BpfCollector(self.topology, debug_mode, power_measure)
         self.sample_controller = SampleController(self.topology.get_hyperthread_count())
         self.process_table = ProcTable()
-        self.rapl_monitor = rapl.RaplMonitor(self.topology)
+        self.rapl_monitor = RaplMonitor(self.topology)
         self.started = False
 
         self.print_net_details = print_net_details
@@ -159,7 +159,3 @@ class MonitorMain():
                     - (time.time() - start_time)
             else:
                 time_to_sleep = 1 / self.frequency - (time.time() - start_time)
-
-if __name__ == "__main__":
-    monitor = MonitorMain("console", "fixed", False, True, False, False, True, True, False, False, False)
-    monitor.monitor_loop()

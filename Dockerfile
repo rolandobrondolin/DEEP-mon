@@ -40,12 +40,14 @@ RUN buildDeps='python python-pip wget curl apt-transport-https git bison build-e
 
 WORKDIR /home
 
-ADD bpf /home/bpf
-ADD userspace /home/userspace
+RUN mkdir /home/deep_mon
+ADD bpf /home/deep_mon/bpf
+ADD userspace /home/deep_mon/userspace
+ADD deep_mon.py /home/deep_mon/
 ADD setup.py /home
 
 #Install plugin dependencies
-RUN pip3 install . && rm -rf /home/bpf && rm -rf /home/userspace && rm setup.py
+RUN pip3 install . && rm -rf /home/deep_mon && rm setup.py
 
 # "-u" forces the binary I/O layers of stdout and stderr to be unbuffered and
 # is needed to avoid truncated output in Docker

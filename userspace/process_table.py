@@ -1,6 +1,6 @@
-from userspace.process_info import ProcessInfo
-from userspace.bpf_collector import BpfSample
-from userspace.container_info import ContainerInfo
+from .process_info import ProcessInfo
+from .bpf_collector import BpfSample
+from .container_info import ContainerInfo
 import os
 
 class ProcTable:

@@ -1,5 +1,5 @@
 import ctypes as ct
-from userspace.net_collector import TransactionData
+from .net_collector import TransactionData
 import json
 
 

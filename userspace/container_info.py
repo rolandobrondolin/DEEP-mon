@@ -1,8 +1,8 @@
 import json
 import time
-from userspace.net_collector import TransactionData
-from userspace.net_collector import TransactionType
-from userspace.net_collector import TransactionRole
+from .net_collector import TransactionData
+from .net_collector import TransactionType
+from .net_collector import TransactionRole
 import numpy as np
 from ddsketch.ddsketch import DDSketch
 

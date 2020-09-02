@@ -1,10 +1,10 @@
 from bcc import BPF, PerfType, PerfHWConfig, PerfSWConfig
-from userspace.proc_topology import BpfProcTopology
-from userspace.proc_topology import ProcTopology
-from userspace.process_info import BpfPidStatus
-from userspace.process_info import SocketProcessItem
-from userspace.process_info import ProcessInfo
-from userspace.sample_controller import SampleController
+from .proc_topology import BpfProcTopology
+from .proc_topology import ProcTopology
+from .process_info import BpfPidStatus
+from .process_info import SocketProcessItem
+from .process_info import ProcessInfo
+from .sample_controller import SampleController
 import ctypes as ct
 import json
 import multiprocessing

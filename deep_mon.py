@@ -5,9 +5,12 @@ try:
 except ImportError:
     from yaml import Loader
 
-from userspace.monitor_main import MonitorMain
-from userspace.curse import Curse
-
+if __name__ == '__main__':
+    from userspace.monitor_main import MonitorMain
+    from userspace.curse import Curse
+else:
+    from .userspace.monitor_main import MonitorMain
+    from .userspace.curse import Curse
 
 # Load config file with default values
 config = {}
@@ -16,8 +19,8 @@ try:
         config = yaml.load(config_file, Loader=yaml.FullLoader)
 except IOError:
     try:
-        with open('userspace/config.yaml', 'r') as config_file:
-            config = yaml.load(config_file, Loader=yaml.FullLoader)
+        with open('userspace/default_config.yaml', 'r') as default_config_file:
+            config = yaml.load(default_config_file, Loader=yaml.FullLoader)
     except IOError:
         print("Couldn't find a config file, check your path")
         config = {}
@@ -44,7 +47,6 @@ def main(kube_config, window_mode, output_format, debug_mode, net_monitor, nat_t
     if output_format == 'curses':
         curse = Curse(monitor, power_measure, net_monitor, memory_measure, disk_measure, file_measure)
         curse.start()
-    # Comment out the following elif to go back to the old console display mode
     elif output_format == 'console':
         monitor.monitor_loop()
 
