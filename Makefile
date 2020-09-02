@@ -9,27 +9,15 @@ help: ## This help.
 .DEFAULT_GOAL := help
 
 # DOCKER TASKS
-run-standalone: ## Run the standalone image, without snap and backend integration
-	sudo docker run -it --rm --privileged --name hyppo_monitor_standalone -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:rw -v /proc:/host/proc:ro --net host hyppo_monitor_standalone
+run: ## Run a standalone image with text UI
+	sudo docker run -it --rm --privileged --name deep-mon -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:rw -v /proc:/host/proc:ro -v ${PWD}/config.yaml:/home/config.yaml --net host deep-mon
 
-build-standalone: ## Build a standalone image, without snap and backend integration
-	sudo docker build . -f Dockerfile.standalone -t "hyppo_monitor_standalone"
+explore: ## Run a standalone image with bash to check stuff
+	sudo docker run -it --rm --privileged --name deep-mon -v /lib/modules:/lib/modules:ro -v /usr/src:/usr/src:ro -v /etc/localtime:/etc/localtime:ro -v /sys/kernel/debug:/sys/kernel/debug:rw -v /proc:/host/proc:ro -v ${PWD}/config.yaml:/home/config.yaml --net host deep-mon bash
 
-build-standalone-no-cache: ## Build a standalone image, without snap and backend integration
-	sudo docker build . -f Dockerfile.standalone -t "hyppo_monitor_standalone" --no-cache
 
-build-kube: ## Build DEEPmon and push it to GitLab Registry
-	sudo docker login registry.gitlab.com
-	sudo docker build -t registry.gitlab.com/projecthyppo/monitor .
-	sudo docker push registry.gitlab.com/projecthyppo/monitor
+build: ## Build a standalone image
+	sudo docker build . -t "deep-mon"
 
-build-kube-no-cache:
-	sudo docker login registry.gitlab.com
-	sudo docker build -t registry.gitlab.com/projecthyppo/monitor . --no-cache
-	sudo docker push registry.gitlab.com/projecthyppo/monitor
-
-run-kube: ## Run DEEPmon in Kubernetes as a DaemonSet
-	kubectl apply -f hyppo-monitor-daemonset.yaml
-
-stop-kube: ## Stop DEEPmon DaemonSet
-	kubectl delete -f hyppo-monitor-daemonset.yaml
+build-no-cache: ## Build a standalone image without cache
+	sudo docker build . -t "deep-mon" --no-cache

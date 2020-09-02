@@ -1,5 +1,4 @@
 import ctypes as ct
-import snap_plugin.v1 as snap
 from hyppo_monitor.net_collector import TransactionData
 import json
 
@@ -209,39 +208,3 @@ class ProcessInfo:
             str_rep = str_rep + " " + str(socket_item)
 
         return str_rep
-
-    def _get_perf_summary(self, request_time, snap_namespace):
-        perf_summary = {
-            "cycles": {"value": self.get_cycles(), "strategy": "sum", "type": "int64"},
-            "weighted_cycles": {"value": self.get_aggregated_weighted_cycles(), "strategy": "sum", "type": "int64"},
-            "instructions": {"value": self.get_instruction_retired(), "strategy": "sum", "type": "int64"},
-            "cache_misses": {"value": self.get_cache_misses(), "strategy": "sum", "type": "int64"},
-            "cache_refs": {"value": self.get_cache_refs(), "strategy": "sum", "type": "int64"},
-            "power": {"value": self.get_power(), "strategy": "sum", "type": "double"},
-            "time_ns": {"value": self.get_time_ns(), "strategy": "sum", "type": "int64"},
-            "cpu": {"value": self.get_cpu_usage(), "strategy": "sum", "type": "double"}
-        }
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="Performance summary",
-            data=json.dumps(perf_summary),
-            timestamp=request_time
-        )
-        return metric
-
-    def to_snap(self, request_time, user_id, hostname):
-        metrics_to_be_returned = []
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="thread"),
-            snap.NamespaceElement(value=str(self.container_id)),
-            snap.NamespaceElement(value=str(self.pid)),
-            snap.NamespaceElement(value="perf_summary")
-        ]
-        metrics_to_be_returned.append(self._get_perf_summary(request_time, namespace))
-        return metrics_to_be_returned

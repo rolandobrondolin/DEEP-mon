@@ -8,7 +8,6 @@ from hyppo_monitor.disk_collector import DiskCollector
 from hyppo_monitor.rapl import rapl
 import os
 import socket
-import snap_plugin.v1 as snap
 import time
 import yaml
 try:
@@ -161,61 +160,6 @@ class MonitorMain():
             else:
                 time_to_sleep = 1 / self.frequency - (time.time() - start_time)
 
-    def snap_monitor_loop(self):
-        if self.window_mode == 'dynamic':
-            time_to_sleep = self.sample_controller.get_sleep_time()
-        else:
-            time_to_sleep = 1 / self.frequency
-
-        user_id = "not_registered"
-        while True:
-            metrics_to_stream = []
-
-            if time_to_sleep > 0:
-                time.sleep(time_to_sleep)
-            start_time = time.time()
-
-            sample_array = self.get_sample()
-            sample = sample_array[0]
-            container_list = sample_array[1]
-            proc_dict = sample_array[2]
-
-            hostname = socket.gethostname()
-
-            #add general metrics
-            metrics_to_stream.extend(sample.to_snap(start_time, user_id, hostname))
-
-            #here wrap up things to match snap format
-            for key, value in container_list.items():
-                metrics_to_stream.extend(value.to_snap(start_time, user_id, hostname))
-
-            #add threads from proc_table
-            #for key, value in proc_dict.items():
-            #    metrics_to_stream.extend(value.to_snap(start_time, user_id, hostname))
-
-            # put timestamp
-            metric = snap.Metric(
-                namespace=[
-                    snap.NamespaceElement(value="hyppo"),
-                    snap.NamespaceElement(value="hyppo-monitor"),
-                    snap.NamespaceElement(value=user_id),
-                    snap.NamespaceElement(value=hostname),
-                    snap.NamespaceElement(value="ts"),
-                ],
-                version=1,
-                description="timestamp",
-                data=int(start_time),
-                timestamp=start_time
-            )
-            metrics_to_stream.append(metric)
-
-            if self.window_mode == 'dynamic':
-                time_to_sleep = self.sample_controller.get_sleep_time() \
-                    - (time.time() - start_time)
-            else:
-                time_to_sleep = 1 / self.frequency
-
-            # print(str(time_to_sleep) + "," + str(self.sample_controller.get_sleep_time()) + "," + str(sample.get_sched_switch_count()))
 if __name__ == "__main__":
     monitor = MonitorMain("console", "fixed", False, True, False, False, True, True, False, False, False)
     monitor.monitor_loop()

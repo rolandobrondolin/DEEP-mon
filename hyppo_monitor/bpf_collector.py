@@ -5,7 +5,6 @@ from hyppo_monitor.process_info import BpfPidStatus
 from hyppo_monitor.process_info import SocketProcessItem
 from hyppo_monitor.process_info import ProcessInfo
 from hyppo_monitor.sample_controller import SampleController
-import snap_plugin.v1 as snap
 import ctypes as ct
 import json
 import multiprocessing
@@ -105,39 +104,6 @@ class BpfSample:
              "TOTAL DRAM ACTIVE POWER": str(self.total_active_power["dram"])
              }
         return json.dumps(d, indent=4)
-
-
-    def _get_summary(self, request_time, snap_namespace):
-        perf_summary = {
-            "execution_time": {"value": self.total_execution_time, "strategy": "sum", "type": "int64"},
-            "switch_count": {"value": self.sched_switch_count, "strategy": "sum", "type": "int64"},
-            "timeslice": {"value": self.timeslice, "strategy": "sum", "type": "int64"},
-            "package_power": {"value": self.total_active_power["package"], "strategy": "sum", "type": "int64"},
-            "core_power": {"value": self.total_active_power["core"], "strategy": "sum", "type": "int64"},
-            "dram_power": {"value": self.total_active_power["dram"], "strategy": "sum", "type": "int64"},
-            "cpu_cores": {"value": self.cpu_cores, "strategy": "sum", "type": "int64"}
-        }
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="Performance summary",
-            data=json.dumps(perf_summary),
-            timestamp=request_time
-        )
-        return metric
-
-    def to_snap(self, request_time, user_id, hostname):
-        metrics_to_be_returned = []
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="host"),
-            snap.NamespaceElement(value="summary"),
-        ]
-        metrics_to_be_returned.append(self._get_summary(request_time, namespace))
-        return metrics_to_be_returned
 
 
 class ErrorCode(ct.Structure):

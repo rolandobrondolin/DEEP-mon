@@ -1,47 +1,52 @@
-FROM hyppo_monitor_standalone:latest
+FROM ubuntu:18.04
 LABEL maintainer="Rolando Brondolin"
 
+RUN apt-get clean && apt-get update && apt-get install -y python3 python3-pip locales locales-all libelf1
+RUN pip3 install numpy
 
-RUN buildDeps='wget curl apt-transport-https' \
-  && apt-get clean && apt-get update && apt-get install -y $buildDeps \
-  && wget https://dl.google.com/go/go1.13.3.linux-amd64.tar.gz \
-  && tar -xvf go1.13.3.linux-amd64.tar.gz \
-  && mv go /usr/local \
-  && rm go1.13.3.linux-amd64.tar.gz \
-  && apt-get purge -y --auto-remove $buildDeps
 
-ENV GOPATH /go
-ENV PATH /go/bin:/usr/local/go/bin:$PATH
+#Needed by Curse to print unicode characters to the terminal
+ENV LC_ALL en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US.UTF-8
 
-RUN buildDeps='git make' \
-  && apt-get clean && apt-get update && apt-get install -y $buildDeps \
-  && go get -d github.com/intelsdi-x/snap \
-  && cd $GOPATH/src/github.com/intelsdi-x/snap \
+#install bcc, our mod of kubernetes client, and ddsketch
+
+RUN buildDeps='python python-pip wget curl apt-transport-https git bison build-essential cmake flex libedit-dev libllvm6.0 llvm-6.0-dev libclang-6.0-dev zlib1g-dev libelf-dev' \
+  && apt-get update && apt-get install -y $buildDeps \
+  && git clone https://github.com/iovisor/bcc.git \
+  && mkdir bcc/build \
+  && cd bcc/build \
+  && cmake .. \
   && make \
   && make install \
-  && rm -r $GOPATH/src/github.com/intelsdi-x/snap \
+  && cmake -DPYTHON_CMD=python3 .. \
+  && cd src/python/ \
+  && make \
+  && make install \
+  && cd / \
+  && rm -r bcc \
+  && git clone --recursive https://gitlab.com/projecthyppo/kubernetes-client-python.git \
+  && cd kubernetes-client-python \
+  && pip3 install . \
+  && cd / \
+  && rm -r kubernetes-client-python \
+  && git clone https://github.com/DataDog/sketches-py.git \
+  && cd sketches-py \
+  && python3 setup.py install \
+  && cd / \
+  && rm -r sketches-py \
   && apt-get purge -y --auto-remove $buildDeps
-
-# trick snapteld into using python 3 instead of python 2
-RUN ln -s /usr/bin/python3 /usr/bin/python
-
-
-RUN mkdir /opt/snap && mkdir /opt/snap/plugins && mkdir /opt/snap/tasks
 
 WORKDIR /home
 
-ADD snapteld.conf /home
+ADD hyppo_monitor /home/hyppo_monitor
+ADD setup.py /home
 
+#Install plugin dependencies
+RUN pip3 install . && rm -rf /home/hyppo_monitor && rm setup.py
 
-#Copy plugins and tasks
-COPY snap/plugins/hyppo_monitor_plugin/hyppo_monitor_plugin.py /opt/snap/plugins
-COPY snap/plugins/hyppo_publisher_plugin/hyppo_publisher_plugin.py /opt/snap/plugins
-COPY snap/plugins/snap_plugin_collector_container_namer/snap_plugin_collector_container_namer.py /opt/snap/plugins
-COPY snap/plugins/snap_plugin_publisher_kubernetes/snap_plugin_publisher_kubernetes.py /opt/snap/plugins
-
-COPY snap_task/distributed_w_http/hyppo-container-namer-http.json /opt/snap/tasks
-COPY snap_task/distributed_w_http/hyppo-monitor-http.json /opt/snap/tasks
-
-RUN chmod 777 /opt/snap/plugins/*
-
-CMD ["snapteld", "--log-level", "2", "--plugin-trust", "0", "--config", "/home/snapteld.conf"]
+# "-u" forces the binary I/O layers of stdout and stderr to be unbuffered and
+# is needed to avoid truncated output in Docker
+ENV PYTHONUNBUFFERED="on"
+CMD ["cli"]

@@ -1,0 +1,14 @@
+kube_config:                      "~/.kube/config"
+window_mode:                      "fixed"
+output_format:                    "curses"
+customer_id:                      "not_registered"
+debug_mode:                       False
+send_thread_data:                 False
+net_monitor:                      True
+nat_trace:                        False
+print_net_details:                False
+dynamic_tcp_client_port_masking:  True
+power_measure:                    True
+memory_measure:                   True
+disk_measure:                     True
+file_measure:                     True

@@ -1,6 +1,5 @@
 from bcc import BPF
 import os
-import snap_plugin.v1 as snap
 import json
 
 prog = """
@@ -159,7 +158,7 @@ class DiskCollector:
         file_name = file_name.decode("utf-8")
         file_parent = file_parent.decode("utf-8")
         file_parent2 = file_parent2.decode("utf-8")
-        
+
         if (file_parent == "/"):
             if (file_name in self.proc_files or file_name.isdigit()):
                 return False
@@ -311,35 +310,3 @@ class FileInfo:
 
     def set_num_w(self, numw):
         self.num_w = numw
-
-    def _get_file_summary(self, request_time, snap_namespace):
-        file_summary = {
-            "file_kb_r": {"value": self.get_kb_r(), "strategy": "sum", "type": "int64"},
-            "file_kb_w": {"value": self.get_kb_w(), "strategy": "sum", "type": "int64"},
-            "file_num_r": {"value": self.get_num_r(), "strategy": "sum", "type": "int64"},
-            "file_num_w": {"value": self.get_num_w(), "strategy": "sum", "type": "int64"},
-        }
-        metric = snap.Metric(
-            namespace=snap_namespace,
-            version=1,
-            description="File summary",
-            data=json.dumps(file_summary),
-            timestamp=request_time
-        )
-        return metric
-
-    def to_snap(self, request_time, user_id, hostname):
-        metrics_to_be_returned = []
-
-        namespace=[
-            snap.NamespaceElement(value="hyppo"),
-            snap.NamespaceElement(value="hyppo-monitor"),
-            snap.NamespaceElement(value=user_id),
-            snap.NamespaceElement(value=hostname),
-            snap.NamespaceElement(value="file"),
-            snap.NamespaceElement(value=str(self.file_path)),
-	    snap.NamespaceElement(value=str(self.file_id)),
-            snap.NamespaceElement(value="file_summary")
-        ]
-        metrics_to_be_returned.append(self._get_file_summary(request_time, namespace))
-        return metrics_to_be_returned
