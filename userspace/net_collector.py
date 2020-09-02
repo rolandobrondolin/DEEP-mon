@@ -315,7 +315,7 @@ class NetCollector:
 
     def start_capture(self):
         bpf_code_path = os.path.dirname(os.path.abspath(__file__)) \
-                        + "/bpf/tcp_monitor.c"
+                        + "/../bpf/tcp_monitor.c"
 
         cflags = ["-DLATENCY_SAMPLES=%d" % self.latency_index_max, \
                     "-DLATENCY_BUCKET_SIZE=%d" % self.latency_bucket_size, \

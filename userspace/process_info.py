@@ -1,5 +1,5 @@
 import ctypes as ct
-from hyppo_monitor.net_collector import TransactionData
+from userspace.net_collector import TransactionData
 import json
 
 

@@ -55,7 +55,7 @@ based on average tasks duration)
 or `snap` (for Snap deployments)
 
 Parameters can be set in two different ways. In both deployment modes you can
-use the file `hyppo_monitor/config.yaml` to set them. If you are doing a
+use the file `config.yaml` to set them. If you are doing a
 standalone deployment you can pass the parameters as flags to `cli.py`. Parameters
 that are not passed as flags will get their default value from the config file.
 Have a look to `CMD` in `Dockerfile.standalone` for an example. Run `cli.py -h` to

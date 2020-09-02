@@ -1,8 +1,8 @@
 import json
 import time
-from hyppo_monitor.net_collector import TransactionData
-from hyppo_monitor.net_collector import TransactionType
-from hyppo_monitor.net_collector import TransactionRole
+from userspace.net_collector import TransactionData
+from userspace.net_collector import TransactionType
+from userspace.net_collector import TransactionRole
 import numpy as np
 from ddsketch.ddsketch import DDSketch
 

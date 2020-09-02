@@ -40,13 +40,14 @@ RUN buildDeps='python python-pip wget curl apt-transport-https git bison build-e
 
 WORKDIR /home
 
-ADD hyppo_monitor /home/hyppo_monitor
+ADD bpf /home/bpf
+ADD userspace /home/userspace
 ADD setup.py /home
 
 #Install plugin dependencies
-RUN pip3 install . && rm -rf /home/hyppo_monitor && rm setup.py
+RUN pip3 install . && rm -rf /home/bpf && rm -rf /home/userspace && rm setup.py
 
 # "-u" forces the binary I/O layers of stdout and stderr to be unbuffered and
 # is needed to avoid truncated output in Docker
 ENV PYTHONUNBUFFERED="on"
-CMD ["cli"]
+CMD ["deep-mon"]

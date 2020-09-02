@@ -1,10 +1,10 @@
 from bcc import BPF, PerfType, PerfHWConfig, PerfSWConfig
-from hyppo_monitor.proc_topology import BpfProcTopology
-from hyppo_monitor.proc_topology import ProcTopology
-from hyppo_monitor.process_info import BpfPidStatus
-from hyppo_monitor.process_info import SocketProcessItem
-from hyppo_monitor.process_info import ProcessInfo
-from hyppo_monitor.sample_controller import SampleController
+from userspace.proc_topology import BpfProcTopology
+from userspace.proc_topology import ProcTopology
+from userspace.process_info import BpfPidStatus
+from userspace.process_info import SocketProcessItem
+from userspace.process_info import ProcessInfo
+from userspace.sample_controller import SampleController
 import ctypes as ct
 import json
 import multiprocessing
@@ -126,7 +126,7 @@ class BpfCollector:
         self.debug = debug
         self.power_measure = power_measure
         bpf_code_path = os.path.dirname(os.path.abspath(__file__)) \
-                        + "/bpf/bpf_monitor.c"
+                        + "/../bpf/bpf_monitor.c"
         if debug is False:
             if self.power_measure == True:
                 self.bpf_program = BPF(src_file=bpf_code_path, \

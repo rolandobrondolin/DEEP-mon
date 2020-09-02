@@ -1,11 +1,11 @@
-from hyppo_monitor.bpf_collector import BpfCollector
-from hyppo_monitor.proc_topology import ProcTopology
-from hyppo_monitor.sample_controller import SampleController
-from hyppo_monitor.process_table import ProcTable
-from hyppo_monitor.net_collector import NetCollector
-from hyppo_monitor.mem_collector import MemCollector
-from hyppo_monitor.disk_collector import DiskCollector
-from hyppo_monitor.rapl import rapl
+from userspace.bpf_collector import BpfCollector
+from userspace.proc_topology import ProcTopology
+from userspace.sample_controller import SampleController
+from userspace.process_table import ProcTable
+from userspace.net_collector import NetCollector
+from userspace.mem_collector import MemCollector
+from userspace.disk_collector import DiskCollector
+from userspace.rapl import rapl
 import os
 import socket
 import time
