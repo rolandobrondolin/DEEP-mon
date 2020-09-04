@@ -38,7 +38,7 @@ class Curse:
     def title_line(self, cx):
         title_win = curses.newwin(1,cx,0,0)
 
-        title_str = "HYPPO Standalone Monitor"
+        title_str = "DEEP-mon"
         title_win.bkgd(" ", curses.color_pair(9))
         title_win.addstr(0,int(cx/2-len(title_str)/2), title_str,  curses.color_pair(9))
 
