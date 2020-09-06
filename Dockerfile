@@ -1,8 +1,11 @@
 FROM ubuntu:18.04
 LABEL maintainer="Rolando Brondolin"
 
-RUN apt-get clean && apt-get update && apt-get install -y python3 python3-pip locales locales-all libelf1
-RUN pip3 install numpy
+RUN apt-get clean && apt-get update \
+  && apt-get install -y python3 python3-pip locales locales-all libelf1 \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --upgrade pip && pip3 install numpy
 
 
 #Needed by Curse to print unicode characters to the terminal
@@ -36,7 +39,8 @@ RUN buildDeps='python python-pip wget curl apt-transport-https git bison build-e
   && python3 setup.py install \
   && cd / \
   && rm -r sketches-py \
-  && apt-get purge -y --auto-remove $buildDeps
+  && apt-get purge -y --auto-remove $buildDeps \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home
 
