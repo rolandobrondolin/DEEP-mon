@@ -5,7 +5,7 @@ RUN apt-get clean && apt-get update \
   && apt-get install -y python3 python3-pip locales locales-all libelf1 \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --upgrade pip && pip3 install numpy
+RUN pip3 install --upgrade pip && pip3 install numpy pyyaml
 
 
 #Needed by Curse to print unicode characters to the terminal
@@ -13,7 +13,7 @@ ENV LC_ALL en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US.UTF-8
 
-#install bcc, our mod of kubernetes client, and ddsketch
+#install bcc and ddsketch
 
 RUN buildDeps='python python-pip wget curl apt-transport-https git bison build-essential cmake flex libedit-dev libllvm6.0 llvm-6.0-dev libclang-6.0-dev zlib1g-dev libelf-dev' \
   && apt-get update && apt-get install -y $buildDeps \
@@ -29,11 +29,6 @@ RUN buildDeps='python python-pip wget curl apt-transport-https git bison build-e
   && make install \
   && cd / \
   && rm -r bcc \
-  && git clone --recursive https://gitlab.com/projecthyppo/kubernetes-client-python.git \
-  && cd kubernetes-client-python \
-  && pip3 install . \
-  && cd / \
-  && rm -r kubernetes-client-python \
   && git clone https://github.com/DataDog/sketches-py.git \
   && cd sketches-py \
   && python3 setup.py install \
