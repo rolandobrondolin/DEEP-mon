@@ -44,10 +44,24 @@ Contribution is welcome!
 * Create a pull request containing bug fixes or new features.
 * [Propose](https://github.com/necst/DEEP-mon/issues/new) new functions, improvements, better documentation
 
+## DEEP-mon roadmap:
+* fix performance issue with memory metrics
+* experimental measurement tool -> record stuff, single machine + distributed
+* frequency sampling
+* improve parameter injection
+* set attribution ratio in config
+* improve curse UI
+* documentation (code + md files)
+* tests
+* add docker image, docker name in curse UI (e.g. readable docker data)
+* add k8s pod name, deployments, services (e.g. readable k8s data)
+* one UI per cluster (daemonset), server w/data, cli
+* web UI
+
 ## Research
 
 As we said at the beginning, this work comes form the research conducted at [NECSTLab](https://necst.it). If you use this tool for your research, please cite the following papers:
 
-* Brondolin, Rolando, Tommaso Sardelli, and Marco D. Santambrogio. "Deep-mon: Dynamic and energy efficient power monitoring for container-based infrastructures." 2018 IEEE International Parallel and Distributed Processing Symposium Workshops (IPDPSW). IEEE, 2018.
+* Brondolin, Rolando, Tommaso Sardelli, and Marco D. Santambrogio. "Deep-mon: Dynamic and energy efficient power monitoring for container-based infrastructures." 2018 IEEE International Parallel and Distributed Processing Symposium Workshops (IPDPSW). IEEE, 2018. (download [here](https://ieeexplore.ieee.org/abstract/document/8425477))
 
-* Brondolin, Rolando, and Marco D. Santambrogio. "A black-box monitoring approach to measure microservices run-time performance." ACM Transactions on Architecture and Code Optimization (TACO)
+* Brondolin, Rolando, and Marco D. Santambrogio. "A black-box monitoring approach to measure microservices run-time performance." ACM Transactions on Architecture and Code Optimization (TACO). (Accepted to appear, paper will be available soon)
