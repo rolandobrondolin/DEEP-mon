@@ -2,11 +2,13 @@ from .process_info import ProcessInfo
 from .bpf_collector import BpfSample
 from .container_info import ContainerInfo
 import os
+import docker
 
 class ProcTable:
 
     def __init__(self):
         self.proc_table = {}
+        self.docker_client = docker.from_env()
 
     # remove processes that did not receive updates in the last 8 seconds
     def reset_metrics_and_evict_stale_processes(self, ts):
@@ -113,6 +115,14 @@ class ProcTable:
             if value.container_id != "":
                 if value.container_id not in container_dict:
                     container_dict[value.container_id] = ContainerInfo(value.container_id)
+
+                    if value.container_id not in ["---others---", "----idle----"]:
+                        #retrieve info from docker
+                        container = self.docker_client.containers.get(value.container_id)
+                        container_dict[value.container_id].set_container_name(str(container.name))
+                        container_dict[value.container_id].set_container_image(str(container.image))
+                        container_dict[value.container_id].set_container_labels(container.labels)
+
                 container_dict[value.container_id].add_cycles(value.get_cycles())
                 container_dict[value.container_id].add_weighted_cycles(value.get_aggregated_weighted_cycles())
                 container_dict[value.container_id].add_instructions(value.get_instruction_retired())

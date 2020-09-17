@@ -22,6 +22,10 @@ class ContainerInfo:
 
     def __init__(self, container_id):
         self.container_id = container_id
+        self.container_name = None
+        self.container_image = None
+        self.container_labels = None
+
         self.cycles = 0
         self.weighted_cycles = 0
         self.instruction_retired = 0
@@ -110,6 +114,15 @@ class ContainerInfo:
 
     def add_nat_rules(self, nat_list):
         self.nat_rules.extend(nat_list)
+
+    def set_container_name(self, container_name):
+        self.container_name = container_name
+
+    def set_container_image(self, container_image):
+        self.container_image = container_image
+
+    def set_container_labels(self, container_labels):
+        self.container_labels = container_labels
 
     def set_mem_RSS(self, rss):
         self.mem_RSS = rss
@@ -230,6 +243,15 @@ class ContainerInfo:
     def set_last_ts(self, ts):
         if(self.timestamp < ts):
             self.timestamp = ts
+
+    def get_container_name(self):
+        return self.container_name
+
+    def get_container_image(self):
+        return self.container_image
+
+    def get_container_labels(self):
+        return self.container_labels
 
     def get_cycles(self):
         return self.cycles

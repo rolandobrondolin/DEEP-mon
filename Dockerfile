@@ -5,7 +5,7 @@ RUN apt-get clean && apt-get update \
   && apt-get install -y python3 python3-pip locales locales-all libelf1 \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --upgrade pip && pip3 install numpy pyyaml
+RUN pip3 install --upgrade pip && pip3 install numpy pyyaml docker
 
 
 #Needed by Curse to print unicode characters to the terminal

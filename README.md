@@ -53,7 +53,6 @@ Contribution is welcome!
 * improve curse UI
 * documentation (code + md files)
 * tests
-* add docker image, docker name in curse UI (e.g. readable docker data)
 * add k8s pod name, deployments, services (e.g. readable k8s data)
 * one UI per cluster (daemonset), server w/data, cli
 * web UI
