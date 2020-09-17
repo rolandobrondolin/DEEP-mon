@@ -35,7 +35,7 @@ Please make sure that the same problem wasn't reported already.
 
 ## Documentation
 
-A clear documentation is a work in progress effort. If you want to contribute, feel free to create an [issue](https://github.com/necst/DEEP-mon/issues).
+A clear documentation is currently work in progress. If you want to contribute, feel free to create a pull request or open an issue.
 
 ## Contributing
 
