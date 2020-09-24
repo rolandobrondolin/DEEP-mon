@@ -1,6 +1,6 @@
 # DEEP-mon
 
-Dynamic and Energy Efficient Power monitor (DEEP-mon) is an eBPF based monitoring tool to measure power consumption and performance of Docker containers. DEEP-mon started in 2017 as a research project of [NECSTLab](https://necst.it) at Politecnico di Milano with the goal of being able to measure the power consumption of each container running in a given host. The project then expanded and now DEEP-mon is able to measure power consumtion, performance counters, CPU usage, Memory usage, Network I/O, and File I/O, all displayed in a nice curses UI terminal window.
+Dynamic and Energy Efficient Power monitor (DEEP-mon) is an eBPF based monitoring tool to measure power consumption and performance of Docker containers. DEEP-mon started in 2017 as a research project of [NECSTLab](https://necst.it) at Politecnico di Milano with the goal of being able to measure the power consumption of each container running in a given host. The project then expanded and now DEEP-mon is able to measure power consumption, performance counters, CPU usage, Memory usage, Network I/O, and File I/O, all displayed in a nice curses UI terminal window.
 
 ## Getting started
 
@@ -32,10 +32,6 @@ make run
 
 For bug reports, documentation typos or feature requests feel free to create an [issue](https://github.com/necst/DEEP-mon/issues).  
 Please make sure that the same problem wasn't reported already.
-
-## Documentation
-
-A clear documentation is currently work in progress. If you want to contribute, feel free to create a pull request or open an issue.
 
 ## Contributing
 
