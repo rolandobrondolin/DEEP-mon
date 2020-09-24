@@ -12,7 +12,9 @@ DEEP-mon currently runs on Docker and it is almost self contained. Requirements 
 - kernel headers
 - make
 - docker
-- intel_rapl module (for power consumption stuff)
+- intel_rapl module (for power consumption on Intel&reg; processors)
+
+We tested DEEP-mon on Ubuntu 16.04 and 18.04. The power attribution feature of DEEP-mon targets the SMT capability of Intel&reg; Sandy bridge and Ivy bridge server class processors. For other architectures a new attribution factor should be tested and used (more details [here](https://ieeexplore.ieee.org/abstract/document/8425477) and [here](https://www.usenix.org/conference/atc14/technical-sessions/presentation/zhai)).
 
 ### Build and Run
 
