@@ -1,7 +1,5 @@
-kube_config:                      "~/.kube/config"
 window_mode:                      "fixed"
 output_format:                    "curses"
-customer_id:                      "not_registered"
 debug_mode:                       False
 send_thread_data:                 False
 net_monitor:                      True

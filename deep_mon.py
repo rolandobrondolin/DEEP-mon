@@ -30,7 +30,6 @@ CONTEXT_SETTINGS = dict(
 )
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option('--kube-config', '-c')
 @click.option('--window-mode', '-w')
 @click.option('--output-format', '-o')
 @click.option('--debug-mode', '-d')
@@ -42,7 +41,7 @@ CONTEXT_SETTINGS = dict(
 @click.option('--memory_measure')
 @click.option('--disk_measure')
 @click.option('--file_measure')
-def main(kube_config, window_mode, output_format, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure, memory_measure, disk_measure, file_measure):
+def main(window_mode, output_format, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure, memory_measure, disk_measure, file_measure):
     monitor = MonitorMain(output_format, window_mode, debug_mode, net_monitor, nat_trace, print_net_details, dynamic_tcp_client_port_masking, power_measure, memory_measure, disk_measure, file_measure)
     if output_format == 'curses':
         curse = Curse(monitor, power_measure, net_monitor, memory_measure, disk_measure, file_measure)
