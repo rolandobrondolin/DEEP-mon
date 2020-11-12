@@ -61,4 +61,5 @@ As we said at the beginning, this work comes form the research conducted at [NEC
 
 * Brondolin, Rolando, Tommaso Sardelli, and Marco D. Santambrogio. "Deep-mon: Dynamic and energy efficient power monitoring for container-based infrastructures." 2018 IEEE International Parallel and Distributed Processing Symposium Workshops (IPDPSW). IEEE, 2018. (download [here](https://ieeexplore.ieee.org/abstract/document/8425477))
 
-* Brondolin, Rolando, and Marco D. Santambrogio. "A black-box monitoring approach to measure microservices run-time performance." ACM Transactions on Architecture and Code Optimization (TACO). (Accepted to appear, paper will be available soon)
+* Rolando Brondolin and Marco D Santambrogio. "A black-box monitoring approach to measure microservices runtime performance." ACM Transactions on Architecture and Code Optimization (TACO), 17(4):1-26, 2020. (download [here](https://doi.org/10.1145/3418899))
+
