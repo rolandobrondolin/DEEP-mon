@@ -122,8 +122,10 @@ class ProcessInfo:
         self.time_ns = time_ns
 
     def compute_cpu_usage_millis(self, total_execution_time_millis, total_cores):
-        self.cpu_usage = float((self.time_ns/1000000) \
-            / total_execution_time_millis * total_cores * 100) # percentage moved to other percentage
+        self.cpu_usage = 0
+        if total_execution_time_millis != 0:
+            self.cpu_usage = float((self.time_ns/1000000) \
+                / total_execution_time_millis * total_cores * 100) # percentage moved to other percentage
 
     def set_socket_data_array(self, socket_data_array):
         self.socket_data = socket_data_array
