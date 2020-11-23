@@ -254,7 +254,7 @@ class ContainerInfo:
     def compute_container_percentiles(self, latency_sketch):
         out = []
         for p in self.pct:
-            out.append(latency_sketch.quantile(p/100))
+            out.append(latency_sketch.get_quantile_value(p/100))
         return out
 
     def set_timestamp(self, ts):

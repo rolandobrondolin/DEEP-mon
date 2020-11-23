@@ -116,13 +116,13 @@ class TransactionData:
         self.samples = latency_sketch
         self.avg = float(total_time) / float(transaction_count * 1000000)
 
-        self.p50 = latency_sketch.quantile(0.5)
-        self.p75 = latency_sketch.quantile(0.75)
-        self.p90 = latency_sketch.quantile(0.9)
-        self.p99 = latency_sketch.quantile(0.99)
-        self.p99_9 = latency_sketch.quantile(0.999)
-        self.p99_99 = latency_sketch.quantile(0.9999)
-        self.p99_999 = latency_sketch.quantile(0.99999)
+        self.p50 = latency_sketch.get_quantile_value(0.5)
+        self.p75 = latency_sketch.get_quantile_value(0.75)
+        self.p90 = latency_sketch.get_quantile_value(0.9)
+        self.p99 = latency_sketch.get_quantile_value(0.99)
+        self.p99_9 = latency_sketch.get_quantile_value(0.999)
+        self.p99_99 = latency_sketch.get_quantile_value(0.9999)
+        self.p99_999 = latency_sketch.get_quantile_value(0.99999)
 
     def load_http_path(self, path):
         self.http_path = path
