@@ -7,6 +7,6 @@ nat_trace:                        False
 print_net_details:                False
 dynamic_tcp_client_port_masking:  True
 power_measure:                    True
-memory_measure:                   True
+memory_measure:                   False
 disk_measure:                     True
 file_measure:                     True
